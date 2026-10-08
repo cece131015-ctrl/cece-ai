@@ -566,6 +566,263 @@ prueba("el código con nombre de archivo se apunta con una ruta limpia", async (
   await ctx.close();
 });
 
+prueba("Motor Astra (API Responses): texto, fuentes y tokens", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-astra" } },
+    ia: {
+      "api.openai.com/v1/responses": () => ({
+        cuerpo: sse([
+          { type: "response.output_item.added", item: { type: "web_search_call" } },
+          { type: "response.output_text.delta", delta: "Según la web, " },
+          { type: "response.output_text.delta", delta: "hoy hace sol." },
+          { type: "response.output_text.annotation.added", annotation: { url: "https://tiempo.example/hoy", title: "El tiempo" } },
+          { type: "response.completed", response: { usage: { input_tokens: 50, output_tokens: 7 }, output: [] } },
+        ]),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "¿qué tiempo hace?");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Según la web, hoy hace sol\./.test(r.texto), r.texto);
+  cierto(/El tiempo/.test(r.texto) && r.html.includes('href="https://tiempo.example/hoy"'), "sin fuentes");
+  cierto(/7 tokens/.test(r.pie) && /Motor Astra/.test(r.pie), r.pie);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Motor Argon (Gemini): texto, razonamiento y código ejecutado", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ argon: "AIza-prueba" }), {
+    almacen: { cece_ajustes: { modelo: "cece-argon" } },
+    ia: {
+      "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-argon" }] }) }),
+      ":streamGenerateContent": () => ({
+        cuerpo: sse([
+          { candidates: [{ content: { parts: [{ text: "Pienso…", thought: true }] } }] },
+          { candidates: [{ content: { parts: [{ executableCode: { language: "PYTHON", code: "print(6*7)" } }] } }] },
+          { candidates: [{ content: { parts: [{ codeExecutionResult: { outcome: "OUTCOME_OK", output: "42\n" } }] } }] },
+          {
+            candidates: [{ content: { parts: [{ text: "El resultado es **42**." }] }, finishReason: "STOP" }],
+            usageMetadata: { promptTokenCount: 9, candidatesTokenCount: 5 },
+          },
+        ]),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "/codigo 6*7");
+  const r = await ultimaRespuesta(pagina);
+  cierto(r.html.includes("<strong>42</strong>"), r.texto);
+  cierto(/Código ejecutado/.test(r.texto) && r.html.includes("print(6*7)"), "sin bloque de código ejecutado");
+  cierto(/Motor Argon/.test(r.pie), r.pie);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Motor Max busca en internet con sus herramientas (dos vueltas)", async (nav) => {
+  let vuelta = 0;
+  const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-max" } },
+    ia: {
+      "/tools/search": () => ({
+        tipo: "application/json",
+        cuerpo: JSON.stringify({ search_results: [{ title: "Noticia", url: "https://noticias.example/1", snippet: "Pasó algo." }] }),
+      }),
+      "api.moonshot.ai/v1/chat/completions": () =>
+        ++vuelta === 1
+          ? {
+              cuerpo: sse([
+                {
+                  choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "buscar_web", arguments: "" } }] } }],
+                },
+                { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '{"consulta":"noticias"}' } }] } }] },
+                { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
+                "data: [DONE]\n\n",
+              ]),
+            }
+          : { cuerpo: respuestaOpenAI("Hoy pasó algo, según Noticia.") },
+    },
+  });
+  await escribirYEnviar(pagina, "/buscar noticias de hoy");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Hoy pasó algo/.test(r.texto), r.texto);
+  cierto(r.html.includes('href="https://noticias.example/1"'), "sin la fuente");
+  const segunda = peticiones.filter((p) => p.url.includes("/chat/completions"))[1];
+  cierto(
+    segunda && segunda.cuerpo.messages.some((m) => m.role === "tool" && /Pasó algo/.test(m.content)),
+    "no devolvió el resultado de la búsqueda",
+  );
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Motor Enterprise: sigue tras «pause_turn» (pausa en mitad de una búsqueda)", async (nav) => {
+  let vuelta = 0;
+  const cuerpos = [];
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-enterprise-plus" } },
+    ia: {
+      "api.anthropic.com": ({ cuerpo }) => (
+        cuerpos.push(cuerpo),
+        ++vuelta === 1
+          ? {
+              cuerpo: sse([
+                { type: "message_start", message: { usage: { input_tokens: 5 } } },
+                { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+                { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Lo busco." } },
+                { type: "content_block_stop", index: 0 },
+                {
+                  type: "content_block_start",
+                  index: 1,
+                  content_block: { type: "server_tool_use", id: "s1", name: "web_search", input: {} },
+                },
+                { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"query":"hoy"}' } },
+                { type: "content_block_stop", index: 1 },
+                { type: "message_delta", delta: { stop_reason: "pause_turn" }, usage: { output_tokens: 3 } },
+              ]),
+            }
+          : {
+              cuerpo: sse([
+                { type: "message_start", message: { usage: { input_tokens: 9 } } },
+                {
+                  type: "content_block_start",
+                  index: 0,
+                  content_block: {
+                    type: "web_search_tool_result",
+                    tool_use_id: "s1",
+                    content: [{ url: "https://hoy.example/", title: "Hoy" }],
+                  },
+                },
+                { type: "content_block_stop", index: 0 },
+                { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+                { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Encontrado." } },
+                { type: "content_block_stop", index: 1 },
+                { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } },
+              ]),
+            }
+      ),
+    },
+  });
+  await escribirYEnviar(pagina, "/buscar hoy");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Lo busco\.\s*\n\s*Encontrado\./.test(r.texto), JSON.stringify(r.texto));
+  cierto(r.html.includes('href="https://hoy.example/"'), "sin la fuente");
+  const ultimo = cuerpos[1].messages[cuerpos[1].messages.length - 1];
+  cierto(
+    ultimo.role === "assistant" && ultimo.content.some((b) => b.type === "server_tool_use" && b.input.query === "hoy"),
+    "no devolvió el turno pausado",
+  );
+  await ctx.close();
+});
+
+prueba("Cece Pro por relevo: cada paso recibe los archivos del anterior", async (nav) => {
+  const vistos = [];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", astra: "sk-b", max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.anthropic.com": ({ cuerpo }) => (
+        vistos.push(JSON.stringify(cuerpo.messages)),
+        { cuerpo: respuestaClaude("```js\n// archivo: app.js\nconsole.log('v1');\n```") }
+      ),
+      "api.openai.com/v1/responses": ({ cuerpo }) => (
+        vistos.push(JSON.stringify(cuerpo.input)),
+        {
+          cuerpo: sse([
+            { type: "response.output_text.delta", delta: "Revisado: todo bien." },
+            { type: "response.completed", response: { output: [] } },
+          ]),
+        }
+      ),
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => (
+        vistos.push(JSON.stringify(cuerpo.messages)),
+        { cuerpo: respuestaOpenAI("Final del relevo.") }
+      ),
+    },
+  });
+  await escribirYEnviar(pagina, "haz un app.js");
+  const r = await ultimaRespuesta(pagina, 30000);
+  cierto(/relevo/.test(r.pie), r.pie);
+  cierto(
+    vistos.length >= 2 && vistos.slice(1).some((v) => /app\.js/.test(v) && /Relevo de Cece Pro/.test(v)),
+    "el siguiente paso no recibió el archivo",
+  );
+  cierto(/Archivos del equipo/.test(r.texto) || /app\.js/.test(r.texto), "la respuesta final no lleva el archivo");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("crear una imagen (Cece Imagen) y que no se cuele un enlace raro", async (nav) => {
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  let malo = false;
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
+    almacen: { cece_ajustes: { imgMotor: "openai" } },
+    ia: {
+      "/images/generations": () => ({
+        tipo: "application/json",
+        cuerpo: JSON.stringify({ data: [malo ? { url: "javascript:alert(1)" } : { b64_json: png }] }),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "/imagen un gato");
+  let r = await ultimaRespuesta(pagina);
+  cierto(r.html.includes('src="data:image/png;base64,'), "sin imagen: " + r.html.slice(0, 200));
+  malo = true;
+  await escribirYEnviar(pagina, "/imagen otro gato");
+  r = await ultimaRespuesta(pagina);
+  cierto(!r.html.includes("javascript:"), "se coló el enlace");
+  cierto(/no válido/.test(r.texto), r.texto);
+  await ctx.close();
+});
+
+prueba("nube: sube el historial cifrado a un Gist y otro equipo lo recupera", async (nav) => {
+  const gists = new Map();
+  const gh = ({ url, cuerpo, req }) => {
+    const u = new URL(url),
+      m = req.method();
+    const json = (o, status = 200) => ({ status, tipo: "application/json", cuerpo: JSON.stringify(o) });
+    if (u.pathname === "/gists" && m === "GET")
+      return json([...gists.values()].map((g) => ({ id: g.id, files: { [Object.keys(g.files)[0]]: {} } })));
+    if (u.pathname === "/gists" && m === "POST") {
+      const g = { id: "abcdef0123456789abcd", files: cuerpo.files, history: [{ version: "v1" }] };
+      gists.set(g.id, g);
+      return json(g, 201);
+    }
+    const id = (u.pathname.match(/^\/gists\/([^/]+)/) || [])[1];
+    if (id && /\/commits$/.test(u.pathname)) return json([{ version: gists.get(id).history[0].version }]);
+    if (id && m === "PATCH") {
+      const g = gists.get(id);
+      g.files = cuerpo.files;
+      g.history = [{ version: "v" + (Number(g.history[0].version.slice(1)) + 1) }];
+      return json(g);
+    }
+    if (id && m === "GET") {
+      const g = gists.get(id);
+      if (!g) return json({ message: "Not Found" }, 404);
+      const [n, f] = Object.entries(g.files)[0];
+      return json({ id, files: { [n]: { content: f.content } }, history: g.history });
+    }
+    return json({}, 404);
+  };
+  const claves = { turbo: "sk", nube_token: "ghp_prueba", nube: "mi frase secreta de la nube 123" };
+  const a = await nuevaPagina(nav, conClaves(claves), {
+    ia: { "api.github.com": gh, "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Apuntado en la nube.") }) },
+  });
+  await escribirYEnviar(a.pagina, "receta de gazpacho");
+  await ultimaRespuesta(a.pagina);
+  await a.pagina.click("#settingsBtn");
+  await a.pagina.click("#nubeAhora");
+  await a.pagina.waitForFunction(() => /Última vez/.test(document.getElementById("nubeEstado").textContent), null, { timeout: 20000 });
+  const subido = Object.values([...gists.values()][0].files)[0].content;
+  cierto(!/gazpacho/.test(subido) && /"datos":"cecez?1\$/.test(subido), "el Gist no va cifrado");
+  // otro equipo, con la misma frase: recupera la conversación
+  const b = await nuevaPagina(nav, conClaves(claves), { ia: { "api.github.com": gh } });
+  await b.pagina.click("#settingsBtn");
+  await b.pagina.click("#nubeAhora");
+  await b.pagina.waitForFunction(() => /Última vez/.test(document.getElementById("nubeEstado").textContent), null, { timeout: 20000 });
+  await b.pagina.fill("#buscarConv", "gazpacho");
+  cierto(/gazpacho/.test(await b.pagina.innerText("#convList")), "no llegó la conversación");
+  await a.ctx.close();
+  await b.ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
