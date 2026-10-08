@@ -18,7 +18,7 @@ function cargarPlaywright() {
 }
 
 const ORIGEN = path.resolve(process.argv[2] || RUTAS.html);
-const FILTRO = process.argv[3] || "";
+const FILTRO = new RegExp(process.argv[3] || "", "i");
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "cece-prueba-"));
 const HTML = fs.readFileSync(ORIGEN, "utf8");
 
@@ -58,8 +58,8 @@ function respuestaClaude(texto) {
   ]);
 }
 
-async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null } = {}) {
-  const ctx = await navegador.newContext({ viewport: { width: 1280, height: 860 }, acceptDownloads: true });
+async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null, ancho = 1280 } = {}) {
+  const ctx = await navegador.newContext({ viewport: { width: ancho, height: 860 }, acceptDownloads: true });
   const pagina = await ctx.newPage();
   const errores = [];
   pagina.on("pageerror", (e) => errores.push("pageerror: " + e.message));
@@ -69,11 +69,12 @@ async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null } = {})
   await ctx.route(/^https?:\/\//, async (ruta) => {
     const req = ruta.request();
     const url = req.url();
+    if (/^http:\/\/127\.0\.0\.1:/.test(url)) return ruta.continue(); // servidores de prueba de este equipo
     let cuerpo = null;
     try {
       cuerpo = req.postDataJSON();
     } catch (e) {}
-    peticiones.push({ url, metodo: req.method(), cuerpo });
+    peticiones.push({ url, metodo: req.method(), cuerpo, t: Date.now() });
     const h = Object.entries(ia).find(([patron]) => url.includes(patron));
     if (!h) return ruta.abort("internetdisconnected");
     const r = await h[1]({ url, cuerpo, req });
@@ -116,15 +117,23 @@ async function ultimaRespuesta(p, ms = 15000) {
   );
   return p.evaluate(() => {
     const m = [...document.querySelectorAll(".bot-msg")].pop();
-    return { texto: m.querySelector(".bubble").innerText, html: m.querySelector(".bubble").innerHTML, pie: m.querySelector(".msg-meta").innerText };
+    return {
+      texto: m.querySelector(".bubble").innerText,
+      html: m.querySelector(".bubble").innerHTML,
+      pie: m.querySelector(".msg-meta").innerText,
+    };
   });
 }
 
 // ---------- pruebas ----------
 const PRUEBAS = [];
 const prueba = (nombre, f) => PRUEBAS.push({ nombre, f });
+const corto = (v) => {
+  const t = JSON.stringify(v);
+  return t && t.length > 300 ? t.slice(0, 300) + `… (${t.length} caracteres)` : t;
+};
 const igual = (a, b, msg) => {
-  if (a !== b) throw new Error(`${msg || "distinto"}: ${JSON.stringify(a)} ≠ ${JSON.stringify(b)}`);
+  if (a !== b) throw new Error(`${msg || "distinto"}: ${corto(a)} ≠ ${corto(b)}`);
 };
 const cierto = (v, msg) => {
   if (!v) throw new Error(msg || "falso");
@@ -158,7 +167,7 @@ prueba("responde con Cece Turbo (stream, Markdown y pie)", async (nav) => {
 prueba("el Markdown de la IA no puede meter HTML (XSS)", async (nav) => {
   const malo =
     '<img src=x onerror="window.__xss=1"> [clic](javascript:window.__xss=2) <script>window.__xss=3</script> ' +
-    "[a](https://x.y/\"onmouseover=\"window.__xss=4) ![i](data:text/html,hola) <https://ok.example/\"><b>x</b>";
+    '[a](https://x.y/"onmouseover="window.__xss=4) ![i](data:text/html,hola) <https://ok.example/"><b>x</b>';
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }), {
     ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI(malo) }) },
   });
@@ -183,7 +192,7 @@ prueba("plugins integrados (sin IA)", async (nav) => {
     ["/romano mmxxvi", /2026/],
     ["/base64 hola", /aG9sYQ==/],
     ["/base64 d aG9sYQ==", /hola/],
-    ["/json {\"a\":1}", /JSON válido/],
+    ['/json {"a":1}', /JSON válido/],
     ["/color #ff3f9e", /rgb\(255, 63, 158\)/],
     ["/contar uno dos tres", /Palabras\s*3/],
     ["/hash abc", /ba7816bf/],
@@ -290,13 +299,25 @@ prueba("cifrar las claves con contraseña y abrir la copia protegida", async (na
   await pagina.fill("#cifrarPass", "una frase bastante larga 2026");
   await pagina.fill("#cifrarPass2", "una frase bastante larga 2026");
   await pagina.uncheck("#cifrarRecordar");
-  const [descarga] = await Promise.all([pagina.waitForEvent("download"), pagina.click("#cifrarOk")]);
+  const [descarga] = await Promise.all([
+    pagina.waitForEvent("download", { timeout: 20000 }).catch(async (e) => {
+      const motivo = await pagina.evaluate(() => [
+        document.getElementById("cifrarError").textContent,
+        document.getElementById("cifrarModal").className,
+        document.getElementById("cifrarOk").disabled,
+      ]);
+      throw new Error("no hubo descarga: " + JSON.stringify(motivo));
+    }),
+    pagina.click("#cifrarOk"),
+  ]);
   const protegido = path.join(TMP, "protegido.html");
   await descarga.saveAs(protegido);
   const texto = fs.readFileSync(protegido, "utf8");
   cierto(!texto.includes("sk-secreta-123"), "la clave sigue a la vista en la copia");
   cierto(/const CECE_BOVEDA = "cecez?1\$/.test(texto), "sin bóveda cifrada");
-  const b = await nuevaPagina(nav, protegido, { ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Desbloqueado y funcionando.") }) } });
+  const b = await nuevaPagina(nav, protegido, {
+    ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Desbloqueado y funcionando.") }) },
+  });
   await b.pagina.waitForSelector("#bovedaOverlay:not([hidden])");
   await b.pagina.fill("#bovedaPass", "otra");
   await b.pagina.click("#bovedaEntrar");
@@ -357,17 +378,125 @@ prueba("adjuntar un archivo de texto y una imagen", async (nav) => {
   const m = cuerpo.messages[cuerpo.messages.length - 1];
   const txt = JSON.stringify(m.content);
   cierto(/línea secreta 42/.test(txt), "no lleva el texto del archivo");
-  cierto(m.content.some((p) => p.type === "image"), "no lleva la imagen");
+  cierto(
+    m.content.some((p) => p.type === "image"),
+    "no lleva la imagen",
+  );
+  await ctx.close();
+});
+
+// IA «local» de prueba que contesta despacio (un trozo cada 150 ms), para poder pararla a medias
+function iaLenta() {
+  const http = require("http");
+  const estado = { cerrada: null, servidor: null };
+  estado.servidor = http.createServer((req, res) => {
+    const cors = {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "*",
+      "access-control-allow-private-network": "true",
+    };
+    if (req.method === "OPTIONS") return res.writeHead(204, cors).end();
+    if (req.url.endsWith("/models"))
+      return res.writeHead(200, { ...cors, "content-type": "application/json" }).end('{"data":[{"id":"lento"}]}');
+    res.writeHead(200, { ...cors, "content-type": "text/event-stream" });
+    let n = 0;
+    const t = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `trozo ${++n}. ` } }] })}\n\n`);
+      if (n >= 60) (clearInterval(t), res.end("data: [DONE]\n\n"));
+    }, 150);
+    res.on("close", () => (clearInterval(t), (estado.cerrada = estado.cerrada || Date.now())));
+  });
+  return new Promise((ok) =>
+    estado.servidor.listen(0, "127.0.0.1", () => ok({ ...estado, puerto: estado.servidor.address().port, estado })),
+  );
+}
+
+prueba("«Parar» corta la respuesta a medias (y la IA deja de generar)", async (nav) => {
+  const ia = await iaLenta();
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: {
+      cece_ajustes: { modelo: "cece-local", localActivo: true, localModelo: "lento", localUrl: `http://127.0.0.1:${ia.puerto}/v1` },
+    },
+  });
+  await escribirYEnviar(pagina, "cuéntame algo largo");
+  await pagina.waitForFunction(() => /trozo 3\./.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
+    timeout: 10000,
+  });
+  const t0 = Date.now();
+  await pagina.click("#sendBtn"); // en modo «parar»
+  const r = await ultimaRespuesta(pagina, 5000);
+  await pagina.waitForTimeout(400);
+  ia.servidor.close();
+  cierto(ia.estado.cerrada && ia.estado.cerrada - t0 < 1500, "la conexión con la IA no se cortó");
+  cierto(/detenido/.test(r.pie), "pie: " + r.pie);
+  cierto(/trozo 3\./.test(r.texto) && !/trozo 30\./.test(r.texto), "texto: " + r.texto.slice(0, 80));
+  igual(await pagina.getAttribute("#sendBtn", "aria-label"), "Enviar");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("un PDF grande no congela la página al enviarlo", async (nav) => {
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-enterprise-plus" } },
+    ia: { "api.anthropic.com": () => ({ cuerpo: respuestaClaude("Leído.") }) },
+  });
+  const pdf = Buffer.concat([Buffer.from("%PDF-1.4\n"), require("crypto").randomBytes(12 << 20)]);
+  await pagina.setInputFiles("#adjInput", [{ name: "grande.pdf", mimeType: "application/pdf", buffer: pdf }]);
+  await pagina.waitForFunction(() => document.querySelectorAll("#adjBandeja .adj-item:not(.adj-cargando)").length === 1, null, {
+    timeout: 20000,
+  });
+  // se mide dentro de la página: de pulsar «Enviar» a que sale la petición (sin lo que tarda el simulador en recibirla)
+  await pagina.evaluate(() => {
+    const f = window.fetch;
+    window.fetch = function (u) {
+      String(u).includes("/messages") && !window.__tFetch && (window.__tFetch = performance.now());
+      return f.apply(this, arguments);
+    };
+  });
+  await pagina.fill("#userInput", "resúmelo");
+  pagina._respuestas = await pagina.locator(".bot-msg").count();
+  await pagina.evaluate(() => ((window.__t0 = performance.now()), document.getElementById("sendBtn").click()));
+  await ultimaRespuesta(pagina, 60000);
+  const ms = Math.round(await pagina.evaluate(() => window.__tFetch - window.__t0));
+  console.log(`   (de pulsar «Enviar» a salir la petición: ${ms} ms)`);
+  cierto(ms < 1500, `tarda ${ms} ms en preparar la petición`);
+  await ctx.close();
+});
+
+prueba("tras usar el micrófono, el cuadro de texto vuelve a explicar los comandos", async (nav) => {
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
+  const antes = await pagina.getAttribute("#userInput", "placeholder");
+  await pagina.click("#micBtn");
+  await pagina.waitForFunction(
+    () =>
+      !document.getElementById("micBtn").classList.contains("mic-on") || /escucho/i.test(document.getElementById("userInput").placeholder),
+    null,
+    { timeout: 5000 },
+  );
+  if (await pagina.evaluate(() => document.getElementById("micBtn").classList.contains("mic-on"))) await pagina.click("#micBtn");
+  await pagina.waitForFunction(() => !document.getElementById("micBtn").classList.contains("mic-on"));
+  igual(await pagina.getAttribute("#userInput", "placeholder"), antes);
+  await ctx.close();
+});
+
+prueba("«Descargar CeceHub» da el servidor de fuente/cecehub-server.py", async (nav) => {
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}));
+  const [d] = await Promise.all([pagina.waitForEvent("download"), pagina.evaluate(() => CeceHub.descargarPrograma())]);
+  const f = path.join(TMP, "cecehub.py");
+  await d.saveAs(f);
+  igual(d.suggestedFilename(), "cecehub-server.py");
+  igual(fs.readFileSync(f, "utf8"), fs.readFileSync(RUTAS.python, "utf8"), "el .py descargado no es el de fuente/");
   await ctx.close();
 });
 
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
-  const nav = await chromium.launch();
+  // (micrófono falso: el modo micrófono se puede probar sin hardware ni permisos)
+  const nav = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
   let ok = 0;
   const fallos = [];
-  for (const t of PRUEBAS.filter((t) => t.nombre.includes(FILTRO))) {
+  for (const t of PRUEBAS.filter((t) => FILTRO.test(t.nombre))) {
     const t0 = Date.now();
     try {
       await t.f(nav);

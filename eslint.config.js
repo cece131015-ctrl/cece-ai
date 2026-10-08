@@ -11,7 +11,7 @@ module.exports = [
     },
     rules: {
       "no-undef": "error",
-      "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }],
+      "no-unused-vars": ["warn", { args: "none", caughtErrors: "none", ignoreRestSiblings: true }],
       "no-dupe-keys": "error",
       "no-duplicate-case": "error",
       "no-self-assign": "error",

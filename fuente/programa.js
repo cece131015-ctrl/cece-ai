@@ -17,8 +17,7 @@ const HTML_INICIAL = (() => {
           for (const t of [...e.attributes])
             /^data-(darkreader|gr-|new-gr-|gramm|lt-)/i.test(t.name) && e.removeAttribute(t.name);
       t.removeAttribute("data-tema");
-      const o = document.doctype,
-        a = void 0;
+      const o = document.doctype;
       return (
         (o
           ? `<!DOCTYPE ${o.name}${o.publicId ? ` PUBLIC "${o.publicId}"` : ""}${o.systemId ? ` "${o.systemId}"` : ""}>`
@@ -491,9 +490,9 @@ function leerAjustes(e) {
             (t[o] = RANGOS[o] ? Math.round(Math.min(RANGOS[o][1], Math.max(RANGOS[o][0], a))) : a));
   }
   (Object.hasOwn(CECE_MAP, t.modelo) || (t.modelo = DEF.modelo),
-    ("cece-mega" !== t.modelo && "cece-ultra" !== t.modelo) || (t.modelo = "cece-turbo"),
-    ("cece-mega" !== t.liveModelo && "cece-ultra" !== t.liveModelo) || (t.liveModelo = DEF.liveModelo),
     2 !== e.versionTema && "oscuro" === e.tema && (t.tema = "neon"),
+    // la migración del tema ya está hecha: si no se apunta, el «Oscuro» que elija después se pierde al recargar
+    (t.versionTema = DEF.versionTema),
     Object.hasOwn(e, "repD") ||
       Object.hasOwn(e, "repE") ||
       34 !== e.repA ||
@@ -694,8 +693,7 @@ function _buscarConst(e, t) {
   const o = new RegExp("\\bconst\\s+" + t + "\\s*=\\s*", "g");
   let a;
   for (; (a = o.exec(e));) {
-    const t = e.slice(0, a.index),
-      o = void 0;
+    const t = e.slice(0, a.index);
     if (t.slice(t.lastIndexOf("\n") + 1).includes("//") || t.lastIndexOf("/*") > t.lastIndexOf("*/")) continue;
     const n = a.index + a[0].length;
     if ("{" === e[n]) {
@@ -749,7 +747,6 @@ function reescribirBloque(e, t, o) {
   const m = _buscarConst(u, "CECE_BOVEDA");
   if (m) u = u.slice(0, m[0]) + literalJs(o) + u.slice(m[1]);
   else {
-    const e = void 0;
     let t = _buscarConst(u, "CECE_KEYS")[1];
     (";" === u[t] && t++,
       (u =
@@ -865,7 +862,6 @@ const Boveda = (() => {
         void 0 !== Nube && (Nube._llave = null));
     }
     async function protegerYDescargar(t, a) {
-      const n = void 0;
       if (!fuerzaContrasena(t).vale)
         throw new Error("La contraseña es demasiado débil: usa al menos 10 caracteres (mejor una frase).");
       const r = Object.assign({}, o);
@@ -874,7 +870,6 @@ const Boveda = (() => {
           "No hay nada que cifrar: rellena primero el bloque de configuración del principio del archivo.",
         );
       const s = await Cifra.cifrar(JSON.stringify({ v: 1, claves: r }), t, e),
-        c = void 0,
         l = htmlConClaves(
           Object.fromEntries(Object.keys(Object.assign({}, CLAVES_CONOCIDAS, clavesParaBloque(r))).map((e) => [e, ""])),
           s.texto,
@@ -887,7 +882,6 @@ const Boveda = (() => {
       );
     }
     function descargarSinCifrar() {
-      const e = void 0;
       descargar(
         "cece-ai-sin-cifrar.html",
         htmlConClaves(Object.assign({}, CLAVES_CONOCIDAS, clavesParaBloque(o)), ""),
@@ -1213,7 +1207,6 @@ function errorHttp(e, t, o, a) {
   const n = nombreProv(e),
     r = String(o || "").slice(0, 260);
   if ("local" === e && HUB.base && (401 === t || 403 === t || 429 === t)) {
-    const o = void 0;
     return new ErrorApi(
       (401 === t
         ? "CeceHub no acepta el código: pega otra vez su enlace en Configuración → 📴 Sin conexión (¿se cambió con --new-token?)."
@@ -1257,6 +1250,7 @@ async function fetchConTiempo(e, t, o, a, n = LIMITE.conectar) {
   const r = new AbortController();
   if (a) {
     if (a.aborted) throw new DOMException("stop", "AbortError");
+    // (no se quita al llegar las cabeceras: el cuerpo sigue llegando por r y «Parar» tiene que cortarlo)
     a.addEventListener("abort", () => r.abort(), { once: !0 });
   }
   let i;
@@ -1291,14 +1285,21 @@ const nivelQueFunciona = {},
   RE_PARAM =
     /unknown|unsupported|not supported|unrecognized|unexpected|extra (field|input)|invalid.*(param|field|value|type|tool|argument)|not (allowed|permitted|enabled|available)|does not support|additional properties|no such|beta|deprecat/i;
 async function postJSON(e, t, o, a, n, r, i = {}) {
-  const s = o.filter((e, t) => e && o.findIndex((t) => t && JSON.stringify(t) === JSON.stringify(e)) === t),
-    c = e + "|" + t + "|" + r + "|" + JSON.stringify(s.map(formaCuerpo));
+  // Cada cuerpo se pasa a JSON una sola vez (con imágenes o PDF pesa megas): sirve para quitar los repetidos y para enviarlo
+  const s = [],
+    j = [];
+  for (const e of o) {
+    if (!e) continue;
+    const t = JSON.stringify(e);
+    j.includes(t) || (s.push(e), j.push(t));
+  }
+  const c = e + "|" + t + "|" + r + "|" + JSON.stringify(s.map(formaCuerpo));
   let l,
     d = !0;
   for (let o = Math.min(nivelQueFunciona[c] || 0, s.length - 1); o < s.length; o++) {
     let u;
     try {
-      u = await fetchConTiempo(e, t, { method: "POST", headers: a, body: JSON.stringify(s[o]) }, n, i.tiempo);
+      u = await fetchConTiempo(e, t, { method: "POST", headers: a, body: j[o] }, n, i.tiempo);
     } catch (t) {
       if (esAbort(t) || t instanceof ErrorApi) throw t;
       throw errorRed(e);
@@ -1744,7 +1745,7 @@ async function chatOpenAI(e, t) {
         e < 5
           ? await herramientaKimi(o.function.name, a, t, C, m)
           : { texto: "Error: demasiadas llamadas a la vez; usa como mucho 5." };
-      (n.cobra && (sesion.coste += 0.002),
+      (n.cobra && (sesion.coste += COSTE_WEB_KIMI),
         u.push({ role: "tool", tool_call_id: o.id, name: o.function.name, content: n.texto }));
     }
     n && !/\s$/.test(n) && ((g += "\n\n"), t.onTexto && t.onTexto("\n\n"));
@@ -2095,8 +2096,7 @@ async function chatGemini(e, t) {
     a = ESF[t.esf] || ESF.medio,
     n = `${baseDe("gemini")}/models/${encodeURIComponent(String(t.modelo).replace(/^models\//, ""))}:streamGenerateContent?alt=sse`,
     r = { "Content-Type": "application/json", "x-goog-api-key": claveDe("gemini") },
-    i = { maxOutputTokens: Math.min(65536, Math.max(4 * t.maxTok, 16384)) },
-    s = void 0;
+    i = { maxOutputTokens: Math.min(65536, Math.max(4 * t.maxTok, 16384)) };
   +((/gemini-(\d+)/i.exec(t.modelo) || [])[1] || 0) < 3 && (i.temperature = t.temp ?? a.temp);
   const c = {
       contents: alternar(t.mensajes).map((e) => ({
@@ -2305,7 +2305,7 @@ async function chatMotor(e, t) {
 }
 function separarThink(e) {
   let t = "";
-  const o = void 0;
+
   return {
     texto: String(e || "")
       .replace(/^\s*<think>([\s\S]*?)(<\/think>|$)/i, (e, o) => ((t += o), ""))
@@ -2578,8 +2578,7 @@ function vallas(e) {
 }
 const normalizarTexto = (e) => String(e || "").replace(/\r\n?|[\u2028\u2029]/g, "\n");
 function md(e) {
-  const t = void 0,
-    o = vallas(normalizarTexto(e).replace(/[\u0000-\u0003]/g, "")),
+  const o = vallas(normalizarTexto(e).replace(/[\u0000-\u0003]/g, "")),
     a = o.bloques.map((e, t) => bloqueCodigo(e.info.split(/\s+/)[0] || "", e.info, e.codigo, t)),
     n = o.texto,
     r = esc(n).split("\n"),
@@ -2626,7 +2625,7 @@ function md(e) {
         ((n = n.replace(/<\/li>$/, "") + e + "</li>"), (i = t));
         continue;
       }
-      const c = void 0;
+
       let l = a.match(/^\s*(?:[-*+]|\d{1,3}[.)])\s+(.*)$/)[1];
       const d = l.match(/^\[([ xX])\]\s+(.*)$/);
       (d && (l = (d[1].trim() ? "☑ " : "☐ ") + d[2]), (n += "<li>" + mdInline(l) + "</li>"), i++);
@@ -3076,7 +3075,7 @@ function historialApi(e = 30, t = 6e4) {
     const s = !o.length,
       c = ("user" === e.role ? adjBinarios(e) : []).map((e) => {
         const t = e.datos ? e.datos.length : 0;
-        return t ? (!s && n + t > 14680064 ? { ...e, datos: void 0, grande: !0 } : ((n += t), e)) : e;
+        return t ? (!s && n + t > TOPE_BINARIOS ? { ...e, datos: void 0, grande: !0 } : ((n += t), e)) : e;
       }),
       l = new Set();
     if ("user" === e.role)
@@ -3084,10 +3083,10 @@ function historialApi(e = 30, t = 6e4) {
         t &&
           "texto" === t.tipo &&
           "string" == typeof t.texto &&
-          (!s && r + t.texto.length > 4e5 ? l.add(t.id) : (r += t.texto.length));
+          (!s && r + t.texto.length > TOPE_TEXTO_ARCHIVOS ? l.add(t.id) : (r += t.texto.length));
     const d = "user" === e.role ? contenidoApi(e, l) : String(e.content || "");
     if (!d && !c.length) continue;
-    const u = void 0;
+
     if (((a += "user" === e.role ? String(e.content || "").length : d.length), a > t && o.length)) break;
     o.unshift(c.length ? { role: e.role, content: d, adjuntos: c } : { role: e.role, content: d });
   }
@@ -3375,8 +3374,7 @@ function archivosDe(e) {
 }
 const vallaPara = (e) => "`".repeat(Math.max(3, ...(String(e).match(/`+/g) || []).map((e) => e.length + 1)));
 function bloqueArchivo(e) {
-  const t = vallaPara(e.codigo),
-    o = void 0;
+  const t = vallaPara(e.codigo);
   return `${t}${e.lang || (e.nombre.includes(".") ? e.nombre.split(".").pop().toLowerCase() : "texto")} ${e.nombre}\n${e.codigo}\n${t}`;
 }
 function notasDe(e, t = 6e4) {
@@ -3403,7 +3401,7 @@ function contextoRelevo(e, t, o, a) {
       o = [];
     for (const a of r) {
       const n = bloqueArchivo(a);
-      e + n.length > 3e5 && t.length ? o.push(a.nombre) : ((e += n.length), t.push(`De ${a.autor}:\n${n}`));
+      e + n.length > TOPE_MESA && t.length ? o.push(a.nombre) : ((e += n.length), t.push(`De ${a.autor}:\n${n}`));
     }
     n.push(
       "Archivos que ha creado el equipo hasta ahora (la última versión de cada uno):\n\n" +
@@ -3523,7 +3521,6 @@ async function ejecutarRelevo(e, t = {}) {
     );
   }
   if (!d.length) {
-    const e = void 0;
     return finalizarConError(n, (a.find((e) => e.error) || {}).error || new Error("Ningún modelo respondió."), [], {
       conv: t.conv,
     });
@@ -3728,7 +3725,6 @@ async function generarImagen(e, t, o = {}) {
 function bienvenida() {
   const e = crearMensaje("assistant"),
     t = new Date().getHours(),
-    o = void 0,
     a = `**${t < 7 ? "Buenas noches" : t < 13 ? "Buenos días" : t < 21 ? "Buenas tardes" : "Buenas noches"}, soy Cece AI** 👋 ¿En qué te ayudo? Pulsa **LIVE** para hablar conmigo.`;
   ((e.bubble.innerHTML = md(a)), (e.meta.innerHTML = `<span>${horaCorta()}</span>`), aplicarEmojis(e.wrap));
 }
@@ -3763,7 +3759,6 @@ function mensajeParaGuardar(e) {
   return t;
 }
 function guardarActual() {
-  const e = void 0;
   almacen.set("cece_actual", { id: convId, mensajes: historial.filter((e) => !e.error).map(mensajeParaGuardar) }) ||
     !almacen.ok ||
     guardarActual._avisado ||
@@ -3965,10 +3960,9 @@ async function officeATexto(e, t) {
     if (!e.length) throw new ErrorAdjunto("no parece una presentación de PowerPoint (.pptx)");
     const t = [];
     for (const [o, a] of e.entries()) {
-      const e = void 0,
-        n = ((await leer(a)).match(/<a:p(?:\s[^>]*)?>[\s\S]*?<\/a:p>/g) || [])
-          .map((e) => xmlTexto([...e.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)].map((e) => e[1]).join("")))
-          .filter((e) => e.trim());
+      const n = ((await leer(a)).match(/<a:p(?:\s[^>]*)?>[\s\S]*?<\/a:p>/g) || [])
+        .map((e) => xmlTexto([...e.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)].map((e) => e[1]).join("")))
+        .filter((e) => e.trim());
       t.push(`## Diapositiva ${o + 1}\n` + n.join("\n"));
     }
     return t.join("\n\n");
@@ -3980,7 +3974,6 @@ async function officeATexto(e, t) {
             xmlTexto((e.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || []).map((e) => e.replace(/<[^>]+>/g, "")).join("")),
           )
         : [],
-      a = void 0,
       n = (((await leer("xl/workbook.xml")) || "").match(/<sheet\b[^>]*>/g) || []).map((e) =>
         xmlTexto((/name="([^"]*)"/.exec(e) || [0, ""])[1]),
       ),
@@ -4017,7 +4010,10 @@ async function leerImagen(e) {
   if (!o || !a) throw new ErrorAdjunto("la imagen está vacía o dañada");
   const n = Math.min(1, LIM_ADJ.ladoImg / Math.max(o, a));
   if (1 === n && e.size <= 3670016 && /^image\/(png|jpeg|webp)$/.test(e.type))
-    return { datos: aBase64(new Uint8Array(await e.arrayBuffer())), mime: e.type, ancho: o, alto: a };
+    return (
+      t.close && t.close(),
+      { datos: aBase64(new Uint8Array(await e.arrayBuffer())), mime: e.type, ancho: o, alto: a }
+    );
   const r = Math.max(1, Math.round(o * n)),
     i = Math.max(1, Math.round(a * n)),
     s = document.createElement("canvas");
@@ -4122,8 +4118,7 @@ function necesidades(e) {
 function adaptarAdjuntos(e, t) {
   const o = [],
     a = capacidad(t, "vista"),
-    n = capacidad(t, "pdf"),
-    r = void 0;
+    n = capacidad(t, "pdf");
   return {
     mensajes: (e || []).map((e) => {
       if (!e.adjuntos || !e.adjuntos.length) return e;
@@ -4225,8 +4220,7 @@ const Adjuntos = {
     ((this.ocupado += o.length), this.pintar());
     for (const e of o)
       try {
-        const t = await procesarArchivo(e),
-          o = void 0;
+        const t = await procesarArchivo(e);
         if (
           this.lista.reduce((e, t) => e + (t.datos ? 0.75 * t.datos.length : 0), 0) +
             (t.datos ? 0.75 * t.datos.length : 0) >
@@ -4551,8 +4545,7 @@ function provsCon(e, t) {
     (o) =>
       (!t || disponible(o)) &&
       PROVEEDORES[o].modelos.some((t) => {
-        const a = PROVEEDORES[o],
-          n = void 0;
+        const a = PROVEEDORES[o];
         return (
           ("function" == typeof a.h ? a.h(t) : a.h || []).includes(e) ||
           (a.webKimi && "moonshot" === o && ("buscar" === e || "leer" === e))
@@ -4855,7 +4848,6 @@ const Calc = (() => {
       sen: (e) => redondeoTrig(Math.sin((e * Math.PI) / 180)),
       cos: (e) => redondeoTrig(Math.cos((e * Math.PI) / 180)),
       tan: (e) => {
-        const t = void 0;
         if (0 === redondeoTrig(Math.cos((e * Math.PI) / 180))) throw new Error("la tangente de " + e + "° no existe");
         return redondeoTrig(Math.tan((e * Math.PI) / 180));
       },
@@ -5179,8 +5171,7 @@ const numPlano = (e) => {
   deKelvin = (e, t) => ("c" === t ? e - 273.15 : "f" === t ? (9 * (e - 273.15)) / 5 + 32 : e);
 function buscarUnidad(e) {
   const t = String(e || "").trim(),
-    o = norm(t).replace(/\s+/g, " ").replace(/²/g, "2").replace(/³/g, "3").replace(/^°\s*/, "°"),
-    a = void 0;
+    o = norm(t).replace(/\s+/g, " ").replace(/²/g, "2").replace(/³/g, "3").replace(/^°\s*/, "°");
   return /^[KMGT]b$/.test(t)
     ? { cat: "datos", f: { k: 1e3, m: 1e6, g: 1e9, t: 1e12 }[o[0]] / 8 }
     : UNIDADES[o] || UNIDADES[o.replace(/s$/, "")] || UNIDADES[o.replace(/es$/, "")] || null;
@@ -5355,7 +5346,6 @@ function generarContrasena(e = 20, t = !0) {
   const o = "abcdefghijkmnopqrstuvwxyz",
     a = "ABCDEFGHJKLMNPQRSTUVWXYZ",
     n = "23456789",
-    r = void 0,
     i = t ? [o, a, n, "!@#$%&*-_=+?"] : [o, a, n],
     s = i.join("");
   e = Math.max(8, Math.min(128, 0 | e));
@@ -5550,8 +5540,7 @@ const Temporizadores = {
           if (!t) throw new Error(`no conozco «${e.trim()}». Prueba con una capital o con una zona como Europe/Paris`);
           return { md: `🕐 **${e.trim()}**: ${horaEn(t)}\n\n_Zona ${t}_` };
         }
-        const t = void 0,
-          o = void 0;
+
         return {
           md:
             "| Lugar | Hora |\n|---|---|\n" +
@@ -5593,8 +5582,7 @@ const Temporizadores = {
         if (!o || !a) throw new Error("fecha no válida (usa 25/12/2026 o 2026-12-25)");
         const n = diasEntre(o, a),
           r = a.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-          dias = (e) => `**${e.toLocaleString("es-ES")} ${1 === e ? "día" : "días"}**`,
-          i = void 0;
+          dias = (e) => `**${e.toLocaleString("es-ES")} ${1 === e ? "día" : "días"}**`;
         return {
           md: `${1 === t.length ? (n > 0 ? `Falta${1 === n ? "" : "n"} ${dias(n)} para el ${r}` : n < 0 ? `Pas${-1 === n ? "ó" : "aron"} ${dias(-n)} desde el ${r}` : `¡Es **hoy**! (${r})`) : `Entre las dos fechas hay ${dias(Math.abs(n))}`}\n\n≈ ${numBonito(Math.abs(n) / 7, 1)} semanas · ${numBonito(Math.abs(n) / 30.436875, 1)} meses`,
           valor: n,
@@ -5611,9 +5599,7 @@ const Temporizadores = {
       nombre: "Generar contraseña",
       desc: "Contraseña fuerte y aleatoria (/contrasena 32 sin simbolos)",
       f(e) {
-        const t = void 0,
-          o = void 0,
-          a = generarContrasena(parseInt((e.match(/\d+/) || ["20"])[0], 10), !/sin\s*s[ií]mbolos|nosym/i.test(e));
+        const a = generarContrasena(parseInt((e.match(/\d+/) || ["20"])[0], 10), !/sin\s*s[ií]mbolos|nosym/i.test(e));
         return {
           md: `${cod(a.clave)}\n\n_${a.clave.length} caracteres · ~${a.bits} bits · generada en tu dispositivo, no sale de aquí_`,
           copiar: a.clave,
@@ -5699,7 +5685,6 @@ const Temporizadores = {
         const t = /^(sha-?1|sha-?256|sha-?384|sha-?512)\s+([\s\S]+)$/i.exec(e.trim()),
           o = t ? "SHA-" + t[1].replace(/sha-?/i, "") : "SHA-256",
           a = t ? t[2] : e,
-          n = void 0,
           r = [...new Uint8Array(await crypto.subtle.digest(o, new TextEncoder().encode(a)))]
             .map((e) => e.toString(16).padStart(2, "0"))
             .join("");
@@ -6323,7 +6308,7 @@ function montarMenuNiveles() {
         o.setAttribute("role", "option"),
         o.setAttribute("aria-selected", "false"));
       const [e, a] = t.insignia || ["badge-new", "✨ Nuevo"];
-      o.innerHTML = `<div class="item-row"><span class="dot-color"></span><div class="item-text"><span class="item-name">${esc(t.nombre)}</span><span class="item-sub">Cece Company</span></div></div><span class="badge ${esc(e)}">${esc(a)}</span>`;
+      o.innerHTML = `<span class="item-row"><span class="dot-color"></span><span class="item-text"><span class="item-name">${esc(t.nombre)}</span><span class="item-sub">Cece Company</span></span></span><span class="badge ${esc(e)}">${esc(a)}</span>`;
     }
     const a = o.querySelector(".dot-color");
     (a && (a.style.background = colorDe(t)), o.style.setProperty("--c", colorDe(t)), e.appendChild(o));
@@ -6629,8 +6614,7 @@ const LENGUAJES = {
     },
     nombrePara(e) {
       if (e.nombre && /\.\w+$/.test(e.nombre)) return limpiarNombre(e.nombre);
-      const t = void 0,
-        o = String(e.codigo).split("\n")[0].match(RE_NOMBRE);
+      const o = String(e.codigo).split("\n")[0].match(RE_NOMBRE);
       if (o) return limpiarNombre(o[1]);
       const { ext: a } = this.destino(e.lang);
       return `cece_${sello()}_${++this.cont}.${a}`;
@@ -6697,7 +6681,6 @@ const LENGUAJES = {
       const e = await idb("get", "raiz").catch(() => null);
       if (e)
         try {
-          const t = void 0;
           "granted" === (await e.queryPermission({ mode: "readwrite" }))
             ? ((this.raiz = e), estadoCarpeta(`Guardando en «${e.name}».`, "verde"))
             : ((this._pendiente = e),
@@ -6875,7 +6858,7 @@ function tituloConv(e) {
   const t =
     e.find((e) => "user" === e.role && !e.local && (e.mostrar || e.content)) || e.find((e) => "user" === e.role);
   if (!t) return "Conversación";
-  const o = void 0;
+
   return (
     String(t.mostrar || t.content || "")
       .replace(/\s+/g, " ")
@@ -7283,12 +7266,15 @@ function pintarModoImagen() {
   (e.classList.toggle("img-on", S.imgMode),
     (e.innerHTML = emo(S.imgMode ? "🎨" : "💬")),
     aplicarEmojis(e),
-    ($("userInput").placeholder = S.imgMode
-      ? "Describe la imagen que quieres..."
-      : matchMedia("(max-width: 400px)").matches
-        ? "Escribe… (/ comandos)"
-        : "Escribe tu mensaje... (/ para comandos)"));
+    ($("userInput").placeholder = textoEntrada()));
 }
+// Lo que se lee en el cuadro de texto cuando está vacío (también al salir del modo micrófono)
+const textoEntrada = () =>
+  S.imgMode
+    ? "Describe la imagen que quieres..."
+    : matchMedia("(max-width: 400px)").matches
+      ? "Escribe… (/ comandos)"
+      : "Escribe tu mensaje... (/ para comandos)";
 const TONOS = {
     profesional: "Usa un tono profesional y formal.",
     directo: "Ve al grano: sin rodeos, sin frases de cortesía ni resúmenes al final.",
@@ -7568,7 +7554,7 @@ function fusionarNube(e, t, o = Date.now()) {
       }));
   }
   for (const e of r) n.has(e.id) || n.set(e.id, e);
-  const i = void 0;
+
   return {
     v: 1,
     convs: [...n.values()]
@@ -8194,7 +8180,6 @@ const Red = {
         : e && toast("🌐 Conexión recuperada.", "ok"));
   },
   hayLocalPara(e) {
-    const t = void 0;
     return ("cece-pro" === e ? PRO_PARTES.map((e) => e.id) : [e]).some((e) =>
       motoresDe(e).some((e) => sinInternetVale(e.prov)),
     );
@@ -8254,7 +8239,7 @@ function ponerNivelLocal() {
     t.setAttribute("role", "option"),
     t.setAttribute("aria-selected", "false"),
     (t.innerHTML =
-      '<div class="item-row"><span class="dot-color" style="background:#b9c3d1"></span><div class="item-text"><span class="item-name">Cece Local</span><span class="item-sub">En tu ordenador · sin internet</span></div></div><span class="badge badge-local">📴 Offline</span>'),
+      '<span class="item-row"><span class="dot-color" style="background:#b9c3d1"></span><span class="item-text"><span class="item-name">Cece Local</span><span class="item-sub">En tu ordenador · sin internet</span></span></span><span class="badge badge-local">📴 Offline</span>'),
     e.appendChild(t),
     aplicarEmojis(t));
 }
@@ -9098,8 +9083,9 @@ const CeceHub = {
       }
       for (const a of n) {
         if (e.signal.aborted || t.size) break;
-        const n = void 0,
-          r = Array.from({ length: 254 }, (e, t) => `${a}.${t + 1}`).flatMap((e) => o.map((t) => `http://${e}:${t}`));
+        const r = Array.from({ length: 254 }, (e, t) => `${a}.${t + 1}`).flatMap((e) =>
+          o.map((t) => `http://${e}:${t}`),
+        );
         (pintar(a, 0, r.length),
           await tanda(r, 1800, 64, (e, t) => {
             (e % 16 != 0 && e !== t) || pintar(a, e, t);
@@ -9174,7 +9160,7 @@ const CeceHub = {
   descripcion() {
     const e = this.ruta;
     if (!e) return HUB.base ? `(${hostDe(HUB.base)}, sin respuesta ahora)` : "sin conectar";
-    const t = void 0;
+
     return (
       (this.datos.nombre ? `«${this.datos.nombre}» ` : "") +
       {
@@ -9233,8 +9219,7 @@ const CeceHub = {
       .join("");
     let c = "";
     if (n) {
-      const e = a ? Math.round((100 * o) / a) : 0,
-        n = void 0;
+      const e = a ? Math.round((100 * o) / a) : 0;
       c = `<div class="det">📶 Buscando ${esc("nombres" === t ? "en este equipo y en cecehub.local" : "redes" === t ? "qué redes hay" : `en ${t}.x`)}… ${a ? e + " %" : ""}</div><div class="hub-progreso"><i style="width:${e}%"></i></div>`;
     } else
       e.length ||
@@ -9509,7 +9494,6 @@ async function transcribir(e, t, o) {
     l = String(c.text || "").trim(),
     d = Array.isArray(c.segments) ? c.segments : [];
   if (d.length) {
-    const e = void 0;
     if (d.reduce((e, t) => e + (t.no_speech_prob || 0), 0) / d.length > 0.65) return "";
   }
   return !l || ALUCINA.test(l) || /^[\s.,;:¡!¿?…\-]*$/.test(l) ? "" : l;
@@ -9579,8 +9563,7 @@ async function sintetizar(e, t, o) {
         );
       if (!r) throw new ErrorApi(`${NOMBRE_TTS.gemini} no devolvió audio.`, { corto: "sin audio" });
       const i = Uint8Array.from(atob(r.inlineData.data), (e) => e.charCodeAt(0)),
-        s = r.inlineData.mimeType || "",
-        c = void 0;
+        s = r.inlineData.mimeType || "";
       return i.length > 12 && "RIFF" === String.fromCharCode(i[0], i[1], i[2], i[3])
         ? new Blob([i], { type: "audio/wav" })
         : /wav|mpeg|mp3|ogg/.test(s)
@@ -9842,7 +9825,6 @@ class Troceador {
     return -1;
   }
   _cortar(e) {
-    const t = void 0;
     let o = separarThink(this.raw).texto.slice(this.hecho);
     for (;;) {
       const t = this._corte(o, 0 === this.n ? 4 : 36, e);
@@ -9931,8 +9913,7 @@ const ICONOS = {
       return t ? [e, t] : [e];
     },
     ttsCadena() {
-      const ok = (e) => "navegador" === e || (!!claveDe(e) && ("groq" !== e || ["en", "ar"].includes(idiomaCorto()))),
-        e = void 0;
+      const ok = (e) => "navegador" === e || (!!claveDe(e) && ("groq" !== e || ["en", "ar"].includes(idiomaCorto())));
       return [
         ...("auto" === S.voz ? ["elevenlabs", "openai", "gemini", "groq"] : [S.voz]).filter(
           (e) => "navegador" !== e && ok(e),
@@ -9968,7 +9949,6 @@ const ICONOS = {
     },
     ponerEstado(e, t) {
       if (((this.estado = e), "live" === this.modo)) {
-        const o = void 0;
         (($("liveOverlay").dataset.st = e),
           ($("liveOrbIcon").textContent = ICONOS[e] || "🎤"),
           ($("liveStatus").textContent = t || TEXTOS[e] || ""),
@@ -9987,8 +9967,7 @@ const ICONOS = {
           thinking: "💭 Pensando…",
           speaking: "🔊 Hablando… (habla para cortar)",
         };
-        $("userInput").placeholder =
-          (this.activo && a[e]) || (S.imgMode ? "Describe la imagen que quieres..." : "Escribe tu mensaje...");
+        $("userInput").placeholder = (this.activo && a[e]) || textoEntrada();
       }
     },
     nivelOrbe(e) {
@@ -10062,13 +10041,12 @@ const ICONOS = {
         await o.abrir();
       } catch (t) {
         if ((o.cerrar(), caducado())) return;
-        const a = void 0,
-          n =
-            t && ("NotAllowedError" === t.name || "SecurityError" === t.name)
-              ? "No hay permiso para el micrófono. Permítelo en el candado de la barra de direcciones."
-              : t && "NotFoundError" === t.name
-                ? "No se encuentra ningún micrófono."
-                : "No se pudo abrir el micrófono: " + (t.message || t);
+        const n =
+          t && ("NotAllowedError" === t.name || "SecurityError" === t.name)
+            ? "No hay permiso para el micrófono. Permítelo en el candado de la barra de direcciones."
+            : t && "NotFoundError" === t.name
+              ? "No se encuentra ningún micrófono."
+              : "No se pudo abrir el micrófono: " + (t.message || t);
         return (
           (this.mic = null),
           "mic" === e
