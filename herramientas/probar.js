@@ -296,6 +296,8 @@ prueba("cifrar las claves con contraseña y abrir la copia protegida", async (na
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-secreta-123" }));
   await pagina.click("#settingsBtn");
   await pagina.click("#segCifrar");
+  // (la ventana pone el foco en la contraseña a los 30 ms: si se escribe antes, el texto acaba en otro campo)
+  await pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "cifrarPass");
   await pagina.fill("#cifrarPass", "una frase bastante larga 2026");
   await pagina.fill("#cifrarPass2", "una frase bastante larga 2026");
   await pagina.uncheck("#cifrarRecordar");
@@ -319,6 +321,7 @@ prueba("cifrar las claves con contraseña y abrir la copia protegida", async (na
     ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Desbloqueado y funcionando.") }) },
   });
   await b.pagina.waitForSelector("#bovedaOverlay:not([hidden])");
+  await b.pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "bovedaPass");
   await b.pagina.fill("#bovedaPass", "otra");
   await b.pagina.click("#bovedaEntrar");
   await b.pagina.waitForFunction(() => document.getElementById("bovedaError").textContent.length > 0);
