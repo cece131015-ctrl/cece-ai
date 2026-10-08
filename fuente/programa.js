@@ -1,6 +1,6 @@
 "use strict";
 const CECEHUB_PY = "@@CECEHUB_PY@@";
-const CECEHUB_VERSION = "2.1.0";
+const CECEHUB_VERSION = "2.1.1";
 const HTML_INICIAL = (() => {
     try {
       const e = window.__ceceArchivo instanceof Element ? window.__ceceArchivo : null;
@@ -4744,8 +4744,7 @@ const Menu = {
     ((this.items = a.map((e) => e.c)),
       (this.i = 0),
       this.pintar(),
-      this.abierto ||
-        ((this.abierto = !0), this.el.classList.add("open"), $("userInput").setAttribute("aria-expanded", "true")));
+      this.abierto || ((this.abierto = !0), this.el.classList.add("open")));
   },
   pintar() {
     let e = "",
@@ -4796,7 +4795,7 @@ const Menu = {
     if (!this.abierto) return;
     ((this.abierto = !1), this.el.classList.remove("open"));
     const e = $("userInput");
-    (e.setAttribute("aria-expanded", "false"), e.removeAttribute("aria-activedescendant"));
+    e.removeAttribute("aria-activedescendant");
   },
 };
 function conectarComandos() {
@@ -4804,7 +4803,6 @@ function conectarComandos() {
   const e = $("userInput");
   (e.setAttribute("aria-autocomplete", "list"),
     e.setAttribute("aria-controls", "cmdMenu"),
-    e.setAttribute("aria-expanded", "false"),
     e.addEventListener("input", () => Menu.actualizar()),
     e.addEventListener("click", () => Menu.actualizar()),
     e.addEventListener("blur", () => Menu.cerrar()),

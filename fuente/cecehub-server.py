@@ -60,7 +60,7 @@ import urllib.request
 from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = '2.1.0'
+VERSION = '2.1.1'
 PUERTO = 9999                 # API para Cece AI (este equipo + WiFi)
 PUERTO_INTERNET = 9997        # solo 127.0.0.1: aquí llega el túnel y todo pide código
 PUERTO_AVISO = 9998           # UDP: aviso «aquí hay un CeceHub» y respuesta a búsquedas
@@ -1463,7 +1463,7 @@ class Hub:
 
     def info(self):
         return {'name': 'CeceHub', 'version': VERSION, 'id': self.id, 'hub_name': self.nombre, 'port': self.puerto,
-                'platform': 'Python ' + platform.python_version(), 'built': '2026-10-06',
+                'platform': 'Python ' + platform.python_version(), 'built': '2026-10-08',
                 'features': ['openai_compatible', 'streaming', 'multiple_backends', 'model_routing', 'lan_discovery',
                              'mdns', 'internet_tunnel', 'token_auth', 'token_proof', 'tailscale']}
 
