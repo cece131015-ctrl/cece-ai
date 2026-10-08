@@ -120,7 +120,7 @@ def consola_utf8():
             pass
 
 
-RE_CONTROL = re.compile('[\x00-\x1f\x7f-\x9f​-‏‪-‮⁦-⁩\ud800-\udfff]')
+RE_CONTROL = re.compile('[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ud800-\udfff]')
 
 
 def limpio(texto, n=None):
@@ -302,6 +302,18 @@ def es_host_local(host):
     """¿Host (sin puerto) es exactamente localhost, 127.0.0.1 o ::1? Solo así se enseña el código: un nombre de la red
     (trampa.local, evil.lan…) lo puede apuntar a 127.0.0.1 una web con «DNS rebinding» y leerlo."""
     return host_sin_puerto(host) in HOSTS_LOCALES
+
+
+def ruta_con_saltos(ruta):
+    """¿Trae segmentos «.» o «..» (también escritos %2e, %252e…) o «\\»? Reenviada tal cual, /v1/../api/pull saldría de
+    la API /v1 de la IA (Ollama: descargar, crear o copiar modelos), que es lo único que CeceHub deja usar."""
+    r = ruta
+    for _ in range(3):
+        u = urllib.parse.unquote(r)
+        if u == r:
+            break
+        r = u
+    return '\\' in r or any(p in ('.', '..') for p in r.split('/'))
 
 
 def partir_url(u):
@@ -934,6 +946,8 @@ class Peticion(BaseHTTPRequestHandler):
         if ruta.startswith('/v1/cecehub/'):
             return self._error(404, 'No existe en CeceHub.', cod='not_found')
         if ruta.startswith('/v1/') and metodo in ('POST', 'GET'):
+            if ruta_con_saltos(ruta):
+                return self._error(400, 'Ruta no válida.', cod='invalid_path')
             return self._reenviar(metodo, ruta)
         if ruta.startswith('/v1/'):
             return self._error(405, 'Método no admitido.')
@@ -1510,7 +1524,7 @@ class Hub:
                     srv = ServidorHub(('0.0.0.0', self.puerto), self)
         except OSError as e:
             raise SystemExit(f'❌ No puedo abrir el puerto {self.puerto}: {e}.\n'
-                             f'   ¿Ya hay otro CeceHub abierto? Ciérralo o usa otro puerto: --port {self.puerto + 10}')
+                             f'   ¿Ya hay otro CeceHub abierto? Ciérralo o usa otro puerto: --port {self.puerto + 10}') from None
         self.puerto = srv.server_address[1]
         self._servir(srv)
         # puerto de internet: solo en 127.0.0.1 y TODO con código
