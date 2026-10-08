@@ -489,6 +489,83 @@ prueba("«Descargar CeceHub» da el servidor de fuente/cecehub-server.py", async
   await ctx.close();
 });
 
+prueba("CeceHub de verdad: la app lo encuentra y responde a través de él", async (nav) => {
+  const { spawnSync, spawn } = require("child_process");
+  if (spawnSync("python3", ["--version"]).status !== 0) return console.log("   (sin python3: no se prueba)");
+  const http = require("http");
+  // IA local simulada (como Ollama): lista de modelos y respuesta en streaming
+  const ia = http.createServer((req, res) => {
+    let cuerpo = "";
+    req.on("data", (d) => (cuerpo += d));
+    req.on("end", () => {
+      if (req.url.endsWith("/models"))
+        return res.writeHead(200, { "content-type": "application/json" }).end('{"data":[{"id":"llama-prueba"}]}');
+      const pedido = JSON.parse(cuerpo || "{}");
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.end(respuestaOpenAI(`Hola desde ${pedido.model} por CeceHub.`));
+    });
+  });
+  await new Promise((ok) => ia.listen(0, "127.0.0.1", ok));
+  const libre = () =>
+    new Promise((ok) => {
+      const s = http.createServer().listen(0, "127.0.0.1", () => {
+        const p = s.address().port;
+        s.close(() => ok(p));
+      });
+    });
+  const [puerto, puertoInternet] = [await libre(), await libre()];
+  const hub = spawn(
+    "python3",
+    [
+      RUTAS.python,
+      "--port",
+      String(puerto),
+      "--internet-port",
+      String(puertoInternet),
+      "--no-discovery",
+      "--config",
+      path.join(TMP, "cecehub.json"),
+      "--backend",
+      `Prueba=http://127.0.0.1:${ia.address().port}/v1`,
+    ],
+    { stdio: "pipe" },
+  );
+  let salida = "";
+  hub.stdout.on("data", (d) => (salida += d));
+  hub.stderr.on("data", (d) => (salida += d));
+  try {
+    for (let i = 0; i < 50 && !salida.includes("Ctrl+C"); i++) await new Promise((r) => setTimeout(r, 100));
+    cierto(salida.includes("Ctrl+C"), "CeceHub no arrancó: " + salida.slice(-300));
+    const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+      almacen: {
+        cece_ajustes: { modelo: "cece-local", localActivo: true, hubActivo: true },
+        cece_hub: { ultima: `http://127.0.0.1:${puerto}` },
+      },
+    });
+    await pagina.waitForFunction(() => CeceHub.ruta && CeceHub.ruta.modelos.length, null, { timeout: 15000 });
+    await escribirYEnviar(pagina, "hola");
+    const r = await ultimaRespuesta(pagina, 20000);
+    cierto(/Hola desde llama-prueba por CeceHub/.test(r.texto), r.texto);
+    igual(errores.length, 0, "errores: " + errores.join(" | "));
+    await ctx.close();
+  } finally {
+    hub.kill();
+    ia.close();
+  }
+});
+
+prueba("el código con nombre de archivo se apunta con una ruta limpia", async (nav) => {
+  const md = "```js\n// archivo: ./src/app.js\nconst a = 1;\nconst b = 2;\nconsole.log(a + b);\n```";
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI(md) }) },
+  });
+  await escribirYEnviar(pagina, "haz un app.js");
+  await ultimaRespuesta(pagina);
+  igual(await pagina.evaluate(() => Codigo.archivos.map((a) => a.ruta).join(",")), "javascript/src/app.js");
+  cierto(/📁 javascript\/src\/app\.js/.test(await pagina.innerText(".bot-msg:last-of-type .carpeta")), "no lo enseña en el bloque");
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

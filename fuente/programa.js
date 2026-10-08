@@ -2749,7 +2749,7 @@ function bajar(e) {
 }
 const horaCorta = () => new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 function emo(e) {
-  return `<span class="emo-w" data-e="${e}">${e}</span>`;
+  return `<span class="emo-w" data-e="${esc(e)}">${esc(e)}</span>`;
 }
 function crearMensaje(e) {
   const t = "assistant" === e,
@@ -6590,9 +6590,11 @@ const LENGUAJES = {
   limpiarNombre = (e) =>
     String(e)
       .replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069\\:*?"<>|]/g, "")
-      .replace(/^\/+/, "")
       .replace(/\.\.+/g, ".")
-      .replace(/\/{2,}/g, "/")
+      // sin «.» ni tramos vacíos: «./src/app.js» → «src/app.js» (una carpeta «.» no se puede crear y el guardado fallaba)
+      .split("/")
+      .filter((e) => e && "." !== e)
+      .join("/")
       .slice(0, 120) || "archivo.txt",
   RE_NOMBRE =
     /^\s*(?:\/\/|#|--|;|<!--|\/\*|rem\s|')\s*(?:archivo|fichero|file(?:name)?|nombre)?\s*:?\s*([\w.\-\/]+\.[a-z0-9]{1,8})\s*(?:-->|\*\/)?\s*$/i,
