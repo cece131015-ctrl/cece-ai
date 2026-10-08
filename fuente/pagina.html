@@ -1,0 +1,666 @@
+<body>
+
+<header class="topbar">
+  <div class="brand" id="brand" title="Cece AI"></div>
+
+  <div class="model-selector-wrap">
+    <button class="model-pill" id="modelPillBtn" aria-haspopup="listbox" aria-expanded="false">
+      <span class="bolt" aria-hidden="true">&#9889;</span>
+      <span id="currentModelLabel">CECE TURBO</span>
+      <span class="badge badge-turbo" id="pillBadge">&#9889; R&aacute;pido</span>
+    </button>
+    <div class="model-dropdown" id="modelDropdown">
+      <div class="aviso aviso-verde" id="avisoCode" style="display:none">&lt;/&gt; Modo code activo: solo modelos de programaci&oacute;n.</div>
+      <div class="dropdown-section-title"><span class="bolt" aria-hidden="true">&#9889;</span> MODELOS CECE COMPANY</div>
+
+      <div class="model-options" role="listbox" aria-label="Modelos disponibles">
+        <button class="dropdown-item" data-model="cece-pro" data-label="CECE PRO" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#c9a0ff"></span><div class="item-text"><span class="item-name">Cece Pro</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-code">&#128640; Imbatible</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-enterprise-plus" data-label="CECE ENTERPRISE PLUS" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#ffc46b"></span><div class="item-text"><span class="item-name">Cece Enterprise Plus</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-plus">&#128142; Plus</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-max" data-label="CECE MAX" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#ff3f9e"></span><div class="item-text"><span class="item-name">Cece Max</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-new">&#9999;&#65039; Nuevo</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-astra" data-label="CECE ASTRA" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#a8c4ff"></span><div class="item-text"><span class="item-name">Cece Astra</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-nova">&#127775; Insignia</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-mini" data-label="CECE MINI" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#8ab4f8"></span><div class="item-text"><span class="item-name">Cece Mini</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-mini">&#10024; Mini</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-ultra-code" data-label="CECE ULTRA CODE" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#7fd0ff"></span><div class="item-text"><span class="item-name">Cece Ultra Code</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-creative">&#128214; Creativo</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-ultra" data-label="CECE ULTRA" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#ffd97f"></span><div class="item-text"><span class="item-name">Cece Ultra</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-ultra">&#127942; Ultra Pro</span>
+        </button>
+
+        <button class="dropdown-item" data-model="cece-turbo" data-label="CECE TURBO" role="option" aria-selected="false">
+          <div class="item-row"><span class="dot-color" style="background:#7fffb0"></span><div class="item-text"><span class="item-name">Cece Turbo</span><span class="item-sub">Cece Company</span></div></div>
+          <span class="badge badge-turbo">&#9889; R&aacute;pido</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <button class="icon-btn" id="clearBtn" title="Limpiar chat"><span class="ico-trash">&#128465;&#65039;</span> Limpiar</button>
+  <button class="icon-btn" id="settingsBtn" title="Configuraci&oacute;n" aria-label="Configuraci&oacute;n"><span class="ico-gear">&#9881;&#65039;</span></button>
+</header>
+
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel" role="dialog" aria-label="Configuraci&oacute;n">
+    <div class="settings-header">
+      <h2>Configuraci&oacute;n</h2>
+      <button class="close-settings" id="closeSettings" aria-label="Cerrar">&#10005;</button>
+    </div>
+    <div class="settings-body">
+
+      <!-- ===== Añadido: índice, Cece Live, Internet e imágenes ===== -->
+      <nav class="ajustes-nav" id="ajustesNav" aria-label="Secciones de la configuración">
+        <button type="button" data-ir="secConexiones">🔌 Conexiones</button>
+        <button type="button" data-ir="secConvs">💬 Conversaciones</button>
+        <button type="button" data-ir="secRespuestas">✍️ Respuestas</button>
+        <button type="button" data-ir="secApariencia">🎨 Apariencia</button>
+        <button type="button" data-ir="secPlugins">🧩 Plugins</button>
+        <button type="button" data-ir="secOffline">📴 Sin conexión</button>
+        <button type="button" data-ir="secNube">☁️ Nube</button>
+        <button type="button" data-ir="secSeguridad">🔐 Seguridad</button>
+      </nav>
+
+      <h3>🎙️ Cece Live</h3>
+      <button class="btn-settings-open" id="liveSettingsBtn">⚙️ Configurar Cece Live</button>
+
+      <hr class="divider">
+
+      <h3>🌐 Internet</h3>
+      <div class="switch-fila">
+        <label for="swWeb">Buscar en internet y leer páginas</label>
+        <span class="sw"><input type="checkbox" id="swWeb" checked><span class="sw-pista"></span></span>
+      </div>
+
+      <hr class="divider">
+
+      <h3 id="secConexiones">🔌 Conexiones</h3>
+      <p class="settings-hint">Comprueba cada clave del bloque de configuración: si conecta, si vale y si tu cuenta tiene el modelo de cada motor. No gasta tokens.</p>
+      <button type="button" class="btn-secondary" id="probarConexiones">🔌 Comprobar conexiones</button>
+      <div class="conex-lista" id="conexLista" role="status" aria-live="polite"></div>
+
+      <hr class="divider">
+
+      <h3>🎨 Imágenes</h3>
+      <select class="sel-in" id="imgMotor" aria-label="Motor de imagen">
+        <option value="auto">Automático</option>
+        <option value="openai">Cece Imagen</option>
+        <option value="gratis">Cece Imagen (gratis)</option>
+      </select>
+      <input type="hidden" id="imgModeloOpenai">
+      <hr class="divider">
+      <!-- ===== Fin del añadido ===== -->
+
+      <h3>Modo de esfuerzo</h3>
+      <p class="settings-hint">Cu&aacute;nto piensa el modelo antes de responder. M&aacute;s esfuerzo da mejores respuestas pero tarda m&aacute;s y gasta m&aacute;s tokens.</p>
+      <div class="esfuerzo-row" id="esfuerzoRow">
+        <button class="esf-btn" data-esf="bajo">Bajo</button>
+        <button class="esf-btn" data-esf="medio">Medio</button>
+        <button class="esf-btn" data-esf="alto">Alto</button>
+        <button class="esf-btn" data-esf="extra">Extra</button>
+        <button class="esf-btn" data-esf="max">Max</button>
+        <button class="esf-btn esf-ancho" data-esf="ultracode">&lt;/&gt; UltraCode</button>
+      </div>
+
+      <div id="bloquePro" style="display:none">
+        <hr class="divider">
+        <h3 id="tituloPro">Cece Pro &mdash; reparto</h3>
+        <p class="settings-hint" id="hintPro">Los tres modelos responden a la vez. El de mayor peso marca la respuesta principal, la que se usa como contexto.</p>
+
+        <div class="switch-fila">
+          <label for="swRelevo">&#129309; Relevo: se pasan los archivos</label>
+          <span class="sw"><input type="checkbox" id="swRelevo" checked><span class="sw-pista"></span></span>
+        </div>
+        <p class="settings-hint" style="margin-top:4px" id="hintRelevo">Trabajan uno detr&aacute;s de otro con el mismo objetivo: cada modelo recibe los archivos que han creado los anteriores, los corrige y los mejora, y se los pasa al siguiente. El de m&aacute;s peso termina el trabajo y te da todos los archivos. Tarda m&aacute;s que a la vez.</p>
+
+        <div class="switch-fila">
+          <label for="swFusion">&#9889; Fusionar las respuestas</label>
+          <span class="sw"><input type="checkbox" id="swFusion" checked><span class="sw-pista"></span></span>
+        </div>
+        <p class="settings-hint" style="margin-top:4px" id="hintFusion">Los tres modelos trabajan a la vez y despu&eacute;s uno de ellos funde los tres borradores en una sola respuesta, qued&aacute;ndose con lo mejor de cada uno. Si hay c&oacute;digo, lo unifica en una sola versi&oacute;n. Cuesta una llamada m&aacute;s por mensaje.</p>
+
+        <div class="switch-fila">
+          <label for="swMaxi" id="labelMaxi">Modo MaxFull &mdash; todos al 100%</label>
+          <span class="sw"><input type="checkbox" id="swMaxi"><span class="sw-pista"></span></span>
+        </div>
+        <div class="aviso aviso-morado" id="avisoMaxi" style="display:none">
+          Los tres modelos van al 100% y sus tres respuestas cuentan por igual, sin una principal.
+          Es el modo m&aacute;s potente y tambi&eacute;n el m&aacute;s caro: cada mensaje se paga tres veces.
+        </div>
+
+        <div id="repartoManual">
+          <div class="rep-fila">
+            <span class="rep-nom" id="nomA" style="color:#ffc46b">Ent. Plus</span>
+            <input type="range" id="repA" min="0" max="100" value="34" step="1" class="reparto-slider" aria-label="Porcentaje de Enterprise Plus">
+            <span class="rep-pct"><input type="number" class="num-in" id="pctA" min="0" max="100" step="1" value="34" aria-label="Porcentaje de Enterprise Plus">%</span>
+          </div>
+          <div class="rep-fila">
+            <span class="rep-nom" style="color:#ff7b54">Argon</span>
+            <input type="range" id="repD" min="0" max="100" value="20" step="1" class="reparto-slider" aria-label="Porcentaje de Argon">
+            <span class="rep-pct"><input type="number" class="num-in" id="pctD" min="0" max="100" step="1" value="20" aria-label="Porcentaje de Argon">%</span>
+          </div>
+          <div class="rep-fila">
+            <span class="rep-nom" style="color:#a8c4ff">Astra</span>
+            <input type="range" id="repB" min="0" max="100" value="33" step="1" class="reparto-slider" aria-label="Porcentaje de Astra">
+            <span class="rep-pct"><input type="number" class="num-in" id="pctB" min="0" max="100" step="1" value="33" aria-label="Porcentaje de Astra">%</span>
+          </div>
+          <div class="rep-fila">
+            <span class="rep-nom" style="color:#ff3f9e">Max</span>
+            <input type="range" id="repC" min="0" max="100" value="33" step="1" class="reparto-slider" aria-label="Porcentaje de Max">
+            <span class="rep-pct"><input type="number" class="num-in" id="pctC" min="0" max="100" step="1" value="33" aria-label="Porcentaje de Max">%</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <h3>L&iacute;mite de velocidad</h3>
+      <p class="settings-hint">Tokens por segundo m&aacute;ximos que la IA puede gastar generando la respuesta.</p>
+      <div class="preset-row" id="presetVel">
+        <button class="preset-btn" data-vel="20">&#128034; Lento<span>20</span></button>
+        <button class="preset-btn" data-vel="80">&#128694; Normal<span>80</span></button>
+        <button class="preset-btn" data-vel="200">&#127939; R&aacute;pido<span>200</span></button>
+        <button class="preset-btn" data-vel="500">&#9889; M&aacute;ximo<span>500</span></button>
+      </div>
+      <div class="speed-row">
+        <input type="range" id="speedSlider" min="5" max="500" value="80" step="5" aria-label="L&iacute;mite de velocidad">
+        <span class="speed-num"><input type="number" class="num-in ancho" id="speedValue" min="5" max="500" step="5" value="80" aria-label="Tokens por segundo">t/s</span>
+      </div>
+
+      <hr class="divider">
+
+      <h3>Emojis</h3>
+      <p class="settings-hint">C&oacute;mo se ven los emojis de la interfaz. Los de dentro de los mensajes siguen siendo los de tu dispositivo.</p>
+      <div class="emoji-estilos" role="group" aria-label="Estilo de los emojis">
+        <button class="emo-opt" data-estilo="sistema" aria-pressed="true">
+          <span class="emo-prev" data-prev="sistema" data-fijo>&#128640;&#128172;&#127912;&#9881;&#65039;</span>
+          <span>Del sistema</span>
+        </button>
+        <button class="emo-opt" data-estilo="windows" aria-pressed="false">
+          <span class="emo-prev" data-prev="windows" data-fijo></span>
+          <span>Windows 11</span>
+        </button>
+        <button class="emo-opt" data-estilo="plano" aria-pressed="false">
+          <span class="emo-prev" data-prev="plano" data-fijo></span>
+          <span>Plano</span>
+        </button>
+      </div>
+
+      <hr class="divider">
+
+      <h3>Pantalla</h3>
+      <div class="switch-fila">
+        <label for="swPantalla">Abrir en pantalla completa</label>
+        <span class="sw"><input type="checkbox" id="swPantalla"><span class="sw-pista"></span></span>
+      </div>
+      <p class="settings-hint" style="margin-top:4px">Con <code>Ctrl+I</code> entras y sales cuando quieras. El navegador no deja entrar nada m&aacute;s abrir la p&aacute;gina: si marcas esta casilla, lo har&aacute; en cuanto hagas el primer clic o pulses una tecla.</p>
+
+      <hr class="divider">
+
+      <h3>C&oacute;digo generado</h3>
+      <p class="settings-hint">Cada lenguaje tiene su carpeta. Si pides uno nuevo se crea su carpeta y se recuerda, para que la pr&oacute;xima vez vaya siempre a la misma.</p>
+      <div class="aviso" id="estadoCarpeta" style="display:none"></div>
+      <button class="btn-secondary" id="reconectarCarpeta" style="display:none">&#128279; Reconectar carpeta guardada</button>
+      <button class="btn-secondary" id="elegirCarpeta">&#128193; Elegir carpeta donde guardar</button>
+      <button class="btn-secondary" id="zipBtn" style="display:none">&#128230; Descargar todo el c&oacute;digo</button>
+      <div class="switch-fila">
+        <label for="autoZipChk">Guardar autom&aacute;ticamente lo nuevo</label>
+        <span class="sw"><input type="checkbox" id="autoZipChk" checked><span class="sw-pista"></span></span>
+      </div>
+      <div class="carpeta-lista" id="carpetaLista"></div>
+      <button class="btn-secondary" id="resetCarpetas">&#8634; Olvidar carpetas guardadas</button>
+
+      <hr class="divider">
+
+      <h3>Respuesta</h3>
+      <div class="switch-fila">
+        <label for="swStream">Ver el texto seg&uacute;n se escribe</label>
+        <span class="sw"><input type="checkbox" id="swStream" checked><span class="sw-pista"></span></span>
+      </div>
+      <p class="settings-hint" style="margin-top:6px">Si lo apagas, la respuesta aparece de golpe al terminar.</p>
+
+      <hr class="divider">
+
+      <h3 id="secRespuestas">✍️ Cómo responde Cece</h3>
+      <p class="settings-hint">Valen para todos los niveles y también para Cece Live.</p>
+      <label class="etq" for="optLargo">Longitud de las respuestas</label>
+      <select class="sel-in" id="optLargo">
+        <option value="corta">Corta: lo esencial</option>
+        <option value="normal">Normal</option>
+        <option value="detallada">Detallada: con explicaciones y ejemplos</option>
+      </select>
+      <label class="etq" for="optTono">Tono</label>
+      <select class="sel-in" id="optTono">
+        <option value="cercano">Cercano (el de siempre)</option>
+        <option value="profesional">Profesional</option>
+        <option value="directo">Directo, sin rodeos</option>
+        <option value="divertido">Divertido</option>
+      </select>
+      <label class="etq" for="optIdioma">Idioma de las respuestas</label>
+      <select class="sel-in" id="optIdioma">
+        <option value="auto">El mismo en que escribas</option>
+        <option value="es">Español</option>
+        <option value="en">English</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="it">Italiano</option>
+        <option value="pt">Português</option>
+        <option value="ca">Català</option>
+      </select>
+      <label class="etq" for="optInstrucciones">Lo que Cece debe saber de ti o cómo quieres que responda</label>
+      <textarea class="campo" id="optInstrucciones" rows="3" maxlength="1500" spellcheck="true" placeholder="Ej.: Programo en Python; dame ejemplos cortos y explícame los errores paso a paso."></textarea>
+      <label class="etq" for="optEnviar">Enviar mensajes con</label>
+      <select class="sel-in" id="optEnviar">
+        <option value="enter">Enter (Mayús + Enter: línea nueva)</option>
+        <option value="ctrl">Ctrl + Enter (Enter: línea nueva)</option>
+      </select>
+      <label class="etq" for="optRazon">Razonamiento de la IA (lo que piensa antes de responder)</label>
+      <select class="sel-in" id="optRazon">
+        <option value="plegado">Plegado: se abre al pulsarlo</option>
+        <option value="abierto">Abierto</option>
+        <option value="oculto">Oculto</option>
+      </select>
+      <div class="switch-fila" style="margin-top:10px">
+        <label for="swSonido">Sonido al terminar cada respuesta</label>
+        <span class="sw"><input type="checkbox" id="swSonido"><span class="sw-pista"></span></span>
+      </div>
+
+      <hr class="divider">
+
+      <h3>Conversaciones</h3>
+      <p class="settings-hint">Se guardan en este navegador. Para llev&aacute;rtelas a otro ordenador, exp&oacute;rtalas a un archivo.</p>
+      <button class="btn-secondary" id="saveConvBtn">&#128190; Guardar conversaci&oacute;n actual</button>
+      <div class="aviso aviso-naranja" id="avisoAlmacen" style="display:none">
+        Este navegador no conserva datos al cerrar la p&aacute;gina (pasa al abrir el archivo desde un USB).
+        Lo que guardes se descargar&aacute; adem&aacute;s como archivo para que no se pierda.
+      </div>
+      <input type="text" id="buscarConv" class="buscador" placeholder="&#128269; Buscar en las guardadas..." aria-label="Buscar conversaciones">
+      <div class="conv-list" id="convList"></div>
+      <button class="btn-secondary" id="exportBtn">&#11015;&#65039; Exportar (.json)</button>
+      <button class="btn-secondary" id="exportarMd">&#128221; Exportar como texto (.md)</button>
+      <button class="btn-secondary" id="importBtn">&#11014;&#65039; Importar (.json)</button>
+      <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+      <div class="save-status" id="convStatus" role="status"></div>
+
+      <!-- ===== Añadido: apariencia, plugins, sin conexión, nube y seguridad ===== -->
+      <hr class="divider">
+
+      <h3 id="secApariencia">🎨 Apariencia</h3>
+      <p class="settings-hint">Tema, color y tamaño. Se guarda en este navegador (y en la nube, si la usas).</p>
+      <div class="temas-grid" id="temasGrid" role="radiogroup" aria-label="Tema"></div>
+      <div class="fila-ajuste">
+        <label for="acentoColor">Color de acento</label>
+        <span class="fila-ctl"><input type="color" id="acentoColor" value="#ff3f9e" aria-label="Color de acento"><button type="button" class="btn-mini" id="acentoReset">El del tema</button></span>
+      </div>
+      <div class="fila-ajuste">
+        <label for="letraSel">Tamaño del texto del chat</label>
+        <select class="sel-in sel-corto" id="letraSel">
+          <option value="pequena">Pequeño</option><option value="normal">Normal</option><option value="grande">Grande</option><option value="enorme">Muy grande</option>
+        </select>
+      </div>
+      <div class="fila-ajuste">
+        <label for="densidadSel">Espaciado</label>
+        <select class="sel-in sel-corto" id="densidadSel">
+          <option value="compacta">Compacto</option><option value="normal">Normal</option><option value="amplia">Amplio</option>
+        </select>
+      </div>
+      <div class="fila-ajuste">
+        <label for="anchoSel">Ancho del chat</label>
+        <select class="sel-in sel-corto" id="anchoSel">
+          <option value="estrecho">Estrecho</option><option value="normal">Normal</option><option value="ancho">Ancho</option><option value="completo">Toda la pantalla</option>
+        </select>
+      </div>
+      <div class="switch-fila">
+        <label for="swAnim">Animaciones</label>
+        <span class="sw"><input type="checkbox" id="swAnim" checked><span class="sw-pista"></span></span>
+      </div>
+
+      <hr class="divider">
+
+      <h3 id="secPlugins">🧩 Plugins</h3>
+      <p class="settings-hint">Comandos extra: escríbelos con <code>/</code> al principio del mensaje. Los integrados se hacen aquí mismo, sin IA, sin gastar tokens y sin internet.</p>
+      <div class="plugin-lista" id="pluginLista"></div>
+      <button class="btn-secondary" id="pluginNuevo">➕ Crear un plugin</button>
+      <button class="btn-secondary" id="pluginExportar">⬇️ Exportar mis plugins</button>
+      <button class="btn-secondary" id="pluginImportar">⬆️ Importar plugins</button>
+      <input type="file" id="pluginArchivo" accept=".json,application/json" hidden>
+
+      <hr class="divider">
+
+      <h3 id="secOffline">📴 Sin conexión</h3>
+      <p class="settings-hint">Sin internet, Cece sigue funcionando: tus conversaciones, los plugins y la voz del navegador. Lo que pidas a la IA espera y se envía solo al volver la conexión. Y si tienes una IA en tu ordenador (Ollama, LM Studio…), responde también sin internet.</p>
+      <div class="switch-fila">
+        <label for="swLocal">Usar una IA de mi ordenador</label>
+        <span class="sw"><input type="checkbox" id="swLocal"><span class="sw-pista"></span></span>
+      </div>
+      <!-- 🔗 CeceHub: la IA de este equipo, de otro de tu WiFi o de tu casa por internet -->
+      <div class="hub-caja" id="hubCaja">
+        <div class="switch-fila">
+          <label for="swHub">🔗 Conectar con CeceHub <span class="hub-sub">en este equipo, en tu WiFi o por internet</span></label>
+          <span class="sw"><input type="checkbox" id="swHub"><span class="sw-pista"></span></span>
+        </div>
+        <div id="hubAjustes" hidden>
+          <div class="conex-fila hub-estado" id="hubEstado" role="status" aria-live="polite"></div>
+          <div class="hub-botones">
+            <button type="button" class="btn-mini" id="hubConectar">🔗 Conectar</button>
+            <button type="button" class="btn-mini" id="hubBuscar">📶 Buscar en mi WiFi</button>
+            <button type="button" class="btn-mini" id="hubOlvidar" hidden>Olvidar</button>
+          </div>
+          <div class="hub-programa">
+            <button type="button" class="btn-mini" id="hubDescargar">⬇️ Descargar CeceHub</button>
+            <span class="det" id="hubComo">Va dentro de Cece: descárgalo en el ordenador que tiene la IA y ábrelo con Python.</span>
+          </div>
+          <div class="hub-lista" id="hubLista" hidden></div>
+          <label class="etq" for="hubEnlace">🌍 Desde otro sitio: pega el enlace de internet que enseña CeceHub al arrancar con <code>--internet</code></label>
+          <div class="fila2">
+            <input type="text" class="sel-in" id="hubEnlace" placeholder="https://….trycloudflare.com/#cecehub=…" spellcheck="false" autocomplete="off" autocapitalize="off">
+            <button type="button" class="btn-mini" id="hubEnlaceBtn">🌍 Conectar</button>
+          </div>
+          <details class="ayuda-plegable">
+            <summary>Cómo funciona</summary>
+            <ol>
+              <li>En el ordenador con la IA (Ollama, LM Studio…), pulsa <b>⬇️ Descargar CeceHub</b> y ábrelo: <code>python3 cecehub-server.py</code> (en Windows, doble clic o <code>py cecehub-server.py</code>). Solo necesita Python 3.8 o más nuevo.</li>
+              <li><b>Mismo equipo o misma WiFi:</b> pulsa «Conectar». Si no lo encuentra, «Buscar en mi WiFi».</li>
+              <li><b>Desde cualquier sitio:</b> arranca CeceHub con <code>--internet</code> y pega aquí el enlace que enseña (lleva un código: no lo compartas).</li>
+              <li>Cece se reconecta sola: al llegar a casa usa la WiFi; al salir, internet.</li>
+            </ol>
+          </details>
+        </div>
+      </div>
+      <div id="localAjustes" hidden>
+        <label class="etq" for="localUrl">Dirección del servidor (termina en /v1)<span class="hub-manda" id="hubManda" hidden> · ahora manda CeceHub</span></label>
+        <div class="fila2">
+          <input type="url" class="sel-in" id="localUrl" placeholder="http://localhost:11434/v1" spellcheck="false" autocomplete="off">
+          <button type="button" class="btn-mini" id="localBuscar">🔎 Buscar modelos</button>
+        </div>
+        <label class="etq" for="localModelo">Modelo</label>
+        <input class="sel-in" id="localModelo" list="localModelos" placeholder="Nombre del modelo en tu ordenador" spellcheck="false" autocomplete="off">
+        <datalist id="localModelos"></datalist>
+        <div class="api-test" id="localEstado" role="status"></div>
+        <div class="switch-fila">
+          <label for="swLocalRespaldo">Usarla de respaldo en todos los niveles</label>
+          <span class="sw"><input type="checkbox" id="swLocalRespaldo" checked><span class="sw-pista"></span></span>
+        </div>
+        <div class="switch-fila">
+          <label for="swLocalVista">El modelo ve imágenes</label>
+          <span class="sw"><input type="checkbox" id="swLocalVista"><span class="sw-pista"></span></span>
+        </div>
+        <p class="settings-hint">Ollama: arráncalo con <code>OLLAMA_ORIGINS=*</code> para que el navegador pueda hablar con él (en Mac: <code>launchctl setenv OLLAMA_ORIGINS "*"</code> y reinícialo). LM Studio: en el servidor, activa «Enable CORS» y usa <code>http://localhost:1234/v1</code>. Elige «Cece Local» en el menú de niveles.</p>
+      </div>
+
+      <hr class="divider">
+
+      <h3 id="secNube">☁️ Nube</h3>
+      <p class="settings-hint">Tus conversaciones guardadas, tus plugins y la apariencia, en un Gist privado de tu cuenta de GitHub, para tenerlos en todos tus equipos. Van cifrados de extremo a extremo con tu frase secreta: ni GitHub ni nadie más puede leerlos.</p>
+      <div class="aviso" id="nubeEstado" role="status"></div>
+      <div class="switch-fila">
+        <label for="swNubeAuto">Sincronizar automáticamente</label>
+        <span class="sw"><input type="checkbox" id="swNubeAuto"><span class="sw-pista"></span></span>
+      </div>
+      <button class="btn-secondary" id="nubeAhora">🔄 Sincronizar ahora</button>
+      <button class="btn-secondary" id="nubeOlvidar" style="display:none">Desvincular este equipo</button>
+      <details class="ayuda-plegable">
+        <summary>Cómo activarla (2 minutos)</summary>
+        <ol>
+          <li>En GitHub: Settings → Developer settings → Personal access tokens → crea un token con <b>solo</b> el permiso «gist».</li>
+          <li>Abre este archivo con el Bloc de notas y pon el token en <code>nube_token</code> y una frase larga en <code>nube</code>, en el bloque de configuración del principio (la misma frase en todos tus equipos).</li>
+          <li>Ábrelo, protégelo con contraseña (🔐 Seguridad) y pulsa «Sincronizar ahora».</li>
+        </ol>
+      </details>
+
+      <hr class="divider">
+
+      <h3 id="secSeguridad">🔐 Seguridad</h3>
+      <div class="aviso" id="segEstado" role="status"></div>
+      <button class="btn-secondary" id="segCifrar">🔐 Cifrar mis claves con contraseña</button>
+      <button class="btn-secondary" id="segDesbloquear" style="display:none">🔓 Desbloquear las claves</button>
+      <button class="btn-secondary" id="segBloquear" style="display:none">🔒 Bloquear ahora (y olvidar en este equipo)</button>
+      <button class="btn-secondary" id="segPlano" style="display:none">📝 Descargar sin cifrar para cambiar claves</button>
+      <p class="settings-hint">Cifrar descarga una copia de Cece con las claves protegidas (AES-256-GCM) y sin nada legible: úsala y borra la antigua. Sin tu contraseña nadie puede sacar las claves del archivo, ni siquiera con F12. Mientras Cece está desbloqueada y habla con una IA, la clave de ese proveedor viaja en la petición (se ve en F12 → Red): no compartas capturas de esa pestaña.</p>
+      <!-- ===== Fin del añadido ===== -->
+    </div>
+  </div>
+</div>
+
+<main class="chat-area" id="chatArea">
+  <div class="messages" id="messages" role="log" aria-live="polite"></div>
+</main>
+
+<footer class="inputbar">
+  <div class="stat-strip">
+    <span class="stat-item">&#9201;&#65039; <span id="clock">00:00:00</span></span>
+    <span class="stat-item">&#128202; &Uacute;ltima: <span id="lastTokens">0</span> tokens</span>
+    <span class="stat-item">&#128640; <span id="lastSpeed">0</span> t/s</span>
+    <span class="stat-item">&#128200; Sesi&oacute;n: <span id="totalTokens">0</span> tokens</span>
+    <span class="stat-item">&#128176; <span id="costeTotal">$0.0000</span></span>
+
+  </div>
+  <div class="adj-bandeja" id="adjBandeja" hidden aria-label="Archivos adjuntos" aria-live="polite"></div>
+  <div class="input-row">
+    <button id="liveBtn" class="btn-live" title="Cece Live: conversación por voz" aria-label="Cece Live">LIVE</button>
+    <button id="imgModeBtn" class="mode-btn" title="Cambiar entre texto e imagen" aria-label="Modo texto o imagen">&#128172;</button>
+    <button id="codeModeBtn" class="mode-btn" title="Modo code: solo modelos de programaci&oacute;n" aria-label="Modo code">&lt;/&gt;</button>
+    <button id="micBtn" class="mode-btn" title="Modo micr&oacute;fono: h&aacute;blale y te responde en voz alta" aria-label="Modo micr&oacute;fono">&#127908;</button>
+  <button id="maxiBtn" class="mode-btn" title="Todos los modelos al 100%" aria-label="Todos al 100%">100%</button>
+    <button id="adjBtn" class="mode-btn" title="Adjuntar archivos: imágenes, PDF, texto, código, Word, Excel, PowerPoint (también arrastrando o pegando)" aria-label="Adjuntar archivos">📎</button>
+    <input type="file" id="adjInput" multiple hidden accept="image/*,.pdf,.txt,.md,.csv,.tsv,.json,.jsonl,.js,.mjs,.ts,.tsx,.jsx,.py,.rb,.php,.java,.kt,.swift,.go,.rs,.c,.h,.cpp,.hpp,.cs,.sql,.html,.htm,.css,.scss,.xml,.svg,.yml,.yaml,.toml,.ini,.log,.srt,.vtt,.tex,.sh,.bat,.ps1,.lua,.r,.dart,.vue,.svelte,.ipynb,.docx,.xlsx,.pptx">
+    <textarea id="userInput" placeholder="Escribe tu mensaje..." rows="1" aria-label="Mensaje"></textarea>
+    <button id="sendBtn" class="send-btn" aria-label="Enviar">&#10148;</button>
+  </div>
+</footer>
+
+<div class="live-overlay" id="liveOverlay" data-st="idle" role="dialog" aria-label="Modo Live">
+  <div class="live-top">
+    <div class="live-brand">CECE <span>AI</span> LIVE</div>
+    <div class="live-tag" id="liveTag">CECE TURBO</div>
+  </div>
+  <div class="live-orb-wrap">
+    <div class="live-ring"></div><div class="live-ring"></div><div class="live-ring"></div>
+    <button class="live-orb" id="liveOrb" aria-label="Hablar"><span class="live-orb-icon" id="liveOrbIcon">🎤</span></button>
+  </div>
+  <div class="live-bars" aria-hidden="true">
+    <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+    <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+  </div>
+  <div class="live-status" id="liveStatus" role="status">Toca el círculo para empezar</div>
+  <div class="live-textos">
+    <div class="live-user" id="liveUser"></div>
+    <div class="live-ia" id="liveIa"></div>
+  </div>
+  <div class="live-motores" id="liveMotores"></div>
+  <div class="live-controls">
+    <button class="live-ctrl" id="liveMute">🎙️ Micro activo</button>
+    <button class="live-ctrl" id="liveCortar">✋ Cortar</button>
+    <button class="live-ctrl salir" id="liveSalir">✕ Salir</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+
+<div class="modal-overlay" id="liveSettingsModal" role="dialog" aria-modal="true" aria-labelledby="liveSettingsTitle" aria-hidden="true">
+  <div class="modal-content live-settings-window">
+    <div class="modal-header">
+      <h2 id="liveSettingsTitle">⚙️ Ajustes de Cece Live</h2>
+      <button class="modal-close" id="liveSettingsClose" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Voz (TTS) -->
+      <div class="settings-section">
+        <h3>🗣️ Cómo te hablo</h3>
+        <label class="etq" for="vozMotor">Motor de voz</label>
+        <div class="fila2">
+          <select class="sel-in" id="vozMotor">
+            <option value="auto">Automática</option>
+            <option value="elevenlabs">Voz Cece Natural</option>
+            <option value="openai">Voz Cece Clara</option>
+            <option value="gemini">Voz Cece Viva</option>
+            <option value="groq">Voz Cece Inglés</option>
+            <option value="navegador">Navegador</option>
+          </select>
+          <select class="sel-in" id="vozSel" aria-label="Voz"></select>
+          <button class="btn-mini" id="vozProbar">▶ Probar</button>
+        </div>
+        <div class="api-test" id="vozEstado"></div>
+      </div>
+
+      <!-- Oído (STT) -->
+      <div class="settings-section">
+        <h3>👂 Cómo te escucho</h3>
+        <label class="etq" for="sttMotor">Motor de transcripción</label>
+        <select class="sel-in" id="sttMotor">
+          <option value="auto">Automático</option>
+          <option value="groq">Oído Cece Rápido</option>
+          <option value="groq-hq">Oído Cece Preciso</option>
+          <option value="openai">Oído Cece Plus</option>
+          <option value="navegador">Navegador</option>
+        </select>
+      </div>
+
+      <!-- Idioma y modelo en Live -->
+      <div class="settings-section">
+        <h3>🌍 Idioma y modelo</h3>
+        <label class="etq" for="vozIdioma">Idioma</label>
+        <select class="sel-in" id="vozIdioma">
+          <option value="es-ES">Español (España)</option>
+          <option value="es-MX">Español (México)</option>
+          <option value="es-US">Español (EE. UU.)</option>
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="fr-FR">Français</option>
+          <option value="de-DE">Deutsch</option>
+          <option value="it-IT">Italiano</option>
+          <option value="pt-BR">Português</option>
+          <option value="ca-ES">Català</option>
+        </select>
+        <label class="etq" for="liveModelo">Nivel de respuesta</label>
+        <select class="sel-in" id="liveModelo"></select>
+      </div>
+
+      <!-- Comportamiento -->
+      <div class="settings-section">
+        <h3>🎯 Comportamiento</h3>
+        <div class="switch-fila">
+          <label for="swAutoEscucha">Seguir escuchando automáticamente</label>
+          <span class="sw"><input type="checkbox" id="swAutoEscucha" checked><span class="sw-pista"></span></span>
+        </div>
+        <div class="switch-fila">
+          <label for="swInterrumpir">Cortarme si hablas encima</label>
+          <span class="sw"><input type="checkbox" id="swInterrumpir" checked><span class="sw-pista"></span></span>
+        </div>
+        <div class="switch-fila">
+          <label for="swVozChat">Guardar lo hablado en el chat</label>
+          <span class="sw"><input type="checkbox" id="swVozChat" checked><span class="sw-pista"></span></span>
+        </div>
+      </div>
+
+      <!-- Silencio -->
+      <div class="settings-section">
+        <h3>⏱️ Pausa para terminar tu frase</h3>
+        <div class="silence-slider">
+          <input type="range" id="silencioMs" min="400" max="2500" step="100" value="900" style="width:100%;accent-color:var(--accent)">
+          <div class="silence-value"><b id="silencioVal">900</b> ms</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span class="modal-nota">Los cambios se guardan al momento</span>
+      <button class="btn-primary" id="liveSettingsApply">Listo</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 🧩 Crear / editar un plugin -->
+<div class="modal-overlay" id="pluginModal" role="dialog" aria-modal="true" aria-labelledby="pluginTitulo" aria-hidden="true">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="pluginTitulo">🧩 Nuevo plugin</h2>
+      <button class="modal-close" id="pluginCerrar" aria-label="Cerrar">&times;</button>
+    </div>
+    <form class="modal-body" id="pluginForm" autocomplete="off">
+      <div class="fila2">
+        <input class="sel-in plg-emoji" id="plgEmoji" maxlength="16" aria-label="Emoji" placeholder="🧩">
+        <input class="sel-in" id="plgId" placeholder="comando, p. ej. traducir" aria-label="Comando (sin /)" spellcheck="false">
+      </div>
+      <input class="sel-in" id="plgNombre" placeholder="Nombre" aria-label="Nombre" maxlength="40">
+      <input class="sel-in" id="plgDesc" placeholder="Qué hace (se ve en el menú /)" aria-label="Descripción" maxlength="120">
+      <div class="plg-tipos" role="radiogroup" aria-label="Tipo de plugin">
+        <label><input type="radio" name="plgTipo" value="plantilla" checked> 💬 Plantilla para la IA</label>
+        <label><input type="radio" name="plgTipo" value="js"> ⚙️ Código (sin IA)</label>
+      </div>
+      <textarea class="sel-in plg-cuerpo" id="plgCuerpo" rows="7" spellcheck="false" aria-label="Contenido del plugin"></textarea>
+      <p class="settings-hint" id="plgAyuda"></p>
+      <div class="fila2">
+        <input class="sel-in" id="plgPrueba" placeholder="Texto de prueba" aria-label="Texto de prueba">
+        <button type="button" class="btn-mini" id="plgProbar">▶ Probar</button>
+      </div>
+      <pre class="plg-salida" id="plgSalida" hidden></pre>
+      <div class="boveda-error" id="plgError" role="alert"></div>
+    </form>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary plg-borrar" id="plgBorrar">🗑️ Borrar</button>
+      <button type="submit" class="btn-primary" id="plgGuardar" form="pluginForm">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📎 Aviso al arrastrar archivos -->
+<div class="soltar-aviso" aria-hidden="true"><div>📎 Suelta aquí para adjuntar</div></div>
+
+
+<!-- 🔐 Pantalla de desbloqueo (claves cifradas) -->
+<div class="boveda-overlay" id="bovedaOverlay" role="dialog" aria-modal="true" aria-labelledby="bovedaTitulo" hidden>
+  <form class="boveda-caja" id="bovedaForm" autocomplete="off">
+    <div class="boveda-candado" aria-hidden="true">🔐</div>
+    <h2 id="bovedaTitulo">Cece AI está protegida</h2>
+    <p class="boveda-txt">Las claves de este archivo van cifradas. Escribe tu contraseña para usarlas.</p>
+    <input type="password" id="bovedaPass" class="boveda-in" placeholder="Contraseña" autocomplete="current-password" aria-label="Contraseña" required>
+    <label class="boveda-rec"><input type="checkbox" id="bovedaRecordar"> Recordar en este equipo</label>
+    <div class="boveda-error" id="bovedaError" role="alert"></div>
+    <button type="submit" class="boveda-btn" id="bovedaEntrar">Desbloquear</button>
+    <button type="button" class="boveda-sin" id="bovedaSin">Seguir sin claves</button>
+  </form>
+</div>
+
+<!-- 🔐 Cifrar las claves -->
+<div class="modal-overlay" id="cifrarModal" role="dialog" aria-modal="true" aria-labelledby="cifrarTitulo" aria-hidden="true">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="cifrarTitulo">🔐 Cifrar mis claves</h2>
+      <button class="modal-close" id="cifrarCerrar" aria-label="Cerrar">&times;</button>
+    </div>
+    <form class="modal-body" id="cifrarForm" autocomplete="off">
+      <p class="settings-hint">Elige una contraseña larga (una frase es lo mejor). Sin ella nadie podrá leer las claves… ni tú: no se puede recuperar.</p>
+      <input type="password" id="cifrarPass" class="boveda-in" placeholder="Contraseña (10 caracteres o más)" autocomplete="new-password" aria-label="Contraseña nueva">
+      <div class="fuerza" aria-hidden="true"><span id="cifrarFuerzaBarra"></span></div>
+      <div class="settings-hint" id="cifrarFuerzaTxt" aria-live="polite"></div>
+      <input type="password" id="cifrarPass2" class="boveda-in" placeholder="Repítela" autocomplete="new-password" aria-label="Repite la contraseña">
+      <label class="boveda-rec"><input type="checkbox" id="cifrarRecordar" checked> Recordar en este equipo</label>
+      <div class="boveda-error" id="cifrarError" role="alert"></div>
+      <button type="submit" class="btn-primary" id="cifrarOk">Cifrar y descargar el archivo protegido</button>
+    </form>
+  </div>
+</div>

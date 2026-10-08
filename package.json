@@ -1,0 +1,17 @@
+{
+  "name": "cece-ai",
+  "private": true,
+  "description": "Cece AI: un solo archivo HTML. El programa se edita en fuente/ y se empaqueta en cece-ai.html.",
+  "scripts": {
+    "desempaquetar": "node herramientas/desempaquetar.js",
+    "empaquetar": "node herramientas/empaquetar.js",
+    "lint": "eslint fuente/programa.js && ruff check fuente/cecehub-server.py",
+    "probar": "node herramientas/probar.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0",
+    "terser": "^5.0.0"
+  }
+}
