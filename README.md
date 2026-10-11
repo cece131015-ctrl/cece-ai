@@ -42,3 +42,15 @@ conexión, los adjuntos, «Parar», el micrófono y CeceHub de verdad (con `pyth
 
 Para instalar Playwright: `npm i -D playwright && npx playwright install chromium`.
 Se puede probar otro archivo o filtrar por nombre: `node herramientas/probar.js otra-copia.html "cifrar|nube"`.
+
+## Integración con GitHub
+
+La versión empaquetada de `cece-ai.html` incluye un panel **🐙 GitHub** para conectar con la API oficial, listar repositorios, navegar por carpetas, leer/editar archivos, guardar commits y crear repositorios privados. Cada escritura requiere confirmación explícita.
+
+- El token se introduce en el panel y permanece solo en memoria de la pestaña; no se guarda en `localStorage` ni se añade al código.
+- Usa un token fine-grained limitado a los repositorios necesarios, con **Contents: Read and write** y **Metadata: Read-only**. Para crear repositorios, concede además el permiso de administración requerido por GitHub.
+- No pegues el token en el código, en el chat ni en capturas. Pulsa **Desconectar y borrar token** cuando termines.
+- La aplicación añade al arrancar una pantalla breve con **«Creado por Cece AI»**.
+- La integración está insertada en el HTML empaquetado; al editar y reconstruir el proyecto, comprueba que el bloque `CECE_GITHUB_PANEL_V1` siga presente en el archivo de salida.
+
+Documentación de permisos: https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens
