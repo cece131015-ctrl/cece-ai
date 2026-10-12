@@ -833,6 +833,302 @@ prueba("nube: sube el historial cifrado a un Gist y otro equipo lo recupera", as
   await b.ctx.close();
 });
 
+// ---------- GitHub simulado (para el panel 🐙 GitHub) ----------
+function githubSimulado({ nRepos = 2 } = {}) {
+  const g = {
+    repos: Array.from({ length: nRepos }, (_, i) => ({ full_name: "cece/repo" + i, private: true, default_branch: "main" })),
+    archivos: new Map(), // "cece/repo0:ruta" → { buf, sha }
+    puts: [],
+    pedidos: [],
+  };
+  let n = 0;
+  g.poner = (repo, ruta, contenido) =>
+    g.archivos.set(repo + ":" + ruta, {
+      buf: Buffer.isBuffer(contenido) ? contenido : Buffer.from(contenido),
+      sha: "sha" + ++n + "0000000",
+    });
+  g.leer = (repo, ruta) => (g.archivos.get(repo + ":" + ruta) || {}).buf?.toString();
+  g.manejar = ({ url, cuerpo, req }) => {
+    const u = new URL(url),
+      m = req.method();
+    g.pedidos.push(m + " " + u.pathname + u.search);
+    const json = (o, status = 200) => ({ status, tipo: "application/json", cuerpo: JSON.stringify(o) });
+    if (u.pathname === "/user") return json({ login: "cece" });
+    if (u.pathname === "/user/repos") {
+      const pag = Number(u.searchParams.get("page") || 1);
+      return json(g.repos.slice((pag - 1) * 100, pag * 100));
+    }
+    const mm = u.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/contents\/?(.*)$/);
+    if (!mm) return json({ message: "Not Found" }, 404);
+    const repo = mm[1],
+      ruta = mm[2].split("/").map(decodeURIComponent).join("/");
+    const f = g.archivos.get(repo + ":" + ruta);
+    if (m === "GET") {
+      if (f) {
+        const grande = f.buf.length > 1048576;
+        return json({
+          type: "file",
+          path: ruta,
+          name: ruta.split("/").pop(),
+          sha: f.sha,
+          size: f.buf.length,
+          encoding: grande ? "none" : "base64",
+          content: grande ? "" : f.buf.toString("base64"),
+        });
+      }
+      const pre = ruta ? ruta + "/" : "",
+        hijos = new Map();
+      for (const k of g.archivos.keys())
+        if (k.startsWith(repo + ":" + pre)) {
+          const [nom, ...mas] = k.slice(repo.length + 1 + pre.length).split("/");
+          hijos.set(nom, mas.length ? "dir" : "file");
+        }
+      if (!hijos.size && ruta) return json({ message: "Not Found" }, 404);
+      return json([...hijos].map(([name, type]) => ({ name, path: pre + name, type })));
+    }
+    if (m === "PUT") {
+      g.puts.push({ repo, ruta, cuerpo });
+      if (f && cuerpo.sha !== f.sha) return json({ message: ruta + " does not match " + cuerpo.sha }, 409);
+      g.poner(repo, ruta, Buffer.from(cuerpo.content, "base64"));
+      return json({ content: { sha: g.archivos.get(repo + ":" + ruta).sha }, commit: { sha: "c0ffee0123456789" } }, f ? 200 : 201);
+    }
+    return json({ message: "Not Found" }, 404);
+  };
+  return g;
+}
+async function abrirGitHub(pagina) {
+  const dialogos = [];
+  pagina.on("dialog", (d) => (dialogos.push(d.message()), d.accept()));
+  await pagina.click("#cece-github-open");
+  await pagina.fill("#cece-gh-token", "github_pat_prueba");
+  await pagina.press("#cece-gh-token", "Enter");
+  await esperarGitHub(pagina, /Carpeta cargada/);
+  return dialogos;
+}
+const esperarGitHub = (pagina, re) =>
+  pagina.waitForFunction(
+    (src) =>
+      new RegExp(src).test(document.getElementById("cece-github-status").textContent) && !document.getElementById("cece-gh-save").disabled,
+    re.source,
+    { timeout: 10000 },
+  );
+
+prueba("GitHub: guardar avisa si el archivo ya existe y no pisa otro repositorio", async (nav) => {
+  const g = githubSimulado();
+  g.poner("cece/repo0", "README.md", "# Documentación importante\n");
+  g.poner("cece/repo0", "src/app.js", "console.log('repo0');\n");
+  g.poner("cece/repo1", "src/app.js", "console.log('repo1, NO TOCAR');\n");
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), { ia: { "api.github.com": g.manejar } });
+  const dialogos = await abrirGitHub(pagina);
+  // ruta que ya existe, sin abrirla antes
+  await pagina.fill("#cece-gh-filepath", "README.md");
+  await pagina.fill("#cece-gh-editor", "hola");
+  await pagina.click("#cece-gh-save");
+  await esperarGitHub(pagina, /Guardado|No se guardó/);
+  cierto(/YA EXISTE.*SOBRESCRIBIR/.test(dialogos.pop()), "el aviso no dice que se sobrescribe");
+  // abrir src/app.js en repo0 y cambiar a repo1: el editor no se lleva el archivo al otro repositorio
+  await pagina.fill("#cece-gh-filepath", "src/app.js");
+  await pagina.click("#cece-gh-read");
+  await esperarGitHub(pagina, /Archivo leído/);
+  await pagina.selectOption("#cece-gh-repos", "cece/repo1");
+  await esperarGitHub(pagina, /Carpeta cargada/);
+  igual(await pagina.inputValue("#cece-gh-editor"), "", "el editor sigue con el archivo del otro repositorio");
+  igual(g.leer("cece/repo1", "src/app.js"), "console.log('repo1, NO TOCAR');\n");
+  // guardar el archivo abierto: «Actualizar» y con su SHA
+  await pagina.fill("#cece-gh-filepath", "src/app.js");
+  await pagina.click("#cece-gh-read");
+  await esperarGitHub(pagina, /Archivo leído/);
+  await pagina.fill("#cece-gh-editor", "console.log('repo1 v2');\n");
+  await pagina.click("#cece-gh-save");
+  await esperarGitHub(pagina, /Guardado correctamente/);
+  cierto(/Actualizar el archivo que abriste/.test(dialogos.pop()), "aviso al actualizar");
+  igual(g.leer("cece/repo1", "src/app.js"), "console.log('repo1 v2');\n");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("GitHub: no abre lo que no puede editar y conserva los saltos de Windows", async (nav) => {
+  const g = githubSimulado();
+  g.poner("cece/repo0", "datos.csv", Buffer.alloc((2 << 20) + 5, 97));
+  g.poner("cece/repo0", "logo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe]));
+  g.poner("cece/repo0", "instalar.bat", "@echo off\r\necho hola\r\n");
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}), { ia: { "api.github.com": g.manejar } });
+  const dialogos = await abrirGitHub(pagina);
+  for (const [f, re] of [
+    ["datos.csv", /más de 1 MB/],
+    ["logo.png", /no es texto UTF-8/],
+  ]) {
+    await pagina.click(`#cece-gh-files .gh-file >> text=${f}`);
+    await esperarGitHub(pagina, /No se pudo leer|Archivo leído/);
+    cierto(re.test(await pagina.textContent("#cece-github-status")), f + ": " + (await pagina.textContent("#cece-github-status")));
+    igual(await pagina.inputValue("#cece-gh-editor"), "", f + " se abrió vacío o roto en el editor");
+  }
+  await pagina.click("#cece-gh-files .gh-file >> text=instalar.bat");
+  await esperarGitHub(pagina, /Archivo leído/);
+  await pagina.click("#cece-gh-save");
+  await esperarGitHub(pagina, /Guardado correctamente/);
+  igual(g.leer("cece/repo0", "instalar.bat"), "@echo off\r\necho hola\r\n", "cambió los saltos de línea");
+  igual(g.leer("cece/repo0", "datos.csv").length, (2 << 20) + 5, "el archivo grande cambió");
+  cierto(dialogos.length === 1, "confirmaciones: " + dialogos.length);
+  await ctx.close();
+});
+
+prueba("GitHub: ventana con Escape y foco dentro; lo que se suelta no va al chat; más de 100 repositorios", async (nav) => {
+  const g = githubSimulado({ nRepos: 150 });
+  g.poner("cece/repo0", "a.txt", "a");
+  const { pagina, peticiones, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.github.com": g.manejar, "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("ok") }) },
+  });
+  // GitHub cachea 60 s: el panel tiene que pedir sin caché
+  await pagina.evaluate(() => {
+    const f = window.fetch;
+    window.__caches = [];
+    window.fetch = function (u, o) {
+      String(u).startsWith("https://api.github.com") && window.__caches.push((o && o.cache) || "default");
+      return f.apply(this, arguments);
+    };
+  });
+  await pagina.fill("#userInput", "borrador que no quiero enviar");
+  await abrirGitHub(pagina);
+  igual(await pagina.locator("#cece-gh-repos option").count(), 150, "no salen todos los repositorios");
+  cierto(
+    (await pagina.evaluate(() => window.__caches)).every((c) => c === "no-store"),
+    "pide con caché",
+  );
+  // el foco no sale de la ventana (antes, Shift+Tab llegaba a «Enviar» y Enter mandaba el borrador)
+  for (let i = 0; i < 25; i++) await pagina.keyboard.press("Shift+Tab");
+  cierto(
+    await pagina.evaluate(() => document.getElementById("cece-github-modal").contains(document.activeElement)),
+    "el foco salió de la ventana",
+  );
+  // soltar un archivo sobre el editor lo carga ahí, no en el chat
+  await pagina.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(["const SECRETO = 1;\n"], "privado.js", { type: "text/javascript" }));
+    for (const t of ["dragenter", "dragover", "drop"])
+      document.getElementById("cece-gh-editor").dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+  await pagina.waitForFunction(() => /SECRETO/.test(document.getElementById("cece-gh-editor").value));
+  igual(await pagina.locator("#adjBandeja .adj-item").count(), 0, "el archivo se adjuntó al chat");
+  await pagina.keyboard.press("Escape");
+  cierto(!(await pagina.isVisible("#cece-github-modal")), "Escape no cierra");
+  igual(await pagina.inputValue("#userInput"), "borrador que no quiero enviar");
+  cierto(!peticiones.some((p) => p.url.includes("deepseek")), "se envió algo a la IA");
+  await ctx.close();
+});
+
+prueba("copia protegida: ninguna clave comentada o fuera de sitio queda a la vista", async (nav) => {
+  const vm = require("vm");
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}));
+  const bloque = await pagina.evaluate(() => TEXTO_CLAVES);
+  const variantes = [
+    bloque.replace('enterprise: ""', 'enterprise: /* mi clave */ "sk-viejo-1234567890"'),
+    bloque.replace('  turbo:      "",', '  // turbo: "sk-vieja-pero-valida-999",\n  turbo: "sk-nueva-123",'),
+    bloque.replace('  turbo:      "",', "  // antes: sk-proj-AbCdEf0123456789xyzQWERTY\n  turbo: 'sk-nueva-123',"),
+  ];
+  for (const v of variantes) {
+    const salida = await pagina.evaluate((t) => reescribirBloque(t, { enterprise: "", turbo: "" }, "cece1$prueba"), v);
+    cierto(!/sk-|AbCdEf/.test(salida), "queda una clave a la vista:\n" + salida.slice(0, 600));
+    const c = {};
+    vm.createContext(c);
+    vm.runInContext(salida + "\nthis.K = CECE_KEYS; this.B = CECE_BOVEDA;", c);
+    igual(c.B, "cece1$prueba");
+    cierto(
+      Object.values(c.K).every((x) => !x),
+      "quedan valores activos",
+    );
+  }
+  await ctx.close();
+});
+
+prueba("Motor Argon solo usa versiones de su modelo (no las de voz, lite o imagen)", async (nav) => {
+  const pedidos = [];
+  const lista = ["gemini-4-argon-preview-tts", "gemini-4-argon-lite", "gemini-4-argon-image-preview", "gemini-4-argon-preview-09-2026"];
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ argon: "AIza" }), {
+    almacen: { cece_ajustes: { modelo: "cece-argon" } },
+    ia: {
+      "/models?pageSize": () => ({
+        tipo: "application/json",
+        cuerpo: JSON.stringify({ models: lista.map((n) => ({ name: "models/" + n })) }),
+      }),
+      ":streamGenerateContent": ({ url }) => (
+        pedidos.push(url.match(/models\/([^:]+):/)[1]),
+        { cuerpo: sse([{ candidates: [{ content: { parts: [{ text: "Hola." }] }, finishReason: "STOP" }] }]) }
+      ),
+    },
+  });
+  await escribirYEnviar(pagina, "hola");
+  await ultimaRespuesta(pagina);
+  igual(pedidos.join(","), "gemini-4-argon-preview-09-2026");
+  await ctx.close();
+});
+
+prueba("Astra y Argon: el texto de después de ejecutar código va en otro párrafo", async (nav) => {
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk", argon: "AIza" }), {
+    almacen: { cece_ajustes: { modelo: "cece-astra" } },
+    ia: {
+      "api.openai.com/v1/responses": () => ({
+        cuerpo: sse([
+          { type: "response.output_text.delta", output_index: 0, delta: "Lo calculo con Python." },
+          { type: "response.output_item.added", item: { type: "code_interpreter_call", code: "print(6*7)" } },
+          {
+            type: "response.output_item.done",
+            item: { type: "code_interpreter_call", code: "print(6*7)", outputs: [{ type: "logs", logs: "42" }] },
+          },
+          { type: "response.output_text.delta", output_index: 2, delta: "El resultado es **42**." },
+          { type: "response.completed", response: { output: [] } },
+        ]),
+      }),
+      "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-argon" }] }) }),
+      ":streamGenerateContent": () => ({
+        cuerpo: sse([
+          { candidates: [{ content: { parts: [{ text: "```python\nprint(6*7)\n```" }] } }] },
+          { candidates: [{ content: { parts: [{ executableCode: { language: "PYTHON", code: "print(6*7)" } }] } }] },
+          { candidates: [{ content: { parts: [{ codeExecutionResult: { outcome: "OUTCOME_OK", output: "42" } }] } }] },
+          { candidates: [{ content: { parts: [{ text: "Da **42**." }] }, finishReason: "STOP" }] },
+        ]),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "/codigo 6*7");
+  let r = await ultimaRespuesta(pagina);
+  cierto(/Python\.\s*\n\s*El resultado/.test(r.texto), JSON.stringify(r.texto));
+  await escribirYEnviar(pagina, "/argon");
+  await escribirYEnviar(pagina, "/codigo otra vez");
+  r = await ultimaRespuesta(pagina);
+  cierto(r.html.includes("<strong>42</strong>"), "el texto quedó dentro del bloque de código: " + r.texto);
+  await ctx.close();
+});
+
+prueba("si se corta la conexión a mitad de respuesta, se avisa en español", async (nav) => {
+  const http = require("http");
+  const srv = http.createServer((req, res) => {
+    const cors = {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "*",
+      "access-control-allow-private-network": "true",
+    };
+    if (req.method === "OPTIONS") return res.writeHead(204, cors).end();
+    if (req.url.endsWith("/models"))
+      return res.writeHead(200, { ...cors, "content-type": "application/json" }).end('{"data":[{"id":"m"}]}');
+    res.writeHead(200, { ...cors, "content-type": "text/event-stream" });
+    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: "Empiezo a responder y" } }] })}\n\n`);
+    setTimeout(() => req.socket.destroy(), 200);
+  });
+  await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: {
+      cece_ajustes: { modelo: "cece-local", localActivo: true, localModelo: "m", localUrl: `http://127.0.0.1:${srv.address().port}/v1` },
+    },
+  });
+  await escribirYEnviar(pagina, "hola");
+  const r = await ultimaRespuesta(pagina);
+  srv.close();
+  cierto(/Empiezo a responder y/.test(r.texto) && /Se cortó la conexión/.test(r.texto), r.texto);
+  cierto(!/network error/i.test(r.texto), "sale el error en inglés");
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
