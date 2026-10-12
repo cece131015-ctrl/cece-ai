@@ -722,23 +722,33 @@ function reescribirBloque(e, t, o) {
     i = e.slice(n + 1, r - 1);
   let s = "",
     c = 0;
-  const l = new Set();
+  const l = new Set(),
+    esComilla = (e) => '"' === e || "'" === e || "`" === e,
+    // Lo que se copia tal cual (espacios y comentarios) no puede llevar claves: ni cadenas entre comillas (una clave
+    // antigua «comentada») ni palabras largas con cifras, que es la pinta que tienen las claves
+    sinSecretos = (e) =>
+      e.replace(/(["'`])(?:\\.|(?!\1)[^\\\n])*\1/g, '""').replace(/[\w-]{24,}/g, (e) => (/\d/.test(e) ? "•••" : e)),
+    cadena = (e) => {
+      const t = _finCadena(i, e);
+      if (t < 0) throw new Error("El bloque de claves tiene una cadena sin cerrar.");
+      return t + 1;
+    };
   for (;;) {
     const e = _saltar(i, c);
-    if (((s += i.slice(c, e)), e >= i.length)) break;
+    if (((s += sinSecretos(i.slice(c, e))), e >= i.length)) break;
     const o = /^([A-Za-z_$][\w$]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*:\s*/.exec(i.slice(e));
     if (!o) {
-      ((s += i[e]), (c = e + 1));
+      // una cadena que no es el valor de una clave tampoco se copia: se queda vacía
+      esComilla(i[e]) ? ((s += '""'), (c = cadena(e))) : ((s += i[e]), (c = e + 1));
       continue;
     }
     const a = o[1].replace(/^["']|["']$/g, "");
     s += o[0];
     let n = e + o[0].length;
-    if ('"' === i[n] || "'" === i[n] || "`" === i[n]) {
-      const e = _finCadena(i, n);
-      if (e < 0) throw new Error("El bloque de claves tiene una cadena sin cerrar.");
-      ((s += literalJs(Object.hasOwn(t, a) ? t[a] : "")), l.add(a), (n = e + 1));
-    }
+    // (puede haber un comentario entre «clave:» y su valor)
+    const v = _saltar(i, n);
+    esComilla(i[v]) &&
+      ((s += sinSecretos(i.slice(n, v)) + literalJs(Object.hasOwn(t, a) ? t[a] : "")), l.add(a), (n = cadena(v)));
     c = n;
   }
   const d = Object.keys(t).filter((e) => t[e] && !l.has(e) && /^[a-z][a-z0-9_]{0,30}$/.test(e));
@@ -1359,6 +1369,15 @@ async function leerSSE(e, t, o) {
       let i, s;
       try {
         i = await Promise.race([a.read(), t]);
+      } catch (e) {
+        // la conexión se cortó a mitad de la respuesta: el navegador solo dice «network error» (en inglés y sin marcar como
+        // fallo de red, así que tampoco se dejaba pendiente para reenviar si se había ido internet)
+        if (esAbort(e) || e instanceof ErrorApi) throw e;
+        throw new ErrorApi(`Se cortó la conexión con ${nombreProv(o)} a mitad de la respuesta.`, {
+          prov: o,
+          red: !0,
+          corto: "conexión cortada",
+        });
       } finally {
         clearTimeout(e);
       }
@@ -1813,7 +1832,8 @@ async function chatResponses(e, t) {
     A = "",
     w = null,
     C = null,
-    j = !1;
+    j = !1,
+    salidaTexto = null;
   const x = nuevasFuentes(),
     salidasCodigo = (e) => {
       const o = [],
@@ -1834,8 +1854,18 @@ async function chatResponses(e, t) {
         }
         const r = n.type || o || "",
           i = n.item || {};
-        if ("response.output_text.delta" === r && n.delta) ((y += n.delta), t.onTexto && t.onTexto(n.delta));
-        else if (/^response\.reasoning(_summary)?_text\.delta$/.test(r) && n.delta)
+        if ("response.output_text.delta" === r && n.delta) {
+          // un tramo de texto de otra salida (p. ej. tras ejecutar código) va en otro párrafo: si no, «…Python.El resultado…»
+          const k = n.output_index ?? n.item_id ?? null;
+          (null !== salidaTexto &&
+            k !== salidaTexto &&
+            y &&
+            !/\s$/.test(y) &&
+            ((y += "\n\n"), t.onTexto && t.onTexto("\n\n")),
+            (salidaTexto = k),
+            (y += n.delta),
+            t.onTexto && t.onTexto(n.delta));
+        } else if (/^response\.reasoning(_summary)?_text\.delta$/.test(r) && n.delta)
           ((A += n.delta), t.onRazon && t.onRazon(n.delta));
         else if ("response.output_text.annotation.added" === r && n.annotation)
           x.add(n.annotation.url, n.annotation.title);
@@ -2136,7 +2166,8 @@ async function chatGemini(e, t) {
   let g = "",
     v = "",
     E = null,
-    y = null;
+    y = null,
+    trasHerramienta = !1;
   const A = nuevasFuentes();
   return (
     await leerSSE(
@@ -2160,7 +2191,7 @@ async function chatGemini(e, t) {
             const o = e.executableCode || e.executable_code,
               a = e.codeExecutionResult || e.code_execution_result,
               n = e.inlineData || e.inline_data;
-            if (o)
+            if (((o || a || n) && (trasHerramienta = !0), o))
               (t.onActividad && t.onActividad("🧮 Ejecutando código…"),
                 t.onEjec &&
                   t.onEjec({
@@ -2178,7 +2209,11 @@ async function chatGemini(e, t) {
                   e.text &&
                   (e.thought
                     ? ((v += e.text), t.onRazon && t.onRazon(e.text))
-                    : ((g += e.text), t.onTexto && t.onTexto(e.text)));
+                    : // el texto de después de ejecutar código va en otro párrafo
+                      (trasHerramienta && g && !/\s$/.test(g) && ((g += "\n\n"), t.onTexto && t.onTexto("\n\n")),
+                      (trasHerramienta = !1),
+                      (g += e.text),
+                      t.onTexto && t.onTexto(e.text)));
           }
           const e = r.groundingMetadata;
           if (e) {
@@ -2435,7 +2470,11 @@ const Familias = {
     if (!this.es(e, t)) return t;
     const o = this.listas[e];
     if (!o || o.ids.has(t)) return t;
-    const a = [...o.ids].filter((e) => e.startsWith(t + "-"));
+    // solo versiones del MISMO modelo («-001», «-latest», «-preview-09-2026», «-exp»): no sus hermanos «-preview-tts»
+    // (solo audio), «-lite» o «-image-preview», que empiezan igual pero son otros modelos
+    const a = [...o.ids].filter(
+      (e) => e.startsWith(t + "-") && /^(\d{3}|latest|(preview|exp)(-\d{2,4})*)$/.test(e.slice(t.length + 1)),
+    );
     return (
       a.sort((e, t) => /preview|exp/i.test(e) - /preview|exp/i.test(t) || t.localeCompare(e, "en", { numeric: !0 })),
       a[0] || ""
