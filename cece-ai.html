@@ -718,39 +718,424 @@ select{font-family:inherit}.campo,.sel-in{width:100%;background:var(--panel-3);b
  </section>
 </div>
 <script id="CECE_GITHUB_PANEL_V1">
-(()=>{"use strict";
-// (este bloque va ANTES del cargador para que la copia protegida que descarga la app lo incluya: se arranca al terminar de cargar)
-const iniciar=()=>{
-let token="",repos=[],currentPath="",currentSha=null,currentFile="",busy=false;
-const $=id=>document.getElementById(id);
-const modal=$("cece-github-modal"),status=$("cece-github-status"),repoSel=$("cece-gh-repos"),filesBox=$("cece-gh-files"),pathLabel=$("cece-gh-path"),editor=$("cece-gh-editor"),filePath=$("cece-gh-filepath");
-const say=(s,bad=false)=>{status.textContent=s;status.style.color=bad?"#ff7b72":"#7ee787"};
-const enc=s=>btoa(unescape(encodeURIComponent(s)));
-const dec=s=>decodeURIComponent(escape(atob((s||"").replace(/\s/g,""))));
-const api=async(path,opts={})=>{if(!token)throw Error("Conecta GitHub antes.");const res=await fetch("https://api.github.com"+path,{...opts,headers:{"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Authorization":"Bearer "+token,...(opts.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw Error((data&&data.message)||("GitHub respondió HTTP "+res.status));return data};
-const repo=()=>repoSel.value;
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const lock=v=>{busy=v;document.querySelectorAll("#cece-github-modal button").forEach(b=>b.disabled=v)};
-async function loadRepos(){const data=await api("/user/repos?per_page=100&sort=updated&direction=desc");repos=data;repoSel.innerHTML="";for(const r of data){const o=document.createElement("option");o.value=r.full_name;o.textContent=(r.private?"🔒 ":"🌐 ")+r.full_name;repoSel.append(o)}if(!data.length)repoSel.add(new Option("No hay repositorios",""));currentPath="";say("Conectado. Repositorios cargados: "+data.length);if(data.length)await loadFiles()}
-async function loadFiles(){if(!repo())return;lock(true);try{const r= repos.find(x=>x.full_name===repo());const branch=(r&&r.default_branch)||"main";let p="/repos/"+repo()+"/contents/"+currentPath.split("/").filter(Boolean).map(encodeURIComponent).join("/");p=p.replace(/\/contents\/$/,"/contents");const data=await api(p+"?ref="+encodeURIComponent(branch));const arr=Array.isArray(data)?data:[data];filesBox.innerHTML="";pathLabel.textContent="/"+currentPath;for(const f of arr.sort((a,b)=>(b.type==="dir")-(a.type==="dir")||a.name.localeCompare(b.name))){const b=document.createElement("button");b.className="gh-file";b.textContent=(f.type==="dir"?"📁 ":"📄 ")+f.name;b.onclick=()=>f.type==="dir"?(currentPath=[currentPath,f.name].filter(Boolean).join("/"),loadFiles()):readFile(f.path);filesBox.append(b)}say("Carpeta cargada: "+(currentPath||"/")+" · "+arr.length+" elementos")}catch(e){filesBox.innerHTML="";say("No se pudo listar la carpeta: "+e.message,true)}finally{lock(false)}}
-async function readFile(p){if(!p||!repo())return;lock(true);try{const r=repos.find(x=>x.full_name===repo());const d=await api("/repos/"+repo()+"/contents/"+p.split("/").map(encodeURIComponent).join("/")+"?ref="+encodeURIComponent(r.default_branch));if(Array.isArray(d)||d.type!=="file")throw Error("La ruta no es un archivo individual.");editor.value=dec(d.content);filePath.value=d.path;currentFile=d.path;currentSha=d.sha;say("Archivo leído: "+d.path+" · "+d.size+" bytes")}catch(e){currentSha=null;currentFile="";say("No se pudo leer: "+e.message,true)}finally{lock(false)}}
-$("cece-github-open")?.remove();
-const openBtn=document.createElement("button");openBtn.id="cece-github-open";openBtn.type="button";openBtn.textContent="🐙 GitHub";openBtn.title="Conectar Cece AI con GitHub";
-const settingsBtn=$("settingsBtn");if(settingsBtn&&settingsBtn.parentNode)settingsBtn.insertAdjacentElement("afterend",openBtn);else document.body.append(openBtn);
-openBtn.onclick=()=>{modal.style.display="flex";$("cece-gh-token").focus()};
-$("cece-gh-close").onclick=()=>modal.style.display="none";modal.addEventListener("click",e=>{if(e.target===modal)modal.style.display="none"});
-$("cece-gh-connect").onclick=async()=>{const v=$("cece-gh-token").value.trim();if(!v){say("Introduce el token de GitHub.",true);return}token=v;lock(true);try{const u=await api("/user");say("Autenticado como @"+u.login+"; cargando repositorios…");await loadRepos()}catch(e){token="";say("Conexión fallida: "+e.message,true)}finally{lock(false)}};
-$("cece-gh-disconnect").onclick=()=>{token="";repos=[];currentSha=null;currentFile="";$("cece-gh-token").value="";repoSel.innerHTML='<option value="">Desconectado</option>';filesBox.innerHTML="";editor.value="";filePath.value="";say("Token borrado de la memoria de esta pestaña.")};
-repoSel.onchange=()=>{currentPath="";currentSha=null;currentFile="";loadFiles()};
-$("cece-gh-root").onclick=()=>loadFiles();
-$("cece-gh-up").onclick=()=>{currentPath=currentPath.split("/").filter(Boolean).slice(0,-1).join("/");loadFiles()};
-$("cece-gh-read").onclick=()=>readFile(filePath.value.trim());
-$("cece-gh-save").onclick=async()=>{const p=filePath.value.trim().replace(/^\/+|\/+$/g,"");if(!repo()||!p){say("Selecciona un repositorio y escribe la ruta.",true);return}if(/(^|\/)\.\.(\/|$)/.test(p)){say("La ruta no puede contener segmentos ..",true);return}const msg=$("cece-gh-commit").value.trim()||"Actualiza código desde Cece AI";const exists=(currentFile===p&&currentSha)?("Actualizar archivo existente (SHA "+currentSha.slice(0,7)+")"):"Crear archivo nuevo";if(!confirm("CONFIRMAR ESCRITURA EN GITHUB\n\n"+exists+"\nRepositorio: "+repo()+"\nRuta: "+p+"\nCommit: "+msg+"\n\n¿Continuar?"))return;lock(true);try{let sha=currentFile===p?currentSha:null;if(!sha){try{const old=await api("/repos/"+repo()+"/contents/"+p.split("/").map(encodeURIComponent).join("/")+"?ref="+encodeURIComponent((repos.find(r=>r.full_name===repo())||{}).default_branch||"main"));sha=old.sha}catch(e){if(!/Not Found/i.test(e.message))throw e}}const branch=(repos.find(r=>r.full_name===repo())||{}).default_branch||"main";const body={message:msg,content:enc(editor.value),branch};if(sha)body.sha=sha;const result=await api("/repos/"+repo()+"/contents/"+p.split("/").map(encodeURIComponent).join("/"),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});currentSha=result.content.sha;currentFile=p;say("Guardado correctamente. Commit: "+(result.commit.sha||"creado").slice(0,12));await loadFiles()}catch(e){say("No se guardó el archivo: "+e.message,true)}finally{lock(false)}};
-$("cece-gh-create-repo").onclick=async()=>{const name=$("cece-gh-newrepo").value.trim(),description=$("cece-gh-description").value.trim();if(!/^[A-Za-z0-9._-]{1,100}$/.test(name)){say("Nombre inválido. Usa letras, números, punto, guion o guion bajo.",true);return}if(!confirm("CONFIRMAR CREACIÓN DE REPOSITORIO\n\nNombre: "+name+"\nVisibilidad: PRIVADO\n\n¿Crear este repositorio privado en tu cuenta?"))return;lock(true);try{const r=await api("/user/repos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,description,private:true,auto_init:true})});say("Repositorio privado creado: "+r.full_name);await loadRepos();repoSel.value=r.full_name;currentPath="";await loadFiles()}catch(e){say("No se pudo crear el repositorio: "+e.message,true)}finally{lock(false)}};
-const splash=$("cece-startup");if(splash){const remove=()=>{splash.style.opacity="0";setTimeout(()=>splash.remove(),380)};setTimeout(remove,1700);splash.addEventListener("click",remove)}
-window.addEventListener("pagehide",()=>{token="";$("cece-gh-token").value=""});
-};
-document.readyState==="loading"?document.addEventListener("DOMContentLoaded",iniciar,{once:true}):iniciar();
+(() => {
+  "use strict";
+  // (este bloque va ANTES del cargador para que la copia protegida que descarga la app lo incluya: se arranca al terminar de cargar)
+  const iniciar = () => {
+    let token = "",
+      repos = [],
+      currentPath = "",
+      currentSha = null,
+      currentFile = "",
+      original = "", // contenido del editor tal como se leyó o se guardó (para avisar de cambios sin guardar)
+      crlf = false, // el archivo abierto usa saltos de línea de Windows (\r\n): se conservan al guardar
+      repoAnterior = "",
+      sesion = 0, // sube al conectar y al desconectar: una respuesta de antes ya no pinta nada
+      cerrojos = 0,
+      inertes = [],
+      focoPrevio = null;
+    const $ = (id) => document.getElementById(id);
+    const modal = $("cece-github-modal"),
+      status = $("cece-github-status"),
+      repoSel = $("cece-gh-repos"),
+      filesBox = $("cece-gh-files"),
+      pathLabel = $("cece-gh-path"),
+      editor = $("cece-gh-editor"),
+      filePath = $("cece-gh-filepath");
+    const say = (s, bad = false) => {
+      status.textContent = s;
+      status.style.color = bad ? "#ff7b72" : "#7ee787";
+    };
+    // Texto → Base64 en UTF-8 (TextEncoder no falla con caracteres sueltos raros, encodeURIComponent sí)
+    const enc = (s) => {
+      const b = new TextEncoder().encode(s);
+      let t = "";
+      for (let i = 0; i < b.length; i += 32768) t += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+      return btoa(t);
+    };
+    // Base64 de GitHub → texto; null si no es UTF-8 válido (binario, Latin-1…)
+    const dec = (s) => {
+      try {
+        const b = atob((s || "").replace(/\s/g, ""));
+        return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(b, (c) => c.charCodeAt(0)));
+      } catch (e) {
+        return null;
+      }
+    };
+    const api = async (path, opts = {}) => {
+      if (!token) throw Error("Conecta GitHub antes.");
+      const parar = new AbortController(),
+        reloj = setTimeout(() => parar.abort(), 30000);
+      let res;
+      try {
+        res = await fetch("https://api.github.com" + path, {
+          cache: "no-store", // GitHub responde con max-age=60: sin esto, tras guardar se verían versiones viejas
+          signal: parar.signal,
+          ...opts,
+          headers: {
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            Authorization: "Bearer " + token,
+            ...(opts.headers || {}),
+          },
+        });
+      } catch (e) {
+        throw Error(parar.signal.aborted ? "GitHub no responde (30 s)." : "No se pudo conectar con GitHub.");
+      } finally {
+        clearTimeout(reloj);
+      }
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {}
+      if (!res.ok) {
+        const e = Error((data && data.message) || "GitHub respondió HTTP " + res.status);
+        e.status = res.status;
+        throw e;
+      }
+      return data;
+    };
+    const repo = () => repoSel.value;
+    const rama = () => (repos.find((x) => x.full_name === repo()) || {}).default_branch || "main";
+    const ruta = (p) => p.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+    const limpiarRuta = (p) => String(p || "").trim().replace(/^\/+|\/+$/g, "");
+    // Mientras hay una petición en curso no se puede pedir otra (ni cambiar de repositorio);
+    // «Cerrar» y «Desconectar» siguen activos para poder salir si la red se cuelga
+    const lock = (v) => {
+      cerrojos = Math.max(0, cerrojos + (v ? 1 : -1));
+      const on = cerrojos > 0;
+      document.querySelectorAll("#cece-github-modal button:not(#cece-gh-close):not(#cece-gh-disconnect)").forEach((b) => (b.disabled = on));
+      repoSel.disabled = on;
+    };
+    const sinGuardar = () => editor.value !== original;
+    const descartar = (que) => !sinGuardar() || confirm("Hay cambios sin guardar en el editor" + (currentFile ? " (" + currentFile + ")" : "") + ".\n\n¿" + que + " y descartarlos?");
+    const vaciarEditor = () => {
+      editor.value = "";
+      filePath.value = "";
+      original = "";
+      crlf = false;
+      currentSha = null;
+      currentFile = "";
+    };
+
+    async function loadRepos() {
+      const s = sesion,
+        todos = [];
+      for (let pag = 1; pag <= 10; pag++) {
+        const d = await api("/user/repos?per_page=100&sort=updated&direction=desc&page=" + pag);
+        if (s !== sesion) return;
+        todos.push(...d);
+        if (d.length < 100) break;
+      }
+      repos = todos;
+      repoSel.innerHTML = "";
+      for (const r of todos) {
+        const o = document.createElement("option");
+        o.value = r.full_name;
+        o.textContent = (r.private ? "🔒 " : "🌐 ") + r.full_name;
+        repoSel.append(o);
+      }
+      if (!todos.length) repoSel.add(new Option("No hay repositorios", ""));
+      repoAnterior = repo();
+      currentPath = "";
+      currentSha = null;
+      currentFile = "";
+      say("Conectado. Repositorios cargados: " + todos.length + (todos.length >= 1000 ? " (los 1000 más recientes)" : ""));
+      if (todos.length) await loadFiles();
+    }
+
+    async function loadFiles() {
+      const r = repo(),
+        dir = currentPath,
+        s = sesion;
+      if (!r) return;
+      lock(true);
+      try {
+        const data = await api("/repos/" + r + "/contents" + (dir ? "/" + ruta(dir) : "") + "?ref=" + encodeURIComponent(rama()));
+        if (s !== sesion || r !== repo() || dir !== currentPath) return;
+        const arr = Array.isArray(data) ? data : [data];
+        filesBox.innerHTML = "";
+        pathLabel.textContent = "/" + dir;
+        for (const f of arr.sort((a, b) => (b.type === "dir") - (a.type === "dir") || a.name.localeCompare(b.name))) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "gh-file";
+          b.textContent = (f.type === "dir" ? "📁 " : "📄 ") + f.name;
+          b.onclick = () =>
+            f.type === "dir" ? ((currentPath = [currentPath, f.name].filter(Boolean).join("/")), loadFiles()) : readFile(f.path);
+          filesBox.append(b);
+        }
+        say("Carpeta cargada: " + (dir || "/") + " · " + arr.length + " elementos");
+      } catch (e) {
+        if (s === sesion && r === repo()) {
+          filesBox.innerHTML = "";
+          say("No se pudo listar la carpeta: " + e.message, true);
+        }
+      } finally {
+        lock(false);
+      }
+    }
+
+    async function readFile(p) {
+      p = limpiarRuta(p);
+      const r = repo(),
+        s = sesion;
+      if (!p || !r || !descartar("Abrir " + p)) return;
+      lock(true);
+      try {
+        const d = await api("/repos/" + r + "/contents/" + ruta(p) + "?ref=" + encodeURIComponent(rama()));
+        if (s !== sesion || r !== repo()) return;
+        if (Array.isArray(d) || d.type !== "file") throw Error("la ruta no es un archivo individual.");
+        // De 1 a 100 MB, GitHub no manda el contenido (encoding «none»): abrirlo vacío y guardar lo borraría
+        if (d.encoding !== "base64") throw Error("pesa más de 1 MB y no se puede editar desde aquí (ábrelo en github.com).");
+        const t = dec(d.content);
+        if (t === null) throw Error("no es texto UTF-8 (es binario o usa otra codificación) y no se puede editar desde aquí.");
+        crlf = /\r\n/.test(t);
+        editor.value = t; // (el cuadro de texto convierte \r\n en \n: al guardar se vuelve a poner)
+        original = editor.value;
+        filePath.value = d.path;
+        currentFile = d.path;
+        currentSha = d.sha;
+        say("Archivo leído: " + d.path + " · " + d.size + " bytes" + (crlf ? " · saltos de línea de Windows (se conservan)" : ""));
+      } catch (e) {
+        if (s !== sesion) return;
+        currentSha = null;
+        currentFile = "";
+        say("No se pudo leer " + p + ": " + e.message, true);
+      } finally {
+        lock(false);
+      }
+    }
+
+    // ---- ventana: abrir, cerrar, Escape y foco dentro ----
+    const abrir = () => {
+      focoPrevio = document.activeElement;
+      modal.style.display = "flex";
+      // lo de detrás no se puede usar con el teclado mientras está abierta (si no, Enter enviaba el borrador del chat)
+      inertes = [...document.body.children].filter((e) => e !== modal && e.id !== "toast" && !e.inert && !/^(SCRIPT|STYLE)$/.test(e.tagName));
+      for (const e of inertes) e.inert = true;
+      (token && !repoSel.disabled ? repoSel : $("cece-gh-token")).focus();
+    };
+    const cerrar = () => {
+      if (modal.style.display === "none") return;
+      modal.style.display = "none";
+      for (const e of inertes) e.inert = false;
+      inertes = [];
+      const f = focoPrevio && document.contains(focoPrevio) ? focoPrevio : openBtn;
+      focoPrevio = null;
+      f && f.focus && f.focus();
+    };
+    modal.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        return cerrar();
+      }
+      if (e.key !== "Tab") return;
+      const f = [...modal.querySelectorAll("button, input, select, textarea")].filter((x) => !x.disabled && x.getClientRects().length);
+      if (!f.length) return;
+      const [a, z] = [f[0], f[f.length - 1]];
+      if (e.shiftKey && (document.activeElement === a || !modal.contains(document.activeElement))) {
+        e.preventDefault();
+        z.focus();
+      } else if (!e.shiftKey && (document.activeElement === z || !modal.contains(document.activeElement))) {
+        e.preventDefault();
+        a.focus();
+      }
+    });
+    // pulsar fuera cierra, pero no al soltar fuera después de seleccionar texto dentro
+    let pulsadoFuera = false;
+    modal.addEventListener("pointerdown", (e) => (pulsadoFuera = e.target === modal));
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal && pulsadoFuera) cerrar();
+      pulsadoFuera = false;
+    });
+    // Los archivos que se sueltan aquí NO van al chat de detrás (la app recoge los «drop» de toda la página)
+    for (const tipo of ["dragenter", "dragover", "dragleave", "drop"])
+      modal.addEventListener(tipo, (e) => {
+        if (!e.dataTransfer || ![...(e.dataTransfer.types || [])].includes("Files")) return;
+        e.stopPropagation();
+        e.preventDefault();
+        if (tipo === "dragover") e.dataTransfer.dropEffect = e.target === editor ? "copy" : "none";
+        if (tipo !== "drop") return;
+        const f = e.dataTransfer.files[0];
+        if (!f || e.target !== editor) return say("Para cargar un archivo en el editor, suéltalo sobre el cuadro de contenido.", true);
+        if (f.size > 1048576) return say("«" + f.name + "» pesa más de 1 MB: no se puede editar aquí.", true);
+        if (!descartar("Cargar «" + f.name + "»")) return;
+        f.arrayBuffer().then((b) => {
+          let t;
+          try {
+            t = new TextDecoder("utf-8", { fatal: true }).decode(b);
+          } catch (x) {
+            return say("«" + f.name + "» no es texto UTF-8: no se puede editar aquí.", true);
+          }
+          editor.value = t;
+          if (!limpiarRuta(filePath.value)) filePath.value = f.name;
+          say("«" + f.name + "» cargado en el editor. Aún no se ha guardado en GitHub.");
+        });
+      });
+
+    $("cece-github-open")?.remove();
+    const openBtn = document.createElement("button");
+    openBtn.id = "cece-github-open";
+    openBtn.type = "button";
+    openBtn.textContent = "🐙 GitHub";
+    openBtn.title = "Conectar Cece AI con GitHub";
+    const settingsBtn = $("settingsBtn");
+    if (settingsBtn && settingsBtn.parentNode) settingsBtn.insertAdjacentElement("afterend", openBtn);
+    else document.body.append(openBtn);
+    openBtn.onclick = abrir;
+    $("cece-gh-close").onclick = cerrar;
+
+    const conectar = async () => {
+      const v = $("cece-gh-token").value.trim();
+      if (!v) return say("Introduce el token de GitHub.", true);
+      const s = ++sesion;
+      token = v;
+      lock(true);
+      try {
+        const u = await api("/user");
+        if (s !== sesion) return;
+        say("Autenticado como @" + u.login + "; cargando repositorios…");
+        await loadRepos();
+      } catch (e) {
+        if (s === sesion) {
+          token = "";
+          say("Conexión fallida: " + e.message, true);
+        }
+      } finally {
+        lock(false);
+      }
+    };
+    $("cece-gh-connect").onclick = conectar;
+    $("cece-gh-token").addEventListener("keydown", (e) => e.key === "Enter" && (e.preventDefault(), conectar()));
+    $("cece-gh-disconnect").onclick = () => {
+      if (!descartar("Desconectar")) return;
+      sesion++;
+      token = "";
+      repos = [];
+      currentPath = "";
+      repoAnterior = "";
+      vaciarEditor();
+      $("cece-gh-token").value = "";
+      repoSel.innerHTML = '<option value="">Desconectado</option>';
+      filesBox.innerHTML = "";
+      pathLabel.textContent = "/";
+      say("Token borrado de la memoria de esta pestaña.");
+    };
+    // Al cambiar de repositorio, lo del editor era del anterior: se vacía (preguntando si había cambios sin guardar)
+    repoSel.onchange = () => {
+      if (!descartar("Cambiar de repositorio")) {
+        repoSel.value = repoAnterior;
+        return;
+      }
+      repoAnterior = repo();
+      currentPath = "";
+      vaciarEditor();
+      loadFiles();
+    };
+    $("cece-gh-root").onclick = () => loadFiles();
+    $("cece-gh-up").onclick = () => {
+      currentPath = currentPath.split("/").filter(Boolean).slice(0, -1).join("/");
+      loadFiles();
+    };
+    $("cece-gh-read").onclick = () => readFile(filePath.value);
+    $("cece-gh-save").onclick = async () => {
+      const p = limpiarRuta(filePath.value),
+        r = repo(),
+        b = rama(),
+        s = sesion;
+      if (!r || !p) return say("Selecciona un repositorio y escribe la ruta.", true);
+      if (p.split("/").some((x) => x === "." || x === "..")) return say("La ruta no puede contener segmentos «.» ni «..».", true);
+      const msg = $("cece-gh-commit").value.trim() || "Actualiza código desde Cece AI";
+      lock(true);
+      try {
+        // ¿Ya existe? Se mira ANTES de preguntar, para que el aviso diga la verdad
+        let sha = null;
+        try {
+          const viejo = await api("/repos/" + r + "/contents/" + ruta(p) + "?ref=" + encodeURIComponent(b));
+          if (Array.isArray(viejo) || viejo.type !== "file") throw Error("esa ruta es una carpeta, no un archivo.");
+          sha = viejo.sha;
+        } catch (e) {
+          if (e.status !== 404) throw e;
+        }
+        if (s !== sesion || r !== repo()) return;
+        const abierto = currentFile === p && !!currentSha;
+        const aviso = !sha
+          ? "Crear archivo nuevo"
+          : abierto && sha === currentSha
+            ? "Actualizar el archivo que abriste (SHA " + sha.slice(0, 7) + ")"
+            : abierto
+              ? "⚠️ El archivo ha CAMBIADO en GitHub desde que lo abriste: se SOBRESCRIBIRÁN esos cambios (SHA " + sha.slice(0, 7) + ")"
+              : "⚠️ YA EXISTE un archivo en esa ruta y se SOBRESCRIBIRÁ entero (SHA " + sha.slice(0, 7) + ")";
+        if (!confirm("CONFIRMAR ESCRITURA EN GITHUB\n\n" + aviso + "\nRepositorio: " + r + "\nRama: " + b + "\nRuta: " + p + "\nCommit: " + msg + "\n\n¿Continuar?"))
+          return say("Guardado cancelado: no se ha cambiado nada.");
+        const contenido = abierto && crlf ? editor.value.replace(/\r?\n/g, "\r\n") : editor.value;
+        const body = { message: msg, content: enc(contenido), branch: b };
+        if (sha) body.sha = sha;
+        const result = await api("/repos/" + r + "/contents/" + ruta(p), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (s !== sesion) return;
+        if (!abierto) crlf = false;
+        currentSha = result.content.sha;
+        currentFile = p;
+        original = editor.value;
+        const commit = ((result.commit && result.commit.sha) || "").slice(0, 12);
+        await loadFiles();
+        say("Guardado correctamente: " + p + (commit ? " · commit " + commit : ""));
+      } catch (e) {
+        if (s === sesion) say("No se guardó el archivo: " + e.message, true);
+      } finally {
+        lock(false);
+      }
+    };
+    $("cece-gh-create-repo").onclick = async () => {
+      const name = $("cece-gh-newrepo").value.trim(),
+        description = $("cece-gh-description").value.trim(),
+        s = sesion;
+      if (!/^[A-Za-z0-9._-]{1,100}$/.test(name) || /^\.+$/.test(name)) return say("Nombre inválido. Usa letras, números, punto, guion o guion bajo.", true);
+      if (!confirm("CONFIRMAR CREACIÓN DE REPOSITORIO\n\nNombre: " + name + "\nVisibilidad: PRIVADO\n\n¿Crear este repositorio privado en tu cuenta?")) return;
+      if (!descartar("Crear el repositorio")) return;
+      lock(true);
+      try {
+        const r = await api("/user/repos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, description, private: true, auto_init: true }),
+        });
+        if (s !== sesion) return;
+        say("Repositorio privado creado: " + r.full_name);
+        await loadRepos();
+        if (s !== sesion) return;
+        repoSel.value = r.full_name;
+        repoAnterior = repo();
+        currentPath = "";
+        vaciarEditor();
+        await loadFiles();
+      } catch (e) {
+        if (s === sesion) say("No se pudo crear el repositorio: " + e.message, true);
+      } finally {
+        lock(false);
+      }
+    };
+    const splash = $("cece-startup");
+    if (splash) {
+      const remove = () => {
+        splash.style.opacity = "0";
+        setTimeout(() => splash.remove(), 380);
+      };
+      setTimeout(remove, 1700);
+      splash.addEventListener("click", remove);
+    }
+    window.addEventListener("pagehide", () => {
+      token = "";
+      $("cece-gh-token").value = "";
+    });
+  };
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", iniciar, { once: true }) : iniciar();
 })();
 </script>
 
