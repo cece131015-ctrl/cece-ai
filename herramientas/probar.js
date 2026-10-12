@@ -94,6 +94,11 @@ async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null, ancho 
     await pagina.reload();
   }
   await pagina.waitForSelector("#userInput");
+  // la pantalla de bienvenida tapa la app ~2 s: los clics de las pruebas esperarían a que se fuera
+  await pagina.evaluate(() => {
+    const b = document.getElementById("cece-startup");
+    b && b.remove();
+  });
   await pagina.waitForTimeout(300);
   return { ctx, pagina, errores, peticiones };
 }
@@ -317,6 +322,7 @@ prueba("cifrar las claves con contraseña y abrir la copia protegida", async (na
   const texto = fs.readFileSync(protegido, "utf8");
   cierto(!texto.includes("sk-secreta-123"), "la clave sigue a la vista en la copia");
   cierto(/const CECE_BOVEDA = "cecez?1\$/.test(texto), "sin bóveda cifrada");
+  cierto(texto.includes("CECE_GITHUB_PANEL_V1") && texto.includes('id="cece-startup"'), "la copia protegida pierde el panel de GitHub");
   const b = await nuevaPagina(nav, protegido, {
     ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Desbloqueado y funcionando.") }) },
   });
@@ -330,6 +336,7 @@ prueba("cifrar las claves con contraseña y abrir la copia protegida", async (na
   await b.pagina.waitForSelector("#bovedaOverlay", { state: "hidden", timeout: 20000 });
   await escribirYEnviar(b.pagina, "hola");
   cierto(/Desbloqueado y funcionando/.test((await ultimaRespuesta(b.pagina)).texto));
+  cierto(await b.pagina.$("#settingsBtn + #cece-github-open"), "la copia protegida no tiene el botón de GitHub");
   await b.ctx.close();
   await ctx.close();
 });
