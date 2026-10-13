@@ -25,6 +25,9 @@ Por dentro:
     de que la petición viene de internet, nunca entra nada sin código.
     Sin código, además, se rechazan páginas web de internet (cabecera Origin) y nombres de dominio que no
     son de tu red (cabecera Host): una web cualquiera no puede usar tus IAs, ni con «DNS rebinding».
+    Cece AI abierta como archivo llega con «Origin: null», igual que el iframe con «sandbox» de cualquier web
+    (el navegador manda lo mismo y no se pueden distinguir): por eso también pide el código. La portada
+    (http://localhost:9999 en este equipo) enseña el enlace con código para pegarlo en Cece una sola vez.
   · En la WiFi se anuncia como cecehub.local (mDNS) y con un aviso UDP en el puerto 9998.
   · Por internet: túnel https gratuito (cloudflared; si no, ngrok o ssh a localhost.run) que se reinicia solo.
 """
@@ -60,7 +63,7 @@ import urllib.request
 from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = '2.1.1'
+VERSION = '2.1.2'
 PUERTO = 9999                 # API para Cece AI (este equipo + WiFi)
 PUERTO_INTERNET = 9997        # solo 127.0.0.1: aquí llega el túnel y todo pide código
 PUERTO_AVISO = 9998           # UDP: aviso «aquí hay un CeceHub» y respuesta a búsquedas
@@ -325,11 +328,13 @@ def partir_url(u):
 
 
 def origen_de_red(origin):
-    """Origin de una página que puede usar CeceHub sin código: archivo local (null), localhost o una IP/nombre de la red."""
+    """Origin de una página que puede usar CeceHub sin código: localhost o una IP/nombre de la red."""
     if origin is None or origin == '':
         return True            # no es un navegador (curl, Python…) o es una petición de la misma página
     if origin == 'null':
-        return True            # Cece AI abierto como archivo (file://)
+        # Cece AI abierta como archivo (file://)… pero también el iframe con «sandbox» o la URL data: de CUALQUIER web,
+        # con las mismas cabeceras: sin código, una página de internet usaría tus IAs. Cece lo pide con el enlace.
+        return False
     p = partir_url(origin)
     if p is None or p.scheme not in ('http', 'https') or not p.hostname:
         return False           # (Origin mal formado = no es de red)
@@ -970,7 +975,8 @@ class Peticion(BaseHTTPRequestHandler):
 
     def _salud(self):
         h = self.hub
-        necesita = self._zona == 'internet' or (self._zona == 'lan' and h.lan_token)
+        necesita = (self._zona == 'internet' or (self._zona == 'lan' and h.lan_token)
+                    or not origen_de_red(self.headers.get('Origin')))   # (p. ej. Cece abierta como archivo: Origin null)
         o = {'service': 'cecehub', 'status': 'ok', 'version': VERSION, 'id': h.id, 'auth': 'token' if necesita else 'none'}
         if self._nombre_visible():
             o['name'] = h.nombre
@@ -993,8 +999,8 @@ class Peticion(BaseHTTPRequestHandler):
             return self._error(401, 'CeceHub pide el código para conectar desde aquí. Usa el enlace con código que enseña CeceHub.',
                                'authentication_error', 'token_required', extra={'WWW-Authenticate': 'Bearer realm="cecehub"'})
         if por == 'origen':
-            return self._error(403, 'Esta página no puede usar CeceHub sin el código (solo Cece AI abierta como archivo o desde tu red).',
-                               'permission_error', 'origin_not_allowed')
+            return self._error(403, 'Desde aquí CeceHub pide el código: pega en Cece AI el enlace con código que enseña la portada '
+                               f'(http://localhost:{self.hub.puerto} en el equipo de CeceHub).', 'permission_error', 'origin_not_allowed')
         if por == 'host':
             return self._error(403, 'Nombre de servidor no reconocido. Conecta por IP, por localhost o por cecehub.local (o usa el código).',
                                'permission_error', 'host_not_allowed')
@@ -1012,7 +1018,10 @@ class Peticion(BaseHTTPRequestHandler):
         # proof_host lleva además el nombre:puerto al que se conectó el cliente. En este equipo y en la WiFi Cece exige esa:
         # un equipo que se hace pasar por tu CeceHub y le reenvía la pregunta al de verdad no la consigue con su dirección:
         #  · desde internet (puerto abierto en el router, IPv6 sin cortafuegos, túnel) no se da: por internet Cece usa «proof»;
-        #  · si el Host es una IP, tiene que ser la de este equipo por la que llegó la conexión (la del impostor no lo es).
+        #  · si el Host es una IP, tiene que ser la de este equipo por la que llegó la conexión (la del impostor no lo es);
+        #  · con un nombre (cecehub.local, *.lan, el del equipo…) no se da: un impostor de la WiFi que contesta al mDNS
+        #    reenvía la pregunta con ese mismo Host y conseguía una prueba válida (y Cece le mandaba el código).
+        #    Solo valen localhost/127.0.0.1/[::1], que no se pueden apuntar a otro equipo.
         ok_host = self._zona != 'internet'
         ip_host = ip_de(host_sin_puerto(host))
         if ok_host and ip_host is not None:
@@ -1020,6 +1029,8 @@ class Peticion(BaseHTTPRequestHandler):
                 ok_host = ip_host == ip_de(self.connection.getsockname()[0])
             except (OSError, IndexError, TypeError):
                 ok_host = False
+        elif ok_host:
+            ok_host = es_host_local(host)
         self._json(200, {'id': self.hub.id, 'proof': firma('cecehub-proof:' + n),
                          'proof_host': firma(f'cecehub-proof:{n}:{host}') if ok_host else None})
 
@@ -1380,7 +1391,11 @@ class Hub:
             for b in lista:
                 if not isinstance(b, dict):
                     continue
-                url = os.environ.get(b.get('env', ''), '') or b.get('url', '')
+                env, url = b.get('env'), b.get('url')
+                url = (os.environ.get(env, '') if isinstance(env, str) and env else '') or (url if isinstance(url, str) else '')
+                if not url:
+                    log.warning('⚠️  IA ignorada en la configuración («url» tiene que ser un texto como http://127.0.0.1:11434/v1)')
+                    continue
                 try:
                     ias.append(IA(str(b.get('name') or url), url, str(b.get('api_key') or '')))
                 except ValueError as e:
@@ -1463,7 +1478,7 @@ class Hub:
 
     def info(self):
         return {'name': 'CeceHub', 'version': VERSION, 'id': self.id, 'hub_name': self.nombre, 'port': self.puerto,
-                'platform': 'Python ' + platform.python_version(), 'built': '2026-10-08',
+                'platform': 'Python ' + platform.python_version(), 'built': '2026-10-13',
                 'features': ['openai_compatible', 'streaming', 'multiple_backends', 'model_routing', 'lan_discovery',
                              'mdns', 'internet_tunnel', 'token_auth', 'token_proof', 'tailscale']}
 
@@ -1480,7 +1495,8 @@ class Hub:
         lan = self.urls_lan()
         return {
             'name': self.nombre, 'id': self.id, 'token': self.token, 'version': VERSION,
-            'local': f'http://localhost:{self.puerto}', 'lan': lan, 'mdns': f'http://{NOMBRES_MDNS_BASE}.local:{self.puerto}',
+            'local': f'http://localhost:{self.puerto}', 'local_link': self.enlace(f'http://127.0.0.1:{self.puerto}'), 'lan': lan,
+            'mdns': f'http://{NOMBRES_MDNS_BASE}.local:{self.puerto}' if self.mdns_activo else None,
             'lan_token': self.lan_token, 'lan_links': [self.enlace(u) for u in lan] if self.lan_token else [],
             'internet': self.url_publica, 'internet_link': self.enlace(self.url_publica) if self.url_publica else None,
             'tailscale_links': [self.enlace(u) for u in self.urls_tailscale()],
@@ -1858,6 +1874,11 @@ def comprobar_enlace(hub, url):
             with urllib.request.urlopen(req, timeout=10) as r:
                 j = json.loads(r.read(4096).decode('utf-8'))
             if j.get('service') == 'cecehub' and j.get('id') == hub.id:
+                if j.get('auth') != 'token':
+                    # llega a un puerto que deja entrar sin código: desde internet cualquiera usaría tus IAs
+                    log.warning('🚨 ¡CUIDADO! El enlace de internet llega a CeceHub SIN pedir código: apunta tu dirección pública a '
+                                'http://127.0.0.1:%s (no al %s) o cualquiera podrá usar tus IAs.', hub.puerto_internet_real, hub.puerto)
+                    return False
                 log.info('✅ Comprobado: el enlace de internet funciona.')
                 return True
             ultimo = 'responde otra cosa'
@@ -1966,6 +1987,7 @@ def mdns_nombre(datos, pos, saltos=0):
     """Lee un nombre DNS (con punteros de compresión). Devuelve (nombre, posición tras el nombre)."""
     partes = []
     fin = None
+    largo = 0
     while True:
         if pos >= len(datos) or saltos > 20:
             raise ValueError('nombre DNS roto')
@@ -1982,6 +2004,9 @@ def mdns_nombre(datos, pos, saltos=0):
             pos = destino
             saltos += 1
             continue
+        largo += 1 + n
+        if largo > 255:   # el máximo de DNS: si no, un paquete preparado tenía la CPU ocupada medio segundo
+            raise ValueError('nombre DNS demasiado largo')
         partes.append(datos[pos + 1:pos + 1 + n].decode('utf-8', 'replace'))
         pos += 1 + n
     return '.'.join(partes), (fin if fin is not None else pos)
@@ -1992,6 +2017,8 @@ def mdns_preguntas(datos):
     if len(datos) < 12:
         raise ValueError('paquete corto')
     ident, flags, nq = struct.unpack('!HHH', datos[:6])
+    if nq > 32:   # una pregunta mDNS de verdad trae unas pocas
+        raise ValueError('demasiadas preguntas')
     pos, out = 12, []
     for _ in range(nq):
         nombre, pos = mdns_nombre(datos, pos)
@@ -2182,6 +2209,10 @@ def imprimir_enlace_internet(hub):
     print('   ⚠️  Quien tenga este enlace puede usar tus IAs. Para invalidarlo: --new-token')
     if hub.proveedor_tunel not in ('manual',):
         print('   (Este enlace cambia cada vez que se abre el túnel; para uno fijo usa --public-url)')
+    elif hub.puerto_internet_real:
+        # (si se apunta al puerto de la API, lo de internet llega como «este equipo» y entra sin código)
+        print(f'   ⚠️  Tu dirección pública tiene que llegar a http://127.0.0.1:{hub.puerto_internet_real} (el puerto de internet, '
+              f'donde todo pide código), NO al {hub.puerto}.')
     qr_terminal(enlace)
     print(flush=True)
 
@@ -2198,10 +2229,14 @@ def imprimir_portada(hub):
     else:
         print('   ⚠️  Ninguna IA encendida: abre Ollama, LM Studio o llama.cpp (CeceHub las verá solo, sin reiniciar).')
     print(f'\n💻 En este equipo:  http://localhost:{hub.puerto}')
+    print(f'   Enlace para Cece AI abierta como archivo (pégalo una vez): {hub.enlace(f"http://127.0.0.1:{hub.puerto}")}')
     lan = hub.urls_lan()
     if lan:
         print(f'📶 Por la WiFi:     {lan[0]}' + ''.join(f'\n                   {u}' for u in lan[1:]))
-        print(f'                   (o http://{NOMBRES_MDNS_BASE}.local:{hub.puerto})' + ('  — pide código (--lan-token)' if hub.lan_token else ''))
+        if hub.mdns_activo:
+            print(f'                   (o http://{NOMBRES_MDNS_BASE}.local:{hub.puerto})' + ('  — pide código (--lan-token)' if hub.lan_token else ''))
+        elif hub.lan_token:
+            print('                   — pide código (--lan-token)')
         if hub.lan_token:
             print(f'   Enlace WiFi con código: {hub.enlace(lan[0])}')
     else:
@@ -2302,13 +2337,15 @@ button:hover{background:var(--acc);color:var(--bg)}a{color:var(--acc)}.ok{color:
   function p(c,t,cl){var e=document.createElement('p');e.textContent=t;if(cl)e.className=cl;c.appendChild(e);return e}
   fetch('/v1/cecehub/pairing',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
     if(!j)return;var n=0;
+    var e=card('💻 Cece AI en este equipo');
+    p(e,'Si abres Cece AI como archivo (doble clic) en este equipo, pega este enlace una vez en Configuración → 📴 Sin conexión → CeceHub. Lleva el código: no lo compartas.');e.appendChild(fila(j.local_link,'l'+(n++)));
     var c=card('🌍 Por internet');
     if(j.internet_link){p(c,'Pega este enlace en Cece AI (desde cualquier sitio). Quien lo tenga puede usar tus IAs.');c.appendChild(fila(j.internet_link,'l'+(n++)));}
     else if(j.internet_enabled){p(c,'Abriendo el túnel… recarga en unos segundos.','mut');}
     else{p(c,'Apagado. Arranca CeceHub con --internet para usarlo desde cualquier sitio.','mut');}
     if(j.tailscale_links&&j.tailscale_links.length){var t=card('🔒 Por Tailscale');p(t,'Desde cualquier equipo de tu tailnet (no cambia nunca). Lleva el código: no lo compartas.');j.tailscale_links.forEach(function(u){t.appendChild(fila(u,'l'+(n++)))});}
     var w=card('📶 Por la WiFi'+(j.lan_token?' (con código)':''));
-    if(j.lan.length){(j.lan_token?j.lan_links:j.lan).forEach(function(u){w.appendChild(fila(u,'l'+(n++)))});p(w,'También: '+j.mdns,'mut');}
+    if(j.lan.length){(j.lan_token?j.lan_links:j.lan).forEach(function(u){w.appendChild(fila(u,'l'+(n++)))});if(j.mdns)p(w,'También: '+j.mdns,'mut');}
     else p(w,'Este equipo no está en ninguna red ahora mismo.','mut');
     var ia=card('🧠 IAs de este equipo');
     j.backends.forEach(function(b){p(ia,(b.ok?'✅ ':'➖ ')+b.name+' — '+(b.ok?b.models+' modelos':b.error),b.ok?'':'mut')});
@@ -2368,13 +2405,17 @@ def main(argv=None):
             cfg.datos['name'] = args.name[:40]
             cfg.guardar()
         if args.new_token:
-            cfg.nuevo_token()
-            print('🔑 Código nuevo: los enlaces y equipos de antes ya no conectan por internet. Copia el enlace nuevo en Cece AI.')
+            if os.environ.get('CECEHUB_TOKEN'):
+                # (el código que vale es el de la variable: cambiar el de cecehub.json no revocaría nada)
+                print('⚠️  El código lo fija la variable CECEHUB_TOKEN: cámbiala ahí para invalidar los enlaces de antes.')
+            else:
+                cfg.nuevo_token()
+                print('🔑 Código nuevo: los enlaces y equipos de antes ya no conectan por internet. Copia el enlace nuevo en Cece AI.')
     except ErrorConfig as e:
         print(f'❌ {e}')
         return 2
     if args.show_token:
-        print(cfg.get('token'))
+        print(os.environ.get('CECEHUB_TOKEN') or cfg.get('token'))
         return 0
     if args.scan:
         return escanear()

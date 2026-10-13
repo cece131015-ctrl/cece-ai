@@ -499,7 +499,7 @@ prueba("«Descargar CeceHub» da el servidor de fuente/cecehub-server.py", async
   await ctx.close();
 });
 
-prueba("CeceHub de verdad: la app lo encuentra y responde a través de él", async (nav) => {
+prueba("CeceHub de verdad: pide el código a Cece abierta como archivo y luego responde a través de él", async (nav) => {
   const { spawnSync, spawn } = require("child_process");
   if (spawnSync("python3", ["--version"]).status !== 0) return console.log("   (sin python3: no se prueba)");
   const http = require("http");
@@ -546,10 +546,45 @@ prueba("CeceHub de verdad: la app lo encuentra y responde a través de él", asy
   try {
     for (let i = 0; i < 50 && !salida.includes("Ctrl+C"); i++) await new Promise((r) => setTimeout(r, 100));
     cierto(salida.includes("Ctrl+C"), "CeceHub no arrancó: " + salida.slice(-300));
-    const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    const pedir = (ruta, { metodo = "GET", cabeceras = {}, cuerpo } = {}) =>
+      new Promise((ok, mal) => {
+        const r = http.request({ host: "127.0.0.1", port: puerto, path: ruta, method: metodo, headers: cabeceras }, (res) => {
+          let d = "";
+          res.on("data", (x) => (d += x));
+          res.on("end", () => ok({ status: res.statusCode, texto: d }));
+        });
+        r.on("error", mal);
+        r.end(cuerpo);
+      });
+    // «Origin: null» (Cece como archivo, pero también el iframe con sandbox de cualquier web) ya no entra sin código
+    const chat = JSON.stringify({ model: "llama-prueba", messages: [{ role: "user", content: "hola" }] });
+    const sinCodigo = await pedir("/v1/chat/completions", {
+      metodo: "POST",
+      cabeceras: { Origin: "null", "Content-Type": "application/json" },
+      cuerpo: chat,
+    });
+    igual(sinCodigo.status, 403, "una página con Origin null usa las IAs sin código");
+    // un nombre (cecehub.local) que un impostor de la WiFi puede suplantar no consigue la prueba ligada al Host
+    const prueba = JSON.parse((await pedir("/v1/cecehub/proof?nonce=" + "a".repeat(32), { cabeceras: { Host: `cecehub.local:${puerto}` } })).texto);
+    igual(prueba.proof_host, null, "da la prueba ligada a un nombre que se puede suplantar");
+    // la consola enseña el enlace con código para Cece abierta como archivo
+    const enlace = (salida.match(/pégalo una vez\): (http:\/\/127\.0\.0\.1:\d+\/#cecehub=([\w-]+))/) || [])[2];
+    cierto(enlace, "la consola no enseña el enlace para este equipo: " + salida.slice(0, 600));
+    // sin el código, Cece explica cómo conseguirlo
+    const sin = await nuevaPagina(nav, conClaves({}), {
       almacen: {
         cece_ajustes: { modelo: "cece-local", localActivo: true, hubActivo: true },
         cece_hub: { ultima: `http://127.0.0.1:${puerto}` },
+      },
+    });
+    await sin.pagina.waitForFunction(() => CeceHub.estado === "sin", null, { timeout: 15000 });
+    cierto(/pide el código.*localhost/.test(await sin.pagina.evaluate(() => CeceHub.mensaje)), await sin.pagina.evaluate(() => CeceHub.mensaje));
+    await sin.ctx.close();
+    // con el enlace pegado, conecta y responde
+    const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+      almacen: {
+        cece_ajustes: { modelo: "cece-local", localActivo: true, hubActivo: true },
+        cece_hub: { ultima: `http://127.0.0.1:${puerto}`, token: enlace },
       },
     });
     await pagina.waitForFunction(() => CeceHub.ruta && CeceHub.ruta.modelos.length, null, { timeout: 15000 });

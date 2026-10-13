@@ -1,6 +1,6 @@
 "use strict";
 const CECEHUB_PY = "@@CECEHUB_PY@@";
-const CECEHUB_VERSION = "2.1.1";
+const CECEHUB_VERSION = "2.1.2";
 const HTML_INICIAL = (() => {
     try {
       const e = window.__ceceArchivo instanceof Element ? window.__ceceArchivo : null;
@@ -9117,7 +9117,10 @@ const CeceHub = {
       : hay("no demuestra")
         ? `En ${hostDe(hay("no demuestra").base)} contesta un CeceHub que no demuestra conocer tu código: o lo cambiaste (--new-token: pega su enlace nuevo) o no es el tuyo. Por seguridad, Cece no le manda nada.`
         : hay("pide código")
-          ? `CeceHub (${hostDe(hay("pide código").base)}) pide el código: pega el enlace con código que enseña al arrancar.`
+          ? "equipo" === hay("pide código").tipo
+            ? // (Cece abierta como archivo llega a CeceHub igual que el iframe de una web cualquiera: por eso pide el código)
+              `CeceHub de este equipo pide el código (solo la primera vez): abre http://localhost:${new URL(hay("pide código").base).port || this.PUERTO}, copia el enlace de «Cece AI en este equipo» y pégalo aquí.`
+            : `CeceHub (${hostDe(hay("pide código").base)}) pide el código: pega el enlace con código que enseña al arrancar.`
           : hay("bloqueado")
             ? "CeceHub ha bloqueado esta conexión un rato por demasiados códigos incorrectos. Espera unos minutos."
             : hay("permiso")
