@@ -396,7 +396,7 @@ prueba("adjuntar un archivo de texto y una imagen", async (nav) => {
 });
 
 // IA «local» de prueba que contesta despacio (un trozo cada 150 ms), para poder pararla a medias
-function iaLenta() {
+function iaLenta({ trozos = 60, ms = 150 } = {}) {
   const http = require("http");
   const estado = { cerrada: null, servidor: null };
   estado.servidor = http.createServer((req, res) => {
@@ -412,8 +412,8 @@ function iaLenta() {
     let n = 0;
     const t = setInterval(() => {
       res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: `trozo ${++n}. ` } }] })}\n\n`);
-      if (n >= 60) (clearInterval(t), res.end("data: [DONE]\n\n"));
-    }, 150);
+      if (n >= trozos) (clearInterval(t), res.end("data: [DONE]\n\n"));
+    }, ms);
     res.on("close", () => (clearInterval(t), (estado.cerrada = estado.cerrada || Date.now())));
   });
   return new Promise((ok) =>
@@ -1126,6 +1126,190 @@ prueba("si se corta la conexión a mitad de respuesta, se avisa en español", as
   srv.close();
   cierto(/Empiezo a responder y/.test(r.texto) && /Se cortó la conexión/.test(r.texto), r.texto);
   cierto(!/network error/i.test(r.texto), "sale el error en inglés");
+  await ctx.close();
+});
+
+// ZIP mínimo (como los .docx/.xlsx de verdad) a partir de { "ruta": "contenido" }
+function zipDe(archivos) {
+  const zlib = require("zlib");
+  const tabla = Array.from({ length: 256 }, (_, n) => {
+    for (let k = 0; k < 8; k++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1;
+    return n >>> 0;
+  });
+  const crc = (b) => {
+    let c = 0xffffffff;
+    for (const x of b) c = tabla[(c ^ x) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const locales = [];
+  const central = [];
+  let pos = 0;
+  for (const [nombre, contenido] of Object.entries(archivos)) {
+    const datos = Buffer.from(contenido);
+    const comp = zlib.deflateRawSync(datos, { level: 9 });
+    const nom = Buffer.from(nombre);
+    const l = Buffer.alloc(30);
+    l.writeUInt32LE(0x04034b50, 0);
+    l.writeUInt16LE(20, 4);
+    l.writeUInt16LE(8, 8);
+    l.writeUInt32LE(crc(datos), 14);
+    l.writeUInt32LE(comp.length, 18);
+    l.writeUInt32LE(datos.length, 22);
+    l.writeUInt16LE(nom.length, 26);
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0);
+    c.writeUInt16LE(20, 4);
+    c.writeUInt16LE(20, 6);
+    c.writeUInt16LE(8, 10);
+    c.writeUInt32LE(crc(datos), 16);
+    c.writeUInt32LE(comp.length, 20);
+    c.writeUInt32LE(datos.length, 24);
+    c.writeUInt16LE(nom.length, 28);
+    c.writeUInt32LE(pos, 42);
+    locales.push(l, nom, comp);
+    central.push(c, nom);
+    pos += 30 + nom.length + comp.length;
+  }
+  const cd = Buffer.concat(central);
+  const fin = Buffer.alloc(22);
+  fin.writeUInt32LE(0x06054b50, 0);
+  fin.writeUInt16LE(Object.keys(archivos).length, 8);
+  fin.writeUInt16LE(Object.keys(archivos).length, 10);
+  fin.writeUInt32LE(cd.length, 12);
+  fin.writeUInt32LE(pos, 16);
+  return Buffer.concat([...locales, cd, fin]);
+}
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+const docx = (cuerpo) => zipDe({ "word/document.xml": `<?xml version="1.0"?><w:document ${W}><w:body>${cuerpo}</w:body></w:document>` });
+const parrafo = (...runs) => `<w:p>${runs.join("")}</w:p>`;
+const run = (t) => `<w:r><w:t xml:space="preserve">${t}</w:t></w:r>`;
+
+async function adjuntar(pagina, nombre, buffer) {
+  await pagina.evaluate(() => Adjuntos.lista.splice(0));
+  const t0 = Date.now();
+  await pagina.setInputFiles("#adjInput", [{ name: nombre, mimeType: "application/octet-stream", buffer }]);
+  await pagina.waitForFunction(() => !Adjuntos.ocupado, null, { timeout: 30000 });
+  const r = await pagina.evaluate(() => Adjuntos.lista[0] && { texto: Adjuntos.lista[0].texto, recortado: !!Adjuntos.lista[0].recortado });
+  return { ...r, ms: Date.now() - t0 };
+}
+
+prueba("Word, Excel y PowerPoint: control de cambios, hojas de gráfico y archivos que congelaban", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  // control de cambios: lo borrado y lo movido de sitio no es parte del documento
+  let r = await adjuntar(
+    pagina,
+    "contrato.docx",
+    docx(
+      parrafo(run("El precio final es "), `<w:del w:id="1"><w:r><w:delText>100</w:delText></w:r></w:del>`, `<w:ins w:id="2">${run("120")}</w:ins>`, run(" euros.")) +
+        parrafo(`<w:moveFrom w:id="3">${run("Cláusula movida.")}</w:moveFrom>`) +
+        parrafo(run("A"), "<w:r><w:tab/></w:r>", run("B &amp; C")) +
+        `<w:tbl><w:tr><w:tc>${parrafo(run("c1"))}</w:tc><w:tc>${parrafo(run("c2"))}</w:tc></w:tr></w:tbl>` +
+        parrafo(`<w:moveTo w:id="4">${run("Cláusula movida.")}</w:moveTo>`),
+    ),
+  );
+  igual(r.texto, "El precio final es 120 euros.\n\nA\tB & C\nc1 | c2\nCláusula movida.", "texto del .docx");
+  // etiquetas sin cerrar: antes el tiempo crecía con el cuadrado del tamaño (4 KB → 15 s con la página congelada)
+  r = await adjuntar(pagina, "raro.docx", docx(`<w:tc>${parrafo(run("a"))}`.repeat(40000)));
+  cierto(r.ms < 5000, `el .docx raro tarda ${r.ms} ms`);
+  // Excel: los nombres van con su hoja aunque haya una hoja de gráfico en medio
+  const rel = (id, tipo, destino) =>
+    `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${tipo}" Target="${destino}"/>`;
+  const fila = (n, ...v) => `<row r="${n}">${v.map((x, i) => `<c r="${"AB"[i]}${n}" t="inlineStr"><is><t>${x}</t></is></c>`).join("")}</row>`;
+  r = await adjuntar(
+    pagina,
+    "libro.xlsx",
+    zipDe({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="Ventas" sheetId="1" r:id="rId1"/><sheet name="Gráfico" sheetId="2" r:id="rId2"/><sheet name="Gastos" sheetId="3" r:id="rId3"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships>${rel("rId1", "worksheet", "worksheets/sheet1.xml")}${rel("rId2", "chartsheet", "chartsheets/sheet1.xml")}${rel("rId3", "worksheet", "worksheets/sheet2.xml")}</Relationships>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData>${fila(1, "Mes", "Ventas")}${fila(2, "Enero", "100")}</sheetData></worksheet>`,
+      "xl/chartsheets/sheet1.xml": "<chartsheet/>",
+      "xl/worksheets/sheet2.xml": `<worksheet><sheetData>${fila(1, "Concepto", "Gasto")}${fila(2, "Alquiler", "900")}</sheetData></worksheet>`,
+    }),
+  );
+  igual(r.texto, "## Hoja: Ventas\nMes,Ventas\nEnero,100\n\n## Hoja: Gastos\nConcepto,Gasto\nAlquiler,900", "texto del .xlsx");
+  // una hoja de 114 KB que se convertía en gigas de texto (RangeError y página congelada 40 s)
+  r = await adjuntar(
+    pagina,
+    "bomba.xlsx",
+    zipDe({ "xl/worksheets/sheet1.xml": `<worksheet><sheetData>${'<row><c r="ALL1"><v>1</v></c></row>'.repeat(1e6)}</sheetData></worksheet>` }),
+  );
+  cierto(r.ms < 8000 && r.recortado && r.texto.length === 3e5, `.xlsx enorme: ${r.ms} ms, ${r.texto && r.texto.length} car.`);
+  r = await adjuntar(
+    pagina,
+    "diapos.pptx",
+    zipDe({
+      "ppt/slides/slide2.xml": "<p:sld><a:p><a:r><a:t>Segunda</a:t></a:r></a:p></p:sld>",
+      "ppt/slides/slide1.xml": "<p:sld><a:p><a:r><a:t>Hola</a:t></a:r><a:br/><a:r><a:t>mundo</a:t></a:r></a:p><a:p></a:p></p:sld>",
+    }),
+  );
+  igual(r.texto, "## Diapositiva 1\nHola\nmundo\n\n## Diapositiva 2\nSegunda", "texto del .pptx");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("un comando que no usa la IA (/calc) no corta la respuesta que está llegando", async (nav) => {
+  const ia = await iaLenta({ trozos: 15, ms: 100 });
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: {
+      cece_ajustes: { modelo: "cece-local", localActivo: true, localModelo: "lento", localUrl: `http://127.0.0.1:${ia.puerto}/v1` },
+    },
+  });
+  await escribirYEnviar(pagina, "cuéntame algo largo");
+  await pagina.waitForFunction(() => /trozo 3\./.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
+    timeout: 10000,
+  });
+  await pagina.fill("#userInput", "/calc 2+2 ");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForFunction(() => historial.some((m) => m.local && /= 4/.test(m.content)), null, { timeout: 15000 });
+  ia.servidor.close();
+  const h = await pagina.evaluate(() => historial.map((m) => m.content));
+  cierto(/trozo 15\./.test(h[1]), "la respuesta se cortó: " + h[1]);
+  cierto(h.findIndex((t) => /= 4/.test(t)) > 1, "el resultado de /calc no va después de la respuesta: " + JSON.stringify(h));
+  igual(await pagina.inputValue("#userInput"), "");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Pro: al parar durante la fusión se cuenta lo que ya costaron los borradores", async (nav) => {
+  const llamadas = {};
+  const ia = (prov, f) => async (r) => {
+    if (!r.url.includes("/chat/") && !r.url.includes("/messages")) return null;
+    // la segunda llamada a cada uno es la fusión: tarda, para dar tiempo a pararla
+    if ((llamadas[prov] = (llamadas[prov] || 0) + 1) === 2) await new Promise((ok) => setTimeout(ok, 8000));
+    return { cuerpo: f(`Borrador de ${prov}. ` + "bla ".repeat(200)) };
+  };
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: false, fusion: true } },
+    ia: { "api.anthropic.com": ia("anthropic", respuestaClaude), "api.moonshot.ai": ia("moonshot", respuestaOpenAI) },
+  });
+  await escribirYEnviar(pagina, "hola");
+  await pagina.waitForFunction(() => /Fusionando/.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
+    timeout: 20000,
+  });
+  await pagina.click("#sendBtn");
+  const r = await ultimaRespuesta(pagina, 10000);
+  cierto(/detenido/.test(r.pie), "pie: " + r.pie);
+  const s = await pagina.evaluate(() => ({ tokens: sesion.tokens, coste: sesion.coste }));
+  cierto(s.tokens > 50 && s.coste > 0, "no se ha contado lo de los borradores: " + JSON.stringify(s));
+  await ctx.close();
+});
+
+prueba("«Descargar imagen» descarga aunque la imagen venga de otro sitio", async (nav) => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}), {
+    ia: { "image.pollinations.ai": () => ({ tipo: "image/png", cuerpo: png }) },
+  });
+  await escribirYEnviar(pagina, "/imagen un gato");
+  await pagina.waitForSelector(".bot-msg:last-of-type .img-actions a", { timeout: 20000 });
+  const pestanas = [];
+  ctx.on("page", (p) => pestanas.push(p.url()));
+  const [descarga] = await Promise.all([
+    pagina.waitForEvent("download", { timeout: 10000 }),
+    pagina.click(".bot-msg:last-of-type .img-actions a"),
+  ]);
+  cierto(/^cece-imagen-\d{8}_\d{6}\.png$/.test(descarga.suggestedFilename()), descarga.suggestedFilename());
+  igual(fs.readFileSync(await descarga.path()).length, png.length, "tamaño de la descarga");
+  igual(pestanas.length, 0, "se abrió una pestaña: " + pestanas.join(", "));
   await ctx.close();
 });
 

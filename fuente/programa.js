@@ -3143,8 +3143,16 @@ function detener() {
 }
 async function enviar(e, t = {}) {
   if (generando) {
-    const t = String(e ?? $("userInput").value).trim();
-    if ((detener(), !t)) return null;
+    const o = String(e ?? $("userInput").value).trim(),
+      c = t.voz ? { cmds: [] } : leerComandos(o),
+      a = c.cmds;
+    // Un plugin que no usa la IA (/calc, /convertir…) no necesita cortar la respuesta que está llegando: antes la
+    // dejaba a medias con «⚠️ detenido». Se ejecuta en cuanto termine.
+    if (a.length && a.every((e) => e.plugin && e.plugin.local))
+      return c.resto || a[0].opcional
+        ? (null == e && (($("userInput").value = ""), autoAlto()), await envioActual, enviarYa(o, t))
+        : (toast(`${a[0].emoji} Escribe ${a[0].arg} después de /${a[0].id}`), null);
+    if ((detener(), !o)) return null;
     if ((await envioActual, generando)) return null;
   }
   const o = enviarYa(e, t);
@@ -3476,15 +3484,25 @@ function finalRelevo(e, t) {
     n = [...t.values()].filter((e) => !a.has(e.nombre));
   return (n.length && (o += "\n\n### 📁 Archivos del equipo\n\n" + n.map(bloqueArchivo).join("\n\n")), o);
 }
-function cerrarPro(e, t, o, a, n, r, i, s) {
-  const uso = (e) => ({ in: (e.usage && e.usage.in) || 0, out: (e.usage && e.usage.out) || estimarTokens(e.texto) });
-  let c = 0,
-    l = 0;
-  for (const e of o) {
-    const t = uso(e);
-    (sumarCoste(e.motor, t.in, t.out), (c += t.in), (l += t.out));
+function sumarUsoPro(e) {
+  let t = 0,
+    o = 0;
+  for (const a of e) {
+    const e = (a.usage && a.usage.in) || 0,
+      n = (a.usage && a.usage.out) || estimarTokens(a.texto);
+    (sumarCoste(a.motor, e, n), (t += e), (o += n));
   }
-  const d = contar({ ...a, usage: { in: c, out: l } }, t, (performance.now() - n) / 1e3, !0);
+  return { in: t, out: o };
+}
+// Al pulsar «Parar» en Cece Pro, los borradores que ya habían terminado están cobrados: antes no se contaban y el
+// gasto de la sesión salía más bajo de lo real (0 $ si se paraba durante la fusión).
+function cobrarParado(e) {
+  const t = sumarUsoPro(e);
+  t.in + t.out && contar({ usage: t }, "", 0, !0);
+}
+function cerrarPro(e, t, o, a, n, r, i, s) {
+  const c = sumarUsoPro(o),
+    d = contar({ ...a, usage: c }, t, (performance.now() - n) / 1e3, !0);
   e.pieDePagina({ via: r, tokens: d.tokens, tps: d.tps, avisos: i, texto: t });
   try {
     Codigo.procesar(t, e.bubble);
@@ -3556,7 +3574,8 @@ async function ejecutarRelevo(e, t = {}) {
     return (
       c(),
       m && (n.texto = finalRelevo(m, l)),
-      finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv, motor: m && m.r.motor })
+      cobrarParado(d.map((e) => e.r)),
+      finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv })
     );
   }
   if (!d.length) {
@@ -3626,7 +3645,8 @@ async function ejecutarPro(e, t = {}) {
   if (e.aborted)
     return (
       d.length && (n.texto = d[0].texto),
-      finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv, motor: d[0] && d[0].r.motor })
+      cobrarParado(d.map((e) => e.r)),
+      finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv })
     );
   if (!d.length) {
     const e = (l.find((e) => "rejected" === e.status) || {}).reason || new Error("Ningún modelo respondió.");
@@ -3667,6 +3687,7 @@ async function ejecutarPro(e, t = {}) {
       if (esAbort(e))
         return (
           separarThink(n.texto).texto.trim() || (n.texto = d[0].texto),
+          cobrarParado(d.map((e) => e.r)),
           finalizarConError(n, e, u, { conv: t.conv })
         );
       (u.push("fusión: " + (e.corto || "error")), (n.texto = ""));
@@ -3750,6 +3771,7 @@ async function generarImagen(e, t, o = {}) {
         (a.bubble.className = "bubble"),
         (a.bubble.innerHTML = `<img class="gen-img" alt="${esc(e)}" src="${esc(n)}"><div class="img-actions"><a href="${esc(n)}" download="cece-imagen-${sello()}.png" target="_blank" rel="noopener">⬇️ Descargar imagen</a></div>`),
         a.bubble.querySelector("img").addEventListener("load", () => bajar(!0)),
+        n.startsWith("data:") || a.bubble.querySelector(".img-actions a").addEventListener("click", descargarImagen),
         anotar(o.conv ?? convId, { role: "assistant", content: `(Imagen generada: «${e}»)`, imagen: !0, via: s }),
         a.pieDePagina({ via: s, avisos: r }),
         null
@@ -3760,6 +3782,29 @@ async function generarImagen(e, t, o = {}) {
         i === n[n.length - 1] && (a.error(e.message), a.pieDePagina({ avisos: r })));
     }
   return null;
+}
+// El navegador no hace caso de «download» en un enlace a otro dominio (y menos desde file://): abría la imagen en una
+// pestaña en vez de descargarla. Se descarga a mano y, si el servidor no lo permite, se abre como antes.
+async function descargarImagen(e) {
+  const t = e.currentTarget;
+  if (t.dataset.bajando) return void e.preventDefault();
+  (e.preventDefault(), (t.dataset.bajando = "1"));
+  const o = new AbortController(),
+    a = setTimeout(() => o.abort(), 6e4);
+  try {
+    const e = await fetch(t.href, { signal: o.signal });
+    if (!e.ok) throw new Error("HTTP " + e.status);
+    const a = await e.blob();
+    if (!/^image\/[\w.+-]+$/.test(a.type)) throw new Error("no es una imagen");
+    descargar(t.download.replace(/\.png$/, "." + a.type.slice(6).replace("jpeg", "jpg").replace(/\+.*/, "")), a);
+  } catch (e) {
+    const o = window.open(t.href, "_blank");
+    o
+      ? (o.opener = null)
+      : toast("No se pudo descargar: haz clic derecho en la imagen → «Guardar imagen como…».", "mal", 6e3);
+  } finally {
+    (clearTimeout(a), delete t.dataset.bajando);
+  }
 }
 function bienvenida() {
   const e = crearMensaje("assistant"),
@@ -3913,115 +3958,274 @@ async function sacarDeZip(e, t, o = 40 << 20) {
   throw new ErrorAdjunto("compresión no soportada");
 }
 const xmlTexto = (e) =>
-  String(e)
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (e, t) => {
-      try {
-        return String.fromCodePoint(+t);
-      } catch (t) {
-        return e;
-      }
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (e, t) => {
-      try {
-        return String.fromCodePoint(parseInt(t, 16));
-      } catch (t) {
-        return e;
-      }
-    })
-    .replace(/&amp;/g, "&");
-function docxXmlATexto(e) {
-  return xmlTexto(
-    String(e)
-      .replace(/<w:instrText[\s\S]*?<\/w:instrText>/g, "")
-      .replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, (e) =>
-        e
-          .replace(/<\/w:p>/g, " ")
-          .replace(/<w:tab\/>/g, " ")
-          .replace(/<w:(br|cr)\b[^>]*\/>/g, " "),
-      )
-      .replace(/<w:tab\/>/g, "\t")
-      .replace(/<w:(br|cr)\b[^>]*\/>/g, "\n")
-      .replace(/<\/w:tc>/g, " | ")
-      .replace(/<\/w:tr>/g, "\n")
-      .replace(/<\/w:p>/g, "\n")
-      .replace(/<[^>]+>/g, ""),
-  )
-    .replace(/ +\| /g, " | ")
+  -1 === (e = String(e)).indexOf("&")
+    ? e
+    : e
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#(\d+);/g, (e, t) => {
+          try {
+            return String.fromCodePoint(+t);
+          } catch (t) {
+            return e;
+          }
+        })
+        .replace(/&#x([0-9a-f]+);/gi, (e, t) => {
+          try {
+            return String.fromCodePoint(parseInt(t, 16));
+          } catch (t) {
+            return e;
+          }
+        })
+        .replace(/&amp;/g, "&");
+// Etiquetas y trozos de texto de un XML, uno a uno y en tiempo lineal. Las expresiones perezosas del tipo
+// «<w:tc>[\s\S]*?</w:tc>» se vuelven cuadráticas cuando falta el cierre (un .docx de 4 KB preparado así
+// congelaba la página 15 s).
+function* piezasXml(e) {
+  for (const t of String(e).matchAll(/<(\/?)([\w:.-]+)([^<>]*?)(\/?)>|<[^<>]*>|[^<]+/g))
+    if (t[2]) yield { nombre: t[2], cierra: !!t[1], sola: !!t[4], attrs: t[3] };
+    else if ("<" !== t[0][0]) yield { texto: t[0] };
+}
+const RE_ATRIBUTO = new Map(),
+  atributoXml = (e, t) => {
+    if (!e) return null;
+    let o = RE_ATRIBUTO.get(t);
+    o || RE_ATRIBUTO.set(t, (o = new RegExp(`(?:^|\\s)${t}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`)));
+    const a = o.exec(e);
+    return a ? xmlTexto(a[1] ?? a[2]) : null;
+  };
+// Cuenta cuántas etiquetas «nombre» siguen abiertas (para saber si un trozo de texto está dentro).
+const anidar = (e, t) => (t.sola ? e : Math.max(0, e + (t.cierra ? -1 : 1)));
+function docxXmlATexto(e, t = 1 / 0, d = {}) {
+  let o = "",
+    a = 0,
+    n = 0,
+    r = 0;
+  for (const i of piezasXml(e)) {
+    if (o.length > t) {
+      d.cortado = !0;
+      break;
+    }
+    if (null != i.texto) {
+      n && !r && (o += xmlTexto(i.texto));
+      continue;
+    }
+    const e = i.nombre;
+    // Solo cuenta el texto de <w:t> (no el de los campos ni el de los dibujos). Lo borrado y lo movido de sitio con
+    // el control de cambios (<w:del>, <w:moveFrom>) no forma parte del documento: antes le llegaba a la IA mezclado
+    // con lo nuevo («100120 euros»).
+    "w:t" === e || "m:t" === e
+      ? (n = anidar(n, i))
+      : "w:del" === e || "w:moveFrom" === e
+        ? (r = anidar(r, i))
+        : r ||
+          ("w:tc" === e
+            ? i.cierra || i.sola
+              ? (i.sola || (a = Math.max(0, a - 1)), (o += " | "))
+              : a++
+            : "w:tr" === e
+              ? i.cierra && (o += "\n")
+              : "w:p" === e
+                ? i.cierra && (o += a ? " " : "\n")
+                : "w:tab" === e
+                  ? i.sola && !i.attrs.trim() && (o += a ? " " : "\t")
+                  : "w:br" === e || "w:cr" === e
+                    ? i.sola && (o += a ? " " : "\n")
+                    : "w:noBreakHyphen" === e && i.sola && (o += "-"));
+  }
+  // Las búsquedas de espacios miran hacia atrás para no empezar en mitad de una tirada: si no, con muchos espacios
+  // seguidos también se vuelven cuadráticas.
+  return o
+    .replace(/(?<! ) +\| /g, " | ")
     .replace(/ \| \n/g, "\n")
-    .replace(/[ \t]+\n/g, "\n")
+    .replace(/(?<![ \t])[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 const colExcel = (e) => [...String(e).toUpperCase()].reduce((e, t) => 26 * e + t.charCodeAt(0) - 64, 0) - 1;
-function xlsxHojaATexto(e, t) {
-  const o = [];
-  for (const a of String(e).match(/<row\b[\s\S]*?<\/row>/g) || []) {
-    const e = [];
-    for (const o of a.match(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g) || []) {
-      const a = /\br="([A-Z]+)\d+"/.exec(o),
-        n = /\bt="(\w+)"/.exec(o),
-        r = /<v>([\s\S]*?)<\/v>/.exec(o),
-        i = /<is>([\s\S]*?)<\/is>/.exec(o);
-      let s = "";
-      n && "s" === n[1] && r
-        ? (s = t[+r[1]] ?? "")
-        : n && "inlineStr" === n[1] && i
-          ? (s = xmlTexto(i[1].replace(/<[^>]+>/g, "")))
-          : r && (s = xmlTexto(r[1]));
-      const c = a ? colExcel(a[1]) : e.length;
-      if (c >= 0 && c < 1e3) {
-        for (; e.length < c;) e.push("");
-        e[c] = s;
-      }
-    }
-    o.push(e.map((e) => (/[",\n]/.test(e) ? '"' + e.replace(/"/g, '""') + '"' : e)).join(","));
-  }
-  return o.join("\n").replace(/\n+$/, "");
+function xlsxTextos(e) {
+  const t = [];
+  let o = null,
+    a = 0,
+    n = 0;
+  for (const r of piezasXml(e))
+    null != r.texto
+      ? null != o && a && !n && (o += r.texto)
+      : "si" === r.nombre
+        ? r.sola
+          ? t.push("")
+          : r.cierra
+            ? (null != o && t.push(xmlTexto(o)), (o = null))
+            : (o = "")
+        : "t" === r.nombre
+          ? (a = anidar(a, r))
+          : "rPh" === r.nombre && (n = anidar(n, r));
+  return t;
 }
-async function officeATexto(e, t) {
-  const o = indiceZip(e),
-    leer = async (e) => {
-      const t = await sacarDeZip(o, e);
-      return t ? new TextDecoder().decode(t) : null;
+function xlsxHojaATexto(e, t, o = 1 / 0, u = {}) {
+  const a = [];
+  let n = null,
+    r = null,
+    i = "",
+    s = 0,
+    c = 0,
+    l = 0;
+  const celda = () => {
+      const e =
+          "s" === r.tipo && null != r.v
+            ? (t[+r.v] ?? "")
+            : "inlineStr" === r.tipo && null != r.is
+              ? xmlTexto(r.is)
+              : null != r.v
+                ? xmlTexto(r.v)
+                : "",
+        o = /^([A-Z]+)\d+$/.exec(r.ref || ""),
+        a = o ? colExcel(o[1]) : n.length;
+      if (a >= 0 && a < 1e3) {
+        for (; n.length < a;) n.push("");
+        n[a] = e;
+      }
+      r = null;
     },
-    orden = (e, t) => +(/(\d+)\.xml$/.exec(e) || [0, 0])[1] - +(/(\d+)\.xml$/.exec(t) || [0, 0])[1];
+    nueva = (e) => ({
+      ref: atributoXml(e.attrs, "r"),
+      tipo: atributoXml(e.attrs, "t"),
+      v: null,
+      is: null,
+    });
+  for (const d of piezasXml(e)) {
+    if (null != d.texto) {
+      r && ("v" === i ? (r.v += d.texto) : "is" === i && s && !c && (r.is += d.texto));
+      continue;
+    }
+    const e = d.nombre;
+    if ("row" === e) {
+      if (d.sola) continue;
+      if (!d.cierra) {
+        n = [];
+        continue;
+      }
+      if (!n) continue;
+      r && celda();
+      const t = n.map((e) => (/[",\n]/.test(e) ? '"' + e.replace(/"/g, '""') + '"' : e)).join(",");
+      if ((a.push(t), (n = null), (l += t.length + 1) > o)) {
+        u.cortado = !0;
+        break;
+      }
+    } else
+      n &&
+        ("c" === e
+          ? d.cierra
+            ? r && celda()
+            : (r && celda(), (r = nueva(d)), d.sola && celda())
+          : r &&
+            ("v" === e || "is" === e
+              ? d.sola || (d.cierra ? (i = "") : ((i = e), (r[e] = "")))
+              : "t" === e
+                ? (s = anidar(s, d))
+                : "rPh" === e && (c = anidar(c, d))));
+  }
+  return a.join("\n").replace(/(?<!\n)\n+$/, "");
+}
+function pptxDiapositivaATexto(e) {
+  const t = [];
+  let o = null,
+    a = 0;
+  for (const n of piezasXml(e))
+    null != n.texto
+      ? null != o && a && (o += n.texto)
+      : "a:p" === n.nombre
+        ? n.sola || (n.cierra ? (null != o && t.push(xmlTexto(o)), (o = null)) : (o = ""))
+        : "a:t" === n.nombre
+          ? (a = anidar(a, n))
+          : "a:br" === n.nombre && null != o && (o += "\n");
+  return t.filter((e) => e.trim()).join("\n");
+}
+// Entre todas las partes de un documento no se descomprimen más de TOPE_OFFICE bytes, y en cuanto el texto sacado
+// pasa del máximo que se manda a la IA se deja de leer (antes una hoja de 114 KB se convertía en gigas de texto).
+const TOPE_OFFICE = 120 << 20;
+async function officeATexto(e, t, o = LIM_ADJ.chars) {
+  const a = indiceZip(e);
+  let n = 0;
+  const leer = async (e) => {
+      const t = await sacarDeZip(a, e, Math.max(1, Math.min(40 << 20, TOPE_OFFICE - n)));
+      return t ? ((n += t.length), new TextDecoder().decode(t)) : null;
+    },
+    // Una diapositiva u hoja que ya no cabe en lo que queda por descomprimir: si ya hay algo leído, se corta ahí.
+    leerParte = async (e, t) => {
+      try {
+        return (await leer(e)) ?? "";
+      } catch (o) {
+        if (t && o instanceof ErrorAdjunto && /demasiado grande/.test(t.message)) return null;
+        throw o;
+      }
+    },
+    orden = (e, t) => +(/(\d+)\.xml$/.exec(e) || [0, 0])[1] - +(/(\d+)\.xml$/.exec(t) || [0, 0])[1],
+    juntar = (e, t) => ({ texto: e.join("\n\n"), recortado: !!t });
   if ("docx" === t) {
     const e = await leer("word/document.xml");
     if (null == e) throw new ErrorAdjunto("no parece un documento de Word (.docx)");
-    return docxXmlATexto(e);
+    const t = {};
+    return juntar([docxXmlATexto(e, o, t)], t.cortado);
   }
   if ("pptx" === t) {
-    const e = [...o.mapa.keys()].filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e)).sort(orden);
+    const e = [...a.mapa.keys()].filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e)).sort(orden);
     if (!e.length) throw new ErrorAdjunto("no parece una presentación de PowerPoint (.pptx)");
     const t = [];
-    for (const [o, a] of e.entries()) {
-      const n = ((await leer(a)).match(/<a:p(?:\s[^>]*)?>[\s\S]*?<\/a:p>/g) || [])
-        .map((e) => xmlTexto([...e.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)].map((e) => e[1]).join("")))
-        .filter((e) => e.trim());
-      t.push(`## Diapositiva ${o + 1}\n` + n.join("\n"));
+    let r = 0;
+    for (const [a, i] of e.entries()) {
+      if (r > o || n >= TOPE_OFFICE) return juntar(t, !0);
+      const s = await leerParte(i, t.length);
+      if (null == s) return juntar(t, !0);
+      const e = `## Diapositiva ${a + 1}\n` + pptxDiapositivaATexto(s);
+      (t.push(e), (r += e.length + 2));
     }
-    return t.join("\n\n");
+    return juntar(t);
   }
   if ("xlsx" === t) {
     const e = await leer("xl/sharedStrings.xml"),
-      t = e
-        ? (e.match(/<si>[\s\S]*?<\/si>/g) || []).map((e) =>
-            xmlTexto((e.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || []).map((e) => e.replace(/<[^>]+>/g, "")).join("")),
-          )
-        : [],
-      n = (((await leer("xl/workbook.xml")) || "").match(/<sheet\b[^>]*>/g) || []).map((e) =>
-        xmlTexto((/name="([^"]*)"/.exec(e) || [0, ""])[1]),
-      ),
-      r = [...o.mapa.keys()].filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/.test(e)).sort(orden);
-    if (!r.length) throw new ErrorAdjunto("no parece una hoja de Excel (.xlsx)");
-    const i = [];
-    for (const [e, o] of r.entries())
-      i.push(`## Hoja: ${n[e] || "Hoja " + (e + 1)}\n` + xlsxHojaATexto(await leer(o), t));
-    return i.join("\n\n");
+      t = e ? xlsxTextos(e) : [],
+      i = [];
+    // Cada hoja se busca por su relación (r:id → xl/_rels/workbook.xml.rels), no por su posición: las hojas de
+    // gráfico están en workbook.xml pero no en xl/worksheets, y los nombres se desplazaban.
+    const s = new Map();
+    for (const e of piezasXml((await leer("xl/_rels/workbook.xml.rels")) || "")) {
+      if ("Relationship" !== e.nombre || e.cierra) continue;
+      const t = atributoXml(e.attrs, "Id"),
+        o = atributoXml(e.attrs, "Target");
+      t &&
+        o &&
+        s.set(t, {
+          ruta: o.startsWith("/") ? o.slice(1) : ("xl/" + o).replace(/\/\.\//g, "/").replace(/[^/]+\/\.\.\//g, ""),
+          hoja: /\/worksheet$/.test(atributoXml(e.attrs, "Type") || ""),
+        });
+    }
+    const r = [...a.mapa.keys()].filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/.test(e)).sort(orden),
+      c = [];
+    for (const e of piezasXml((await leer("xl/workbook.xml")) || ""))
+      "sheet" !== e.nombre ||
+        e.cierra ||
+        c.push({
+          nombre: atributoXml(e.attrs, "name") || "",
+          rel: s.get(atributoXml(e.attrs, "r:id")),
+        });
+    const d =
+      c.length && c.every((e) => e.rel)
+        ? c.filter((e) => e.rel.hoja && a.mapa.has(e.rel.ruta)).map((e) => ({ nombre: e.nombre, ruta: e.rel.ruta }))
+        : r.map((e, t) => ({ nombre: c[t]?.nombre, ruta: e }));
+    if (!d.length) throw new ErrorAdjunto("no parece una hoja de Excel (.xlsx)");
+    let u = 0;
+    const f = {};
+    for (const [e, a] of d.entries()) {
+      if (f.cortado || u > o || n >= TOPE_OFFICE) return juntar(i, !0);
+      const r = await leerParte(a.ruta, i.length);
+      if (null == r) return juntar(i, !0);
+      const s = `## Hoja: ${a.nombre || "Hoja " + (e + 1)}\n` + xlsxHojaATexto(r, t, o - u, f);
+      (i.push(s), (u += s.length + 2));
+    }
+    return juntar(i, f.cortado);
   }
   throw new ErrorAdjunto("tipo no soportado");
 }
@@ -4111,15 +4315,16 @@ async function procesarArchivo(e) {
     if (37 !== t[0] || 80 !== t[1] || 68 !== t[2] || 70 !== t[3]) throw new ErrorAdjunto("no es un PDF válido");
     return { ...a, tipo: o, mime: "application/pdf", datos: aBase64(t) };
   }
-  let n;
+  let n,
+    r = !1;
   if ("texto" === o) {
     if (e.size > LIM_ADJ.texto) throw new ErrorAdjunto(`el archivo de texto pasa de ${tamLegible(LIM_ADJ.texto)}`);
     n = decodificarTexto(new Uint8Array(await e.arrayBuffer()));
   } else {
     if (e.size > LIM_ADJ.office) throw new ErrorAdjunto(`el archivo pasa de ${tamLegible(LIM_ADJ.office)}`);
-    n = await officeATexto(await e.arrayBuffer(), o);
+    ({ texto: n, recortado: r } = await officeATexto(await e.arrayBuffer(), o));
   }
-  const r = n.length > LIM_ADJ.chars;
+  r = r || n.length > LIM_ADJ.chars;
   return {
     ...a,
     tipo: "texto",
