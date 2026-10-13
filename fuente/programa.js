@@ -4015,10 +4015,10 @@ function docxXmlATexto(e, t = 1 / 0, d = {}) {
     const e = i.nombre;
     // Solo cuenta el texto de <w:t> (no el de los campos ni el de los dibujos). Lo borrado y lo movido de sitio con
     // el control de cambios (<w:del>, <w:moveFrom>) no forma parte del documento: antes le llegaba a la IA mezclado
-    // con lo nuevo («100120 euros»).
+    // con lo nuevo («100120 euros»). Los cuadros de texto van dos veces (<mc:Choice> y la copia <mc:Fallback>).
     "w:t" === e || "m:t" === e
       ? (n = anidar(n, i))
-      : "w:del" === e || "w:moveFrom" === e
+      : "w:del" === e || "w:moveFrom" === e || "mc:Fallback" === e
         ? (r = anidar(r, i))
         : r ||
           ("w:tc" === e

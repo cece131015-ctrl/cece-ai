@@ -1204,10 +1204,15 @@ prueba("Word, Excel y PowerPoint: control de cambios, hojas de gráfico y archiv
         parrafo(`<w:moveFrom w:id="3">${run("Cláusula movida.")}</w:moveFrom>`) +
         parrafo(run("A"), "<w:r><w:tab/></w:r>", run("B &amp; C")) +
         `<w:tbl><w:tr><w:tc>${parrafo(run("c1"))}</w:tc><w:tc>${parrafo(run("c2"))}</w:tc></w:tr></w:tbl>` +
-        parrafo(`<w:moveTo w:id="4">${run("Cláusula movida.")}</w:moveTo>`),
+        parrafo(`<w:moveTo w:id="4">${run("Cláusula movida.")}</w:moveTo>`) +
+        // un cuadro de texto: Word guarda una copia para programas antiguos que no hay que leer dos veces
+        parrafo(
+          `<w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><w:txbxContent>${parrafo(run("Recuadro"))}</w:txbxContent></w:drawing></mc:Choice>` +
+            `<mc:Fallback><w:pict><v:textbox><w:txbxContent>${parrafo(run("Recuadro"))}</w:txbxContent></v:textbox></w:pict></mc:Fallback></mc:AlternateContent></w:r>`,
+        ),
     ),
   );
-  igual(r.texto, "El precio final es 120 euros.\n\nA\tB & C\nc1 | c2\nCláusula movida.", "texto del .docx");
+  igual(r.texto, "El precio final es 120 euros.\n\nA\tB & C\nc1 | c2\nCláusula movida.\nRecuadro", "texto del .docx");
   // etiquetas sin cerrar: antes el tiempo crecía con el cuadrado del tamaño (4 KB → 15 s con la página congelada)
   r = await adjuntar(pagina, "raro.docx", docx(`<w:tc>${parrafo(run("a"))}`.repeat(40000)));
   cierto(r.ms < 5000, `el .docx raro tarda ${r.ms} ms`);
