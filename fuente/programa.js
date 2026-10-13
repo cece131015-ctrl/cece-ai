@@ -2772,6 +2772,7 @@ let historial = [],
   generando = null,
   burbujaActiva = null,
   envioActual = null,
+  enCola = 0,
   parado = !1;
 const anotar = (e, t) => {
     e === convId && (historial.push(t), guardarActual());
@@ -3145,15 +3146,41 @@ async function enviar(e, t = {}) {
   if (generando) {
     const o = String(e ?? $("userInput").value).trim(),
       c = t.voz ? { cmds: [] } : leerComandos(o),
-      a = c.cmds;
-    // Un plugin que no usa la IA (/calc, /convertir…) no necesita cortar la respuesta que está llegando: antes la
-    // dejaba a medias con «⚠️ detenido». Se ejecuta en cuanto termine.
-    if (a.length && a.every((e) => e.plugin && e.plugin.local))
-      return c.resto || a[0].opcional
-        ? (null == e && (($("userInput").value = ""), autoAlto()), await envioActual, enviarYa(o, t))
-        : (toast(`${a[0].emoji} Escribe ${a[0].arg} después de /${a[0].id}`), null);
-    if (a.length && !c.resto && a.every(soloVentana))
-      return (null == e && (($("userInput").value = ""), autoAlto()), a.forEach((e) => accionApp(e.accion)), null);
+      a = c.cmds,
+      l = a.filter((e) => !soloVentana(e));
+    // Los comandos que no usan la IA no necesitan cortar la respuesta que está llegando (antes quedaba a medias con
+    // «⚠️ detenido»): las ventanas (/github, /ajustes) se abren ya y los plugins sin IA (/calc…) esperan a que termine.
+    if (a.length && l.every((e) => e.plugin && e.plugin.local) && (l.length || !c.resto)) {
+      const p = l[0];
+      if (p && !c.resto && !p.opcional) return (toast(`${p.emoji} Escribe ${p.arg} después de /${p.id}`), null);
+      if (
+        (null == e && (($("userInput").value = ""), autoAlto()),
+        a.filter(soloVentana).forEach((e) => accionApp(e.accion)),
+        !p)
+      )
+        return null;
+      toast(`${p.emoji} /${p.id} se hará en cuanto termine la respuesta.`);
+      const n = convId,
+        r = envioActual,
+        i = (l.map((e) => "/" + e.id).join(" ") + " " + c.resto).trim();
+      enCola++;
+      // Cada uno espera al anterior (si no, todos se reanudaban a la vez y el historial quedaba desordenado) y, si
+      // mientras tanto se cambió de conversación, vuelve al cuadro en vez de ejecutarse en la otra.
+      const s = (async () => {
+        try {
+          if ((await r, n !== convId)) {
+            const e = $("userInput");
+            return (e.value || ((e.value = i), autoAlto()), null);
+          }
+          return await enviarYa(i, t);
+        } finally {
+          enCola--;
+        }
+      })();
+      return ((envioActual = s.catch(() => null)), s);
+    }
+    // (un Enter con el cuadro vacío mientras un comando espera no corta la respuesta)
+    if (!o && enCola) return null;
     if ((detener(), !o)) return null;
     if ((await envioActual, generando)) return null;
   }
@@ -3161,7 +3188,8 @@ async function enviar(e, t = {}) {
   return ((envioActual = o.catch(() => null)), o);
 }
 async function enviarYa(e, t) {
-  Menu.cerrar();
+  // (solo si se envía lo del cuadro: un /calc que esperaba no cierra el menú que se está usando)
+  null == e && Menu.cerrar();
   const o = $("userInput"),
     a = null == e;
   let n = String(e ?? o.value).trim();
@@ -4877,7 +4905,9 @@ function accionApp(e) {
 // propio botón «🐙 GitHub» junto a ⚙️. /github lo abre igual que ese botón; conectar sigue siendo cosa de la usuaria.
 function abrirPanelGitHub() {
   const e = $("cece-github-open");
-  e ? e.click() : toast("🐙 Este archivo no trae el panel de GitHub.", "mal");
+  // (después de lo demás del mismo mensaje: con «/github /live», Live se abría detrás y al cerrar el panel quedaba
+  // usable el chat de debajo)
+  e ? setTimeout(() => e.click()) : toast("🐙 Este archivo no trae el panel de GitHub.", "mal");
 }
 // Acciones que solo abren una ventana: no tocan la conversación, así que no hace falta cortar la respuesta en curso.
 const soloVentana = (e) => "github" === e.accion || "ajustes" === e.accion;
@@ -6174,6 +6204,21 @@ function primerGrafema(e) {
   } catch (e) {}
   return [...e][0];
 }
+// Un plugin guardado cuyo nombre ha pasado a ser un comando de Cece (/github, /gh…) no se tira: se renombra (/github2…)
+// y se avisa. Antes desaparecía sin decir nada y se borraba para siempre al guardar cualquier otro plugin.
+function validarPluginGuardado(e, t) {
+  let o = validarPlugin(e, t);
+  if (o.ok || !e || !/ ya existe en Cece/.test(o.error)) return o;
+  const a = norm(String(e.id || "").trim()).replace(/^\//, "");
+  for (let n = 2; n < 10 && !o.ok; n++) o = validarPlugin({ ...e, id: a.slice(0, 18) + n }, t);
+  return o.ok ? { ...o, renombrado: `/${a} → /${o.plugin.id}` } : o;
+}
+const avisarRenombrados = (e) =>
+  e.length &&
+  setTimeout(
+    () => toast(`🧩 Ahora son comandos de Cece; tus plugins pasan a llamarse ${e.join(", ")}.`, "", 9e3),
+    2500,
+  );
 function validarPlugin(e, t) {
   if (!e || "object" != typeof e) return { ok: !1, error: "plugin no válido" };
   const o = norm(String(e.id || "").trim()).replace(/^\//, "");
@@ -6266,12 +6311,16 @@ window.addEventListener("message", (e) => {
 const Plugins = {
   propios: [],
   cargar() {
-    const e = almacen.get("cece_plugins", []);
+    const e = almacen.get("cece_plugins", []),
+      o = [];
     this.propios = [];
     for (const t of Array.isArray(e) ? e : []) {
-      const e = validarPlugin(t);
-      e.ok && !this.propios.some((t) => t.id === e.plugin.id) && this.propios.push(e.plugin);
+      const e = validarPluginGuardado(t);
+      e.ok &&
+        !this.propios.some((t) => t.id === e.plugin.id) &&
+        (this.propios.push(e.plugin), e.renombrado && o.push(e.renombrado));
     }
+    o.length && (almacen.set("cece_plugins", this.propios), avisarRenombrados(o));
   },
   guardar() {
     (almacen.set("cece_plugins", this.propios), void 0 !== Nube && Nube.marcar("plugins"));
@@ -6456,7 +6505,7 @@ function importarPlugins(e) {
     const n = [];
     for (const t of e) {
       const e = Plugins.propios.find((e) => t && e.id === norm(String(t.id || ""))),
-        o = validarPlugin(t, e ? e.id : void 0);
+        o = validarPluginGuardado(t, e ? e.id : void 0);
       o.ok
         ? (e ? Object.assign(e, o.plugin) : Plugins.propios.push(o.plugin), a++)
         : n.push(String((t && t.id) || "?"));
@@ -8106,11 +8155,12 @@ const firmaConv = (e) =>
       const n = e.plugins && Date.parse(e.plugins.t),
         r = e.apariencia && Date.parse(e.apariencia.t);
       if (n && n > (Date.parse(t.plugins) || 0)) {
-        const o = new Set();
-        ((Plugins.propios = (Array.isArray(e.plugins.lista) ? e.plugins.lista : [])
-          .map((e) => validarPlugin(e, !0))
-          .filter((e) => e.ok && !o.has(e.plugin.id) && o.add(e.plugin.id))
-          .map((e) => e.plugin)),
+        const o = new Set(),
+          a = (Array.isArray(e.plugins.lista) ? e.plugins.lista : [])
+            .map((e) => validarPluginGuardado(e, !0))
+            .filter((e) => e.ok && !o.has(e.plugin.id) && o.add(e.plugin.id));
+        ((Plugins.propios = a.map((e) => e.plugin)),
+          avisarRenombrados(a.map((e) => e.renombrado).filter(Boolean)),
           (S.pluginsOff = Array.isArray(e.plugins.off)
             ? e.plugins.off.filter((e) => "string" == typeof e && e.length <= 40).slice(0, 200)
             : []),

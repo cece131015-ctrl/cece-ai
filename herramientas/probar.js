@@ -1307,13 +1307,17 @@ prueba("un comando que no usa la IA (/calc) no corta la respuesta que está lleg
   await pagina.waitForFunction(() => /trozo 3\./.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
     timeout: 10000,
   });
-  await pagina.fill("#userInput", "/calc 2+2 ");
-  await pagina.press("#userInput", "Enter");
-  await pagina.waitForFunction(() => historial.some((m) => m.local && /= 4/.test(m.content)), null, { timeout: 15000 });
+  // dos comandos en espera (y un Enter de más con el cuadro vacío, que no debe cortar la respuesta)
+  for (const t of ["/calc 2+2 ", "/calc 3+3 ", ""]) {
+    await pagina.fill("#userInput", t);
+    await pagina.press("#userInput", "Enter");
+  }
+  cierto(/se hará en cuanto termine/.test(await pagina.textContent("#toast")), "no avisa de que el comando espera");
+  await pagina.waitForFunction(() => historial.some((m) => m.local && /= 6/.test(m.content)), null, { timeout: 15000 });
   ia.servidor.close();
   const h = await pagina.evaluate(() => historial.map((m) => m.content));
   cierto(/trozo 15\./.test(h[1]), "la respuesta se cortó: " + h[1]);
-  cierto(h.findIndex((t) => /= 4/.test(t)) > 1, "el resultado de /calc no va después de la respuesta: " + JSON.stringify(h));
+  igual(JSON.stringify(h.slice(2)), JSON.stringify(["2+2", "`2+2`\n\n**= 4**", "3+3", "`3+3`\n\n**= 6**"]), "historial desordenado");
   igual(await pagina.inputValue("#userInput"), "");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
@@ -1398,18 +1402,29 @@ prueba("/github abre el panel y solo se conecta cuando la usuaria quiere (tambi�
   await pagina.waitForFunction(() => /trozo 3\./.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
     timeout: 10000,
   });
-  await pagina.fill("#userInput", "/github ");
+  await pagina.fill("#userInput", "/github /calc 2+2");
   await pagina.press("#userInput", "Enter");
   await pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "cece-gh-repos", null, { timeout: 5000 });
   await pagina.keyboard.press("Escape");
-  const r = await ultimaRespuesta(pagina, 15000);
+  // (cuando termina la respuesta se hace el /calc: la última burbuja ya es la suya)
+  await pagina.waitForFunction(() => historial.some((m) => m.local && /= 4/.test(m.content)), null, { timeout: 15000 });
   ia.servidor.close();
+  const r = await pagina.evaluate(() => {
+    const m = [...document.querySelectorAll(".bot-msg")].find((e) => /trozo 1\./.test(e.innerText));
+    return { texto: m.querySelector(".bubble").innerText, pie: m.querySelector(".msg-meta").innerText };
+  });
   cierto(/trozo 15\./.test(r.texto) && !/detenido/.test(r.pie), "la respuesta se cortó: " + r.texto.slice(-40) + " | " + r.pie);
   // y sale en la ayuda
   await escribirYEnviar(pagina, "/ayuda ");
   await pagina.waitForFunction(() => /\/github/.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText));
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
+  // un plugin propio que ya se llamaba /github no se pierde: pasa a /github2 (y se avisa)
+  const plugin = { id: "github", nombre: "Mi GitHub", emoji: "🧩", tipo: "plantilla", cuerpo: "Resume {texto}", desc: "", actualizado: "2026-10-01T00:00:00.000Z" };
+  const b = await nuevaPagina(nav, conClaves({}), { almacen: { cece_plugins: [plugin] } });
+  igual(JSON.stringify(await b.pagina.evaluate(() => [Plugins.propios.map((p) => p.id), JSON.parse(localStorage.cece_plugins).map((p) => p.id)])), '[["github2"],["github2"]]');
+  await b.pagina.waitForFunction(() => /github2/.test(document.getElementById("toast").textContent), null, { timeout: 6000 });
+  await b.ctx.close();
 });
 
 prueba("calculadora y plugins: «;» con decimales, 3x4, redondeos, 1h30m, años cortos, rangos y JSON intacto", async (nav) => {
