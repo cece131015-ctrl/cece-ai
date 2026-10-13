@@ -4028,51 +4028,87 @@ const RE_ATRIBUTO = new Map(),
   };
 // Cuenta cuántas etiquetas «nombre» siguen abiertas (para saber si un trozo de texto está dentro).
 const anidar = (e, t) => (t.sola ? e : Math.max(0, e + (t.cierra ? -1 : 1)));
-function docxXmlATexto(e, t = 1 / 0, d = {}) {
-  let o = "",
-    a = 0,
-    n = 0,
-    r = 0;
-  for (const i of piezasXml(e)) {
-    if (o.length > t) {
-      d.cortado = !0;
-      break;
-    }
-    if (null != i.texto) {
-      n && !r && (o += xmlTexto(i.texto));
-      continue;
-    }
-    const e = i.nombre;
-    // Solo cuenta el texto de <w:t> (no el de los campos ni el de los dibujos). Lo borrado y lo movido de sitio con
-    // el control de cambios (<w:del>, <w:moveFrom>) no forma parte del documento: antes le llegaba a la IA mezclado
-    // con lo nuevo («100120 euros»). Los cuadros de texto van dos veces (<mc:Choice> y la copia <mc:Fallback>).
-    "w:t" === e || "m:t" === e
-      ? (n = anidar(n, i))
-      : "w:del" === e || "w:moveFrom" === e || "mc:Fallback" === e
-        ? (r = anidar(r, i))
-        : r ||
-          ("w:tc" === e
-            ? i.cierra || i.sola
-              ? (i.sola || (a = Math.max(0, a - 1)), (o += " | "))
-              : a++
-            : "w:tr" === e
-              ? i.cierra && (o += "\n")
-              : "w:p" === e
-                ? i.cierra && (o += a ? " " : "\n")
-                : "w:tab" === e
-                  ? i.sola && !i.attrs.trim() && (o += a ? " " : "\t")
-                  : "w:br" === e || "w:cr" === e
-                    ? i.sola && (o += a ? " " : "\n")
-                    : "w:noBreakHyphen" === e && i.sola && (o += "-"));
-  }
-  // Las búsquedas de espacios miran hacia atrás para no empezar en mitad de una tirada: si no, con muchos espacios
-  // seguidos también se vuelven cuadráticas.
-  return o
+// Lo que se quita al final del texto de un .docx: espacios antes de « | » o de un salto, y más de una línea en blanco.
+// Las búsquedas de espacios miran hacia atrás para no empezar en mitad de una tirada: si no, con muchos espacios
+// seguidos también se vuelven cuadráticas.
+const limpiarDocx = (e) =>
+  e
     .replace(/(?<! ) +\| /g, " | ")
     .replace(/ \| \n/g, "\n")
     .replace(/(?<![ \t])[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+function docxXmlATexto(e, t = 1 / 0, d = {}) {
+  let o = "",
+    a = 0,
+    n = 0,
+    r = 0,
+    f = 0,
+    l = t;
+  const pila = [],
+    // (un .docx retocado con un script puede llamar «ns0:» o nada a lo que Word llama «w:»; antes salía vacío)
+    m =
+      /xmlns(?::([\w.-]+))?="(?:http:\/\/schemas\.openxmlformats\.org\/wordprocessingml\/2006\/main|http:\/\/purl\.oclc\.org\/ooxml\/wordprocessingml\/main)"/.exec(
+        String(e).slice(0, 2e4),
+      ),
+    pre = m ? (m[1] ?? "") : "w",
+    nombre =
+      "w" === pre
+        ? (e) => e
+        : "" === pre
+          ? (e) => (e.includes(":") ? e : "w:" + e)
+          : (e) => (e.startsWith(pre + ":") ? "w:" + e.slice(pre.length + 1) : e);
+  for (const i of piezasXml(e)) {
+    // El máximo se mide sobre el texto ya limpio (el de trabajo lleva « | » y saltos que luego se quitan: cortando por
+    // él se perdía texto que cabía). Se limpia solo de vez en cuando, para que no sea cuadrático.
+    if (o.length > l) {
+      const e = limpiarDocx(o).length;
+      if (e > t) {
+        d.cortado = !0;
+        break;
+      }
+      l = o.length + Math.max(t - e, t >> 3);
+    }
+    if (null != i.texto) {
+      n && !r && !f && (o += xmlTexto(i.texto));
+      continue;
+    }
+    const e = nombre(i.nombre),
+      c = pila[pila.length - 1];
+    // Solo cuenta el texto de <w:t> (no el de los campos ni el de los dibujos). Lo borrado y lo movido de sitio con
+    // el control de cambios (<w:del>, <w:moveFrom>) no forma parte del documento: antes le llegaba a la IA mezclado
+    // con lo nuevo («100120 euros»).
+    // <mc:AlternateContent>: los cuadros de texto van dos veces (<mc:Choice> y la copia <mc:Fallback>), así que la
+    // copia se salta… pero solo si <mc:Choice> ya dio texto: los emojis de Word 365 solo están en <mc:Fallback>.
+    "w:t" === e || "m:t" === e
+      ? (n = anidar(n, i))
+      : "w:del" === e || "w:moveFrom" === e
+        ? (r = anidar(r, i))
+        : "mc:AlternateContent" === e
+          ? i.sola || (i.cierra ? pila.pop() : pila.push({ desde: 0, dio: !1, salta: !1 }))
+          : "mc:Choice" === e
+            ? c && !i.sola && (i.cierra ? (c.dio = c.dio || o.length > c.desde) : (c.desde = o.length))
+            : "mc:Fallback" === e
+              ? c &&
+                !i.sola &&
+                (i.cierra ? c.salta && ((c.salta = !1), f--) : c.dio && !c.salta && ((c.salta = !0), f++))
+              : r ||
+                f ||
+                ("w:tc" === e
+                  ? i.cierra || i.sola
+                    ? (i.sola || (a = Math.max(0, a - 1)), (o += " | "))
+                    : a++
+                  : "w:tr" === e
+                    ? i.cierra && (o += "\n")
+                    : "w:p" === e
+                      ? i.cierra && (o += a ? " " : "\n")
+                      : "w:tab" === e
+                        ? !i.cierra && !i.attrs.trim() && (o += a ? " " : "\t")
+                        : "w:br" === e || "w:cr" === e
+                          ? !i.cierra && (o += a ? " " : "\n")
+                          : "w:noBreakHyphen" === e && !i.cierra && (o += "-"));
+  }
+  return limpiarDocx(o);
 }
 const colExcel = (e) => [...String(e).toUpperCase()].reduce((e, t) => 26 * e + t.charCodeAt(0) - 64, 0) - 1;
 function xlsxTextos(e) {
@@ -4170,7 +4206,7 @@ function pptxDiapositivaATexto(e) {
         ? n.sola || (n.cierra ? (null != o && t.push(xmlTexto(o)), (o = null)) : (o = ""))
         : "a:t" === n.nombre
           ? (a = anidar(a, n))
-          : "a:br" === n.nombre && null != o && (o += "\n");
+          : "a:br" === n.nombre && !n.cierra && null != o && (o += "\n");
   return t.filter((e) => e.trim()).join("\n");
 }
 // Entre todas las partes de un documento no se descomprimen más de TOPE_OFFICE bytes, y en cuanto el texto sacado

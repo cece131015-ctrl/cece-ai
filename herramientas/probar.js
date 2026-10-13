@@ -1257,6 +1257,23 @@ prueba("Word, Excel y PowerPoint: control de cambios, hojas de gráfico y archiv
     ),
   );
   igual(r.texto, "El precio final es 120 euros.\n\nA\tB & C\nc1 | c2\nCláusula movida.\nRecuadro", "texto del .docx");
+  // emojis de Word 365 (solo están en <mc:Fallback>) y un .docx con otro prefijo (ns0:, como lo deja xml.etree)
+  r = await adjuntar(
+    pagina,
+    "emoji.docx",
+    docx(parrafo(run("Hecho "), `<mc:AlternateContent><mc:Choice Requires="w16se"><w16se:symEx w16se:char="2705"/></mc:Choice><mc:Fallback><w:r><w:t>✅</w:t></w:r></mc:Fallback></mc:AlternateContent>`)),
+  );
+  igual(r.texto, "Hecho ✅", "emoji de Word 365");
+  r = await adjuntar(
+    pagina,
+    "ns0.docx",
+    zipDe({ "word/document.xml": `<ns0:document xmlns:ns0="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><ns0:body><ns0:p><ns0:r><ns0:t>Uno</ns0:t></ns0:r></ns0:p><ns0:p><ns0:r><ns0:t>Dos</ns0:t></ns0:r></ns0:p></ns0:body></ns0:document>` }),
+  );
+  igual(r.texto, "Uno\nDos", "docx con prefijo ns0");
+  // una tabla cuyo texto limpio cabe en el máximo (el de trabajo, con « | » y saltos, no): llega entera
+  const celda = `<w:tc>${parrafo(run("celda12345"))}</w:tc>`;
+  r = await adjuntar(pagina, "tabla.docx", docx(`<w:tbl>${`<w:tr>${celda.repeat(5)}</w:tr>`.repeat(4500)}</w:tbl>` + parrafo(run("FIN"))));
+  cierto(r.texto.endsWith("FIN") && !r.recortado, `la tabla se cortó: ${r.texto.length} car., recortado=${r.recortado}`);
   // etiquetas sin cerrar: antes el tiempo crecía con el cuadrado del tamaño (4 KB → 15 s con la página congelada)
   r = await adjuntar(pagina, "raro.docx", docx(`<w:tc>${parrafo(run("a"))}`.repeat(40000)));
   cierto(r.ms < 5000, `el .docx raro tarda ${r.ms} ms`);
@@ -1288,7 +1305,8 @@ prueba("Word, Excel y PowerPoint: control de cambios, hojas de gráfico y archiv
     "diapos.pptx",
     zipDe({
       "ppt/slides/slide2.xml": "<p:sld><a:p><a:r><a:t>Segunda</a:t></a:r></a:p></p:sld>",
-      "ppt/slides/slide1.xml": "<p:sld><a:p><a:r><a:t>Hola</a:t></a:r><a:br/><a:r><a:t>mundo</a:t></a:r></a:p><a:p></a:p></p:sld>",
+      // (PowerPoint y LibreOffice guardan el salto como <a:br><a:rPr/></a:br>: un salto, no dos)
+      "ppt/slides/slide1.xml": "<p:sld><a:p><a:r><a:t>Hola</a:t></a:r><a:br><a:rPr sz=\"3200\"/></a:br><a:r><a:t>mundo</a:t></a:r></a:p><a:p></a:p></p:sld>",
     }),
   );
   igual(r.texto, "## Diapositiva 1\nHola\nmundo\n\n## Diapositiva 2\nSegunda", "texto del .pptx");
