@@ -1318,6 +1318,56 @@ prueba("«Descargar imagen» descarga aunque la imagen venga de otro sitio", asy
   await ctx.close();
 });
 
+prueba("/github abre el panel y solo se conecta cuando la usuaria quiere (también con una respuesta en marcha)", async (nav) => {
+  const g = githubSimulado();
+  const ia = await iaLenta({ trozos: 15, ms: 100 });
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    ia: { "api.github.com": g.manejar },
+    almacen: {
+      cece_ajustes: { modelo: "cece-local", localActivo: true, localModelo: "lento", localUrl: `http://127.0.0.1:${ia.puerto}/v1` },
+    },
+  });
+  const abierto = () => pagina.evaluate(() => getComputedStyle(document.getElementById("cece-github-modal")).display !== "none");
+  // escrito y elegido en el menú de «/»
+  await pagina.fill("#userInput", "/github");
+  await pagina.waitForSelector("#cmdMenu.open .cmd-item.on");
+  cierto(/\/github/.test(await pagina.textContent("#cmdMenu .cmd-item.on")), "el menú no propone /github");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "cece-gh-token", null, { timeout: 5000 });
+  cierto(await abierto(), "no se abrió el panel");
+  igual(await pagina.inputValue("#userInput"), "", "el comando se queda en el cuadro");
+  igual(g.pedidos.length, 0, "se ha conectado a GitHub sin que lo pida: " + g.pedidos.join(", "));
+  // conectar es decisión de la usuaria
+  await pagina.fill("#cece-gh-token", "github_pat_prueba");
+  await pagina.press("#cece-gh-token", "Enter");
+  await esperarGitHub(pagina, /Carpeta cargada/);
+  await pagina.keyboard.press("Escape");
+  cierto(!(await abierto()), "Escape no cierra el panel");
+  igual(await pagina.evaluate(() => document.activeElement.id), "userInput", "el foco no vuelve al chat");
+  // con un espacio detrás (sin menú) y por su alias; ya conectado, va a la lista de repositorios
+  await pagina.fill("#userInput", "/gh ");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "cece-gh-repos", null, { timeout: 5000 });
+  await pagina.keyboard.press("Escape");
+  // con una respuesta llegando: se abre el panel y la respuesta no se corta
+  await escribirYEnviar(pagina, "cuéntame algo largo");
+  await pagina.waitForFunction(() => /trozo 3\./.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
+    timeout: 10000,
+  });
+  await pagina.fill("#userInput", "/github ");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "cece-gh-repos", null, { timeout: 5000 });
+  await pagina.keyboard.press("Escape");
+  const r = await ultimaRespuesta(pagina, 15000);
+  ia.servidor.close();
+  cierto(/trozo 15\./.test(r.texto) && !/detenido/.test(r.pie), "la respuesta se cortó: " + r.texto.slice(-40) + " | " + r.pie);
+  // y sale en la ayuda
+  await escribirYEnviar(pagina, "/ayuda ");
+  await pagina.waitForFunction(() => /\/github/.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

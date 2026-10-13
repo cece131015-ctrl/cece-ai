@@ -47,6 +47,7 @@ Se puede probar otro archivo o filtrar por nombre: `node herramientas/probar.js 
 
 La versión empaquetada de `cece-ai.html` incluye un panel **🐙 GitHub** para conectar con la API oficial, listar repositorios, navegar por carpetas, leer/editar archivos, guardar commits y crear repositorios privados. Cada escritura requiere confirmación explícita.
 
+- Escribe **`/github`** en el chat (o `/gh`), o pulsa **🐙 GitHub**, para abrir el panel. Solo se conecta cuando tú pegas el token y pulsas **Conectar** (o Enter); abrir el panel no envía nada a GitHub ni corta la respuesta que esté escribiendo la IA.
 - El token se introduce en el panel y permanece solo en memoria de la pestaña; no se guarda en `localStorage` ni se añade al código.
 - Usa un token fine-grained limitado a los repositorios necesarios, con **Contents: Read and write** y **Metadata: Read-only**. Para crear repositorios, concede además el permiso de administración requerido por GitHub.
 - No pegues el token en el código, en el chat ni en capturas. Pulsa **Desconectar y borrar token** cuando termines.

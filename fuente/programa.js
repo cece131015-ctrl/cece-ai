@@ -3152,6 +3152,8 @@ async function enviar(e, t = {}) {
       return c.resto || a[0].opcional
         ? (null == e && (($("userInput").value = ""), autoAlto()), await envioActual, enviarYa(o, t))
         : (toast(`${a[0].emoji} Escribe ${a[0].arg} después de /${a[0].id}`), null);
+    if (a.length && !c.resto && a.every(soloVentana))
+      return (null == e && (($("userInput").value = ""), autoAlto()), a.forEach((e) => accionApp(e.accion)), null);
     if ((detener(), !o)) return null;
     if ((await envioActual, generando)) return null;
   }
@@ -4771,6 +4773,14 @@ const COMANDOS = [
       desc: "Abre los ajustes",
     },
     {
+      id: "github",
+      alias: ["gh", "git", "repositorios"],
+      emoji: "🐙",
+      accion: "github",
+      nombre: "GitHub",
+      desc: "Abre el panel para conectar tu cuenta de GitHub cuando quieras",
+    },
+    {
       id: "ayuda",
       alias: ["help", "comandos", "?"],
       emoji: "❓",
@@ -4859,8 +4869,18 @@ function accionApp(e) {
           ? $("liveBtn").click()
           : "ajustes" === e
             ? $("settingsBtn").click()
-            : "ayuda" === e && mostrarAyuda();
+            : "github" === e
+              ? abrirPanelGitHub()
+              : "ayuda" === e && mostrarAyuda();
 }
+// El panel de GitHub no es parte del programa: va aparte en cece-ai.html (bloque CECE_GITHUB_PANEL_V1) y pone su
+// propio botón «🐙 GitHub» junto a ⚙️. /github lo abre igual que ese botón; conectar sigue siendo cosa de la usuaria.
+function abrirPanelGitHub() {
+  const e = $("cece-github-open");
+  e ? e.click() : toast("🐙 Este archivo no trae el panel de GitHub.", "mal");
+}
+// Acciones que solo abren una ventana: no tocan la conversación, así que no hace falta cortar la respuesta en curso.
+const soloVentana = (e) => "github" === e.accion || "ajustes" === e.accion;
 function aplicarComandos(e, t) {
   const o = { pide: [] };
   let a = null;
@@ -5030,7 +5050,7 @@ const Menu = {
         (n.value = a.prefijo + r),
         autoAlto(),
         o.nivel ? cambiarNivel(o.nivel) : accionApp(o.accion),
-        void ("live" !== o.accion && "ajustes" !== o.accion && n.focus())
+        void ("live" === o.accion || soloVentana(o) || n.focus())
       );
     const i = a.prefijo + "/" + o.id + " ";
     ((n.value = i + r), n.setSelectionRange(i.length, i.length), autoAlto(), n.focus());
