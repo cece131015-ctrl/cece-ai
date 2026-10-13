@@ -1567,6 +1567,41 @@ prueba("«Descargar todo el código» lleva la última versión de cada archivo"
   await ctx.close();
 });
 
+prueba("voz y CeceHub: frases de verdad no se tiran, código de Live al chat, rótulos y enlaces http", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  const r = await pagina.evaluate(() => {
+    const tiradas = [
+      "Gracias por verificarlo. Ahora dime cuánto cuesta el envío.",
+      "Suscripción anual de Spotify, ¿cuánto cuesta?",
+      "Subtítulos en inglés: ¿cómo los activo?",
+      "www.elpais.com, ¿qué noticias trae hoy?",
+      "Gracias por ver.",
+      "Subtítulos realizados por la comunidad de Amara.org",
+    ].map((t) => ALUCINA.test(t));
+    const bases = ["http://mi-casa.example", "mi-casa.example", "192.168.1.5", "http://mipc.local"].map(baseHub);
+    codigoLiveAlChat("Claro:\n```python\nprint(1)\n```\nY ya está.", "Cece Live · prueba");
+    const ultimo = historial[historial.length - 1];
+    S.interrumpir = false;
+    Voz.modo = "live";
+    Voz.ponerEstado("speaking");
+    const rotulo = document.getElementById("liveStatus").textContent;
+    Voz.modo = null;
+    return { tiradas, bases, codigo: ultimo && ultimo.local && ultimo.content, rotulo };
+  });
+  igual(JSON.stringify(r.tiradas), "[false,false,false,false,true,true]", "filtro de alucinaciones");
+  igual(
+    JSON.stringify(r.bases),
+    JSON.stringify(["http://mi-casa.example", "https://mi-casa.example", "http://192.168.1.5:9999", "http://mipc.local:9999"]),
+    "baseHub",
+  );
+  cierto(/print\(1\)/.test(r.codigo || ""), "el código de Cece Live no llegó al chat");
+  cierto(!/habla para cortarme/.test(r.rotulo), "rótulo: " + r.rotulo);
+  const motor = await pagina.evaluate(() => transcribir(new Blob(["x"]), "navegador").then(() => "sin error", (e) => e.corto));
+  igual(motor, "motor de transcripción no válido");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

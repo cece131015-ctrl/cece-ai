@@ -8766,7 +8766,10 @@ function baseHub(e) {
   if (!/^https?:$/.test(a.protocol) || !a.hostname || a.username || a.password) return "";
   if ("http:" === a.protocol && !/^[a-z]+:\/\/(\[[^\]]*\]|[^/:?#]+):\d+/i.test(t)) {
     const e = /^\d{1,3}(\.\d{1,3}){3}$/.test(a.hostname) || a.hostname.startsWith("[");
-    o && !e && "internet" === tipoRuta(a.origin) ? (a.protocol = "https:") : (a.port = String(CeceHub.PUERTO));
+    // (escrito sin http://, un nombre de internet es https; con http:// explícito se respeta el puerto 80: si no, el
+    // enlace de --public-url http://mi-casa.example no funcionaba)
+    const i = !e && "internet" === tipoRuta(a.origin);
+    o && i ? (a.protocol = "https:") : (o || !i) && (a.port = String(CeceHub.PUERTO));
   }
   const n = a.pathname.replace(/\/+$/, "").replace(/\/v1$/i, "");
   return a.origin + n;
@@ -9851,11 +9854,15 @@ class Microfono {
     }
   }
 }
+// Frases que Whisper se inventa con silencio o ruido. Tiene que ser la frase ENTERA: antes bastaba con que empezara
+// así y se tiraban frases de verdad («Suscripción anual de Spotify, ¿cuánto cuesta?», «Gracias por verificarlo…»).
 const ALUCINA =
-    /^\s*(subt[ií]tulos|amara\.org|gracias por ver|suscr[ií]bete|thanks? (you )?for watching|www\.|¡?suscr)/i,
+    /^[\s¡]*(subt[ií]tulos (realizados |hechos )?por (la comunidad de )?amara\.org|amara\.org|gracias por ver(lo|nos)?|suscr[ií]bete( al canal)?|thanks? (you )?for watching|www\.[\w-]+(\.[\w-]+)+\/?)[\s.!¡]*$/i,
   MODELOS_OIDO_PLUS = ["gpt-transcribe", "gpt-4o-mini-transcribe"];
 let oidoPlus = 0;
 async function transcribir(e, t, o) {
+  if (!/^(openai|groq|groq-hq)$/.test(t))
+    throw new ErrorApi("Ese motor no transcribe audio.", { corto: "motor de transcripción no válido" });
   const a = /mp4|m4a|aac/.test(e.type) ? "m4a" : /ogg/.test(e.type) ? "ogg" : /wav/.test(e.type) ? "wav" : "webm",
     n = "openai" === t ? "openai" : "groq",
     r = baseDe(n) + "/audio/transcriptions",
@@ -10353,7 +10360,12 @@ const ICONOS = {
       if (((this.estado = e), "live" === this.modo)) {
         (($("liveOverlay").dataset.st = e),
           ($("liveOrbIcon").textContent = ICONOS[e] || "🎤"),
-          ($("liveStatus").textContent = t || TEXTOS[e] || ""),
+          ($("liveStatus").textContent =
+            t ||
+            ("speaking" === e && (!S.interrumpir || this.mute)
+              ? "Hablando… (pulsa ✋ Cortar para pararme)"
+              : TEXTOS[e]) ||
+            ""),
           ($("liveMute").textContent = this.mute ? "🔇 Micro en pausa" : "🎙️ Micro activo"),
           $("liveMute").classList.toggle("on", this.mute),
           aplicarEmojis($("liveOverlay")));
@@ -10367,7 +10379,8 @@ const ICONOS = {
           hearing: "🗣️ Te escucho…",
           transcribing: "✍️ Entendiendo…",
           thinking: "💭 Pensando…",
-          speaking: "🔊 Hablando… (habla para cortar)",
+          speaking:
+            S.interrumpir && !this.mute ? "🔊 Hablando… (habla para cortar)" : "🔊 Hablando… (pulsa 🎤 para salir)",
         };
         $("userInput").placeholder = (this.activo && a[e]) || textoEntrada();
       }
@@ -10567,7 +10580,10 @@ const ICONOS = {
       (this.ponerEstado("transcribing"), this.mic && this.mic.pausar());
       let a = "";
       this.ctrl = new AbortController();
-      const n = this.sttCadena();
+      // (si a mitad de la frase se eligió el Oído «Navegador», esta no se puede mandar a ningún sitio: se pide otra vez;
+      // antes iba a Groq sin clave, salía «clave no válida» y se cerraba el micrófono)
+      const n = this.sttCadena().filter((e) => "navegador" !== e);
+      if (!n.length) return (toast("🎤 Repite la frase, por favor."), this.escuchar());
       for (const [t, r] of n.entries())
         try {
           a = await transcribir(e, r, this.ctrl.signal);
@@ -10653,12 +10669,13 @@ const ICONOS = {
         r
           ? (historial.push({ role: "assistant", content: e.texto, via: d }),
             guardarActual(),
+            Nube.programar(),
             (r.texto = e.texto),
             await r.terminar(),
             r.fuentes(e.fuentes),
             r.pieDePagina({ via: d, tokens: l.tokens, tps: l.tps, texto: e.texto }),
             Codigo.procesar(e.texto, r.bubble))
-          : this.liveHist.push({ role: "assistant", content: e.texto });
+          : (this.liveHist.push({ role: "assistant", content: e.texto }), codigoLiveAlChat(e.texto, d));
       } catch (e) {
         if ((r && finalizarConError(r, e, []), esAbort(e) || t !== this.turno)) return;
         (o.parar(),
@@ -10668,6 +10685,26 @@ const ICONOS = {
           this.mic && this.mic.pausar());
       }
     },
+  },
+  // Con «Guardar lo hablado en el chat» apagado, el código que Cece Live dice dejar «en el chat» se perdía: se deja ahí
+  // solo el código (un mensaje que no se manda a la IA).
+  codigoLiveAlChat = (e, t) => {
+    const o = String(e).match(/```[\s\S]*?(```|$)/g);
+    if (!o) return;
+    const a =
+        "💻 Código de Cece Live:\n\n" +
+        o.map((e) => (e.endsWith("```") && e.length > 3 ? e : e + "\n```")).join("\n\n"),
+      n = crearMensaje("assistant");
+    ((n.bubble.innerHTML = md(a)),
+      (n.meta.innerHTML = `<span>${horaCorta()}</span><span class="via">${esc(t)}</span>`),
+      aplicarEmojis(n.wrap),
+      historial.push({ role: "assistant", content: a, local: !0, via: t }),
+      guardarActual());
+    try {
+      Codigo.procesar(a, n.bubble);
+    } catch (e) {
+      console.error(e);
+    }
   },
   fondoLive = () =>
     [
