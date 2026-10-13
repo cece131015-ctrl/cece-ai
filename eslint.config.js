@@ -11,6 +11,8 @@ module.exports = [
     },
     rules: {
       "no-undef": "error",
+      // una variable usada en su bloque antes del const/let que la declara («Cannot access 'x' before initialization»)
+      "no-use-before-define": ["error", { functions: false, classes: false, variables: false }],
       "no-unused-vars": ["warn", { args: "none", caughtErrors: "none", ignoreRestSiblings: true }],
       "no-dupe-keys": "error",
       "no-duplicate-case": "error",

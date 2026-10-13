@@ -782,35 +782,44 @@ prueba("crear una imagen (Cece Imagen) y que no se cuele un enlace raro", async 
   await ctx.close();
 });
 
-prueba("nube: sube el historial cifrado a un Gist y otro equipo lo recupera", async (nav) => {
-  const gists = new Map();
-  const gh = ({ url, cuerpo, req }) => {
+// ---------- Gist simulado (para la nube) ----------
+function gistSimulado() {
+  const g = { gists: new Map(), pedidos: [] };
+  g.manejar = ({ url, cuerpo, req }) => {
     const u = new URL(url),
       m = req.method();
+    g.pedidos.push(m + " " + u.pathname);
     const json = (o, status = 200) => ({ status, tipo: "application/json", cuerpo: JSON.stringify(o) });
     if (u.pathname === "/gists" && m === "GET")
-      return json([...gists.values()].map((g) => ({ id: g.id, files: { [Object.keys(g.files)[0]]: {} } })));
+      return json([...g.gists.values()].map((x) => ({ id: x.id, files: { [Object.keys(x.files)[0]]: {} } })));
     if (u.pathname === "/gists" && m === "POST") {
-      const g = { id: "abcdef0123456789abcd", files: cuerpo.files, history: [{ version: "v1" }] };
-      gists.set(g.id, g);
-      return json(g, 201);
+      const x = { id: "abcdef0123456789abcd", files: cuerpo.files, history: [{ version: "v1" }] };
+      g.gists.set(x.id, x);
+      return json(x, 201);
     }
     const id = (u.pathname.match(/^\/gists\/([^/]+)/) || [])[1];
-    if (id && /\/commits$/.test(u.pathname)) return json([{ version: gists.get(id).history[0].version }]);
+    if (id && /\/commits$/.test(u.pathname)) return json([{ version: g.gists.get(id).history[0].version }]);
     if (id && m === "PATCH") {
-      const g = gists.get(id);
-      g.files = cuerpo.files;
-      g.history = [{ version: "v" + (Number(g.history[0].version.slice(1)) + 1) }];
-      return json(g);
+      const x = g.gists.get(id);
+      x.files = cuerpo.files;
+      x.history = [{ version: "v" + (Number(x.history[0].version.slice(1)) + 1) }];
+      return json(x);
     }
     if (id && m === "GET") {
-      const g = gists.get(id);
-      if (!g) return json({ message: "Not Found" }, 404);
-      const [n, f] = Object.entries(g.files)[0];
-      return json({ id, files: { [n]: { content: f.content } }, history: g.history });
+      const x = g.gists.get(id);
+      if (!x) return json({ message: "Not Found" }, 404);
+      const [n, f] = Object.entries(x.files)[0];
+      return json({ id, files: { [n]: { content: f.content } }, history: x.history });
     }
     return json({}, 404);
   };
+  return g;
+}
+
+prueba("nube: sube el historial cifrado a un Gist y otro equipo lo recupera", async (nav) => {
+  const g = gistSimulado(),
+    gists = g.gists,
+    gh = g.manejar;
   const claves = { turbo: "sk", nube_token: "ghp_prueba", nube: "mi frase secreta de la nube 123" };
   const a = await nuevaPagina(nav, conClaves(claves), {
     ia: { "api.github.com": gh, "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Apuntado en la nube.") }) },
@@ -1365,6 +1374,146 @@ prueba("/github abre el panel y solo se conecta cuando la usuaria quiere (tambi�
   await escribirYEnviar(pagina, "/ayuda ");
   await pagina.waitForFunction(() => /\/github/.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText));
   igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("calculadora y plugins: «;» con decimales, 3x4, redondeos, 1h30m, años cortos, rangos y JSON intacto", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  const casos = [
+    ["/calc media(2,5; 3,5)", /= 3$/m],
+    ["/calc pow(2,5; 2)", /= 6,25/],
+    ["/calc max(1.234,5; 2)", /= 1234,5/],
+    ["/calc media(1,2,3)", /= 2$/m],
+    ["/calc 3x4", /= 12/],
+    ["/calc redondear(-2,5)", /= -3$/m],
+    ["/calc redondear(-0,4)", /= 0$/m],
+    ["/temporizador 1h30m", /5400 s/],
+    ["/temporizador cancelar", /cancelado/],
+    ["/dias 15/06/85", /1985/],
+    ["/aleatorio 5-10", /entre 5 y 10/],
+    ["/convertir 1 ms a h", /e-7 h/],
+    ['/json {"id": 12345678901234567890, "p": 1.10, "a": 1, "a": 2}', /"id": 12345678901234567890,\s*"p": 1\.10,\s*"a": 1,\s*"a": 2/],
+  ];
+  for (const [entrada, esperado] of casos) {
+    await escribirYEnviar(pagina, entrada);
+    const r = await ultimaRespuesta(pagina);
+    cierto(esperado.test(r.texto), `${entrada} → ${r.texto}`);
+  }
+  // un plugin propio no puede saltarse el máximo de 100.000 caracteres mandando él mismo el mensaje
+  const largo = await pagina.evaluate(() =>
+    Arena.ejecutar('postMessage({ ok: true, r: "x".repeat(300000), id: 999 }); return "";', "").then((r) => r.length),
+  );
+  cierto(largo <= 1e5, `el plugin devolvió ${largo} caracteres`);
+  // el resultado de un plugin lento no se cuela en el chat nuevo
+  await pagina.evaluate(() => {
+    Plugins.propios.push({ id: "lento", emoji: "🧩", tipo: "js", cuerpo: 'await new Promise((r) => setTimeout(r, 800)); return "RESULTADO LENTO"', nombre: "lento", desc: "", actualizado: new Date().toISOString() });
+    Plugins.registrar();
+  });
+  await pagina.fill("#userInput", "/lento algo");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForTimeout(200);
+  await pagina.evaluate(() => document.getElementById("clearBtn").click());
+  await pagina.waitForTimeout(1500);
+  cierto(!(await pagina.evaluate(() => historial.some((m) => /RESULTADO LENTO/.test(m.content)))), "el resultado fue al chat nuevo");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("conversaciones: exportar lleva lo último; importar no borra lo nuevo y restaura lo borrado", async (nav) => {
+  const m = (r, c) => ({ role: r, content: c });
+  const viejos = [m("user", "hola"), m("assistant", "respuesta 1")];
+  const nuevos = [...viejos, m("user", "segunda pregunta"), m("assistant", "respuesta 2")];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: {
+      cece_convs: [{ id: "conv-X", titulo: "hola", fecha: "2026-10-12T10:00:00.000Z", mensajes: viejos }],
+      cece_actual: { id: "conv-X", mensajes: nuevos },
+      cece_borradas: { "conv-Z": "2026-10-11T10:00:00.000Z" },
+    },
+  });
+  const [d] = await Promise.all([pagina.waitForEvent("download"), pagina.evaluate(() => document.getElementById("exportBtn").click())]);
+  const exportado = JSON.parse(fs.readFileSync(await d.path(), "utf8")).conversaciones.find((c) => c.id === "conv-X");
+  igual(exportado.mensajes.length, 4, "se exportó la versión vieja de la conversación abierta");
+  await pagina.evaluate(() => {
+    convs[0].mensajes = historial.slice();
+    convs[0].fecha = new Date().toISOString();
+  });
+  const copia = path.join(TMP, "copia-vieja.json");
+  fs.writeFileSync(
+    copia,
+    JSON.stringify({
+      app: "Cece AI",
+      version: 2,
+      conversaciones: [
+        { id: "conv-X", titulo: "hola", fecha: "2026-10-01T10:00:00.000Z", mensajes: viejos },
+        { id: "conv-Z", titulo: "borrada", fecha: "2026-10-01T10:00:00.000Z", mensajes: [m("user", "la recupero"), m("assistant", "ok")] },
+      ],
+    }),
+  );
+  await pagina.setInputFiles("#importFile", copia);
+  await pagina.waitForFunction(() => /importada/.test(document.getElementById("convStatus").textContent));
+  const r = await pagina.evaluate(() => ({
+    x: convs.find((c) => c.id === "conv-X").mensajes.length,
+    z: convs.find((c) => c.id === "conv-Z"),
+    marca: JSON.parse(localStorage.cece_borradas || "{}")["conv-Z"],
+  }));
+  igual(r.x, 4, "la copia vieja borró los mensajes nuevos");
+  cierto(r.z && Date.parse(r.z.fecha) > Date.parse("2026-10-11T10:00:00.000Z") && !r.marca, "lo restaurado se volvería a borrar: " + JSON.stringify(r));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("nube: con «automático» apagado no sube nada y «Desvincular» deja de sincronizar", async (nav) => {
+  const g = gistSimulado();
+  const claves = { turbo: "sk", nube_token: "ghp_prueba", nube: "mi frase secreta de la nube 123" };
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves(claves), { ia: { "api.github.com": g.manejar } });
+  await pagina.click("#settingsBtn");
+  await pagina.click("label[for=swNubeAuto]");
+  await pagina.waitForFunction(() => /Última vez/.test(document.getElementById("nubeEstado").textContent), null, { timeout: 20000 });
+  const guardar = (t) =>
+    pagina.evaluate((t) => {
+      historial.push({ role: "user", content: t }, { role: "assistant", content: "ok" });
+      document.getElementById("saveConvBtn").click();
+    }, t);
+  // guardar programa una subida a los 3 s; apagar el interruptor la cancela (y ocultar la pestaña no la lanza)
+  await guardar("mi diario privado");
+  await pagina.click("label[for=swNubeAuto]");
+  let antes = g.pedidos.length;
+  await pagina.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await pagina.waitForTimeout(4000);
+  igual(g.pedidos.slice(antes).join(", "), "", "con «automático» apagado ha subido");
+  // «Desvincular este equipo» apaga la sincronización
+  await pagina.evaluate(() => Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }));
+  await pagina.click("label[for=swNubeAuto]");
+  await pagina.waitForTimeout(1500);
+  await pagina.click("#nubeOlvidar");
+  antes = g.pedidos.length;
+  await guardar("otra cosa privada");
+  await pagina.waitForTimeout(4000);
+  igual(g.pedidos.slice(antes).join(", "), "", "después de desvincular sigue sincronizando");
+  igual(await pagina.evaluate(() => S.nubeAuto), false);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("«Descargar todo el código» lleva la última versión de cada archivo", async (nav) => {
+  const resp = [
+    "Aquí tienes:\n\n```python app.py\nprint(\"versión 1\")\nx = 1\ny = 2\nz = 3\n```",
+    "Corregido:\n\n```python app.py\nprint(\"versión 2\")\nx = 1\ny = 2\nz = 3\n```",
+  ];
+  let turno = 0;
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI(resp[turno++]) }) },
+  });
+  for (const t of ["hazme app.py", "arréglalo"]) {
+    await escribirYEnviar(pagina, t);
+    await ultimaRespuesta(pagina);
+  }
+  const archivos = await pagina.evaluate(() => Codigo.archivos);
+  igual(archivos.length, 1);
+  cierto(/versión 2/.test(archivos[0].contenido), "el .zip llevaría: " + archivos[0].contenido.split("\n")[0]);
   await ctx.close();
 });
 

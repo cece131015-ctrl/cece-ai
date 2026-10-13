@@ -5135,10 +5135,11 @@ const Calc = (() => {
     MAX_ARGS = (t) => ("redondear" === t || "round" === t ? 2 : 1 === e[t].length ? 1 : 1 / 0),
     o = { pi: Math.PI, e: Math.E, tau: 2 * Math.PI, phi: (1 + Math.sqrt(5)) / 2 };
   function redondear(e, t) {
-    if (void 0 === t) return Math.round(e);
+    // Los .5 se alejan del cero también en negativo, como en Excel (Math.round(-2.5) daba -2); «+ 0» quita el -0.
+    if (void 0 === t) return Math.sign(e) * Math.round(Math.abs(e)) + 0;
     if (!Number.isInteger(t) || t < 0 || t > 15) throw new Error("los decimales de redondear van de 0 a 15");
     const o = 10 ** t;
-    return Math.round((e + Math.sign(e) * Number.EPSILON) * o) / o;
+    return (Math.sign(e) * Math.round((Math.abs(e) + Number.EPSILON) * o)) / o + 0;
   }
   const redondeoTrig = (e) => (Math.abs(e) < 1e-12 ? 0 : Math.abs(e - Math.round(e)) < 1e-12 ? Math.round(e) : e);
   function factorial(e) {
@@ -5174,7 +5175,9 @@ const Calc = (() => {
         if (/\d/.test(o) || ("." === o && /\d/.test(a[i + 1] || ""))) {
           let e = i;
           for (; e < a.length && /\d/.test(a[e]);) e++;
-          const t = "f" === r[r.length - 1];
+          // Dentro de media(), suma()… la coma separa números, salvo que se separen con «;» (como en Excel en
+          // español): entonces «media(2,5; 3,5)» es 3 y no media(2, 5, 3, 5).
+          const t = "f" === r[r.length - 1] && !a.includes(";");
           if (("." === a[e] || ("," === a[e] && !t)) && /\d/.test(a[e + 1] || ""))
             for (e++; e < a.length && /\d/.test(a[e]);) e++;
           let o = a.slice(i, e).replace(",", ".");
@@ -5183,6 +5186,12 @@ const Calc = (() => {
           continue;
         }
         if (/[a-záéíóúñü_]/i.test(o)) {
+          // «3x4»: la x pegada a una cifra es «por» (si no, se leía el nombre «x4»)
+          const p = n[n.length - 1];
+          if (/^[x×]$/i.test(a[i]) && /\d/.test(a[i + 1] || "") && p && ("num" === p.t || ")" === p.v)) {
+            (n.push({ t: "op", v: "*" }), i++);
+            continue;
+          }
           let e = i;
           for (; e < a.length && /[a-záéíóúñü_0-9]/i.test(a[e]);) e++;
           const t = norm(a.slice(i, e)),
@@ -5331,7 +5340,9 @@ const Calc = (() => {
 })();
 function numBonito(e, t = 10) {
   if (!Number.isFinite(e)) return String(e);
-  if (0 !== e && (Math.abs(e) >= 1e15 || Math.abs(e) < 1e-9)) return e.toExponential(8).replace(/\.?0+e/, "e");
+  // (lo que con t decimales se vería como 0 sin serlo, también en notación científica: «1 ms = 0 h» era falso)
+  if (0 !== e && (Math.abs(e) >= 1e15 || Math.abs(e) < Math.max(1e-9, 0.5 * 10 ** -t)))
+    return e.toExponential(8).replace(/\.?0+e/, "e");
   const o = parseFloat(e.toPrecision(12));
   return o.toLocaleString("es-ES", { maximumFractionDigits: t, useGrouping: Math.abs(o) >= 1e4 });
 }
@@ -5567,6 +5578,25 @@ const horaEn = (e, t = new Date()) =>
     day: "numeric",
     month: "short",
   }).format(t);
+// Sangra un JSON ya validado pieza a pieza, sin pasarlo por JSON.parse/stringify: así no cambia nada de lo que había
+// (los números de más de 15 cifras se redondeaban, «1.10» pasaba a 1.1 y las claves repetidas desaparecían).
+function sangrarJson(e) {
+  let t = "",
+    o = 0;
+  const a = String(e).match(/"(?:\\.|[^"\\])*"|[{}[\],:]|[^\s{}[\],:"]+/g) || [],
+    salto = () => "\n" + "  ".repeat(o);
+  for (let e = 0; e < a.length; e++) {
+    const n = a[e];
+    "{" === n || "[" === n
+      ? a[e + 1] === ("{" === n ? "}" : "]")
+        ? ((t += n + a[e + 1]), e++)
+        : (o++, (t += n + salto()))
+      : "}" === n || "]" === n
+        ? (o--, (t += salto() + n))
+        : (t += "," === n ? "," + salto() : ":" === n ? ": " : n);
+  }
+  return t;
+}
 function leerFecha(e) {
   if (
     !(e = String(e || "")
@@ -5585,7 +5615,9 @@ function leerFecha(e) {
   if (t) [o, a, n] = [+t[1], +t[2], +t[3]];
   else {
     if (!(t = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/.exec(e))) return null;
-    [n, a, o] = [+t[1], +t[2], +t[3] < 100 ? +t[3] + 2e3 : +t[3]];
+    // Año de dos cifras: hasta 20 años en el futuro es 20xx; si no, 19xx («15/06/85» es 1985, no 2085)
+    const y = +t[3];
+    [n, a, o] = [+t[1], +t[2], y < 100 ? y + (y > (new Date().getFullYear() % 100) + 20 ? 1900 : 2e3) : y];
   }
   const r = new Date(o, a - 1, n);
   return r.getFullYear() === o && r.getMonth() === a - 1 && r.getDate() === n ? r : null;
@@ -5721,7 +5753,8 @@ const Temporizadores = {
       if (o) return null != o[3] ? 1e3 * (60 * (60 * +o[1] + +o[2]) + +o[3]) : 1e3 * (60 * +o[1] + +o[2]);
       let a = 0,
         n = !1;
-      const r = /(\d+(?:\.\d+)?)\s*(h|horas?|m|min|minutos?|s|seg|segundos?)?\b/g;
+      // (sin \b detrás de la unidad: en «1h30m» la «h» va pegada a un número y solo se contaban los 30 min)
+      const r = /(\d+(?:\.\d+)?)\s*(horas?|h|minutos?|min|m|segundos?|seg|s)?(?![a-z])/g;
       for (; (o = r.exec(t));) {
         n = !0;
         const e = o[2] || "min";
@@ -5982,7 +6015,8 @@ const Temporizadores = {
       desc: "Lo formatea bonito o te dice dónde está el error",
       f(e) {
         try {
-          const t = JSON.stringify(JSON.parse(e), null, 2);
+          JSON.parse(e);
+          const t = sangrarJson(e);
           return { md: "✅ JSON válido\n\n```json\n" + t.replace(/```/g, "ˋˋˋ") + "\n```", copiar: t };
         } catch (t) {
           const o = /position (\d+)/i.exec(t.message);
@@ -6057,7 +6091,8 @@ const Temporizadores = {
           if (e.length < 2) throw new Error("pon al menos dos opciones separadas por comas");
           return { md: `🎯 **${e[azarEntero(e.length)].replace(/[*_`|]/g, "")}**\n\n_de ${e.length} opciones_` };
         }
-        const o = (t.match(/-?\d+/g) || []).map(Number),
+        // (el guion de «1-100» es un rango, no el signo del 100)
+        const o = (t.match(/(?<!\d)-?\d+/g) || []).map(Number),
           [a, n] =
             o.length >= 2
               ? [Math.min(o[0], o[1]), Math.max(o[0], o[1])]
@@ -6196,7 +6231,7 @@ const Arena = {
       (e.style.cssText = "position:absolute;width:0;height:0;border:0;visibility:hidden"));
     const t =
       "'use strict';for(const k of ['fetch','XMLHttpRequest','WebSocket','EventSource','importScripts','indexedDB','caches','BroadcastChannel','Worker','SharedWorker'])try{self[k]=undefined}catch(_){}\n";
-    ((e.srcdoc = `<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${this.CSP}"><script>\n      const PRO = ${JSON.stringify(t)};\n      onmessage = e => {\n        const { id, codigo, texto } = e.data || {};\n        const src = PRO + 'const FA = Object.getPrototypeOf(async function () {}).constructor; onmessage = async ev => { try { const f = new FA("texto", ev.data.codigo); let r = await f(ev.data.texto); ' +\n          'if (r === undefined || r === null) r = ""; if (typeof r !== "string") { try { r = JSON.stringify(r, null, 2); } catch (_) { r = String(r); } } postMessage({ ok: true, r: String(r).slice(0, 100000) }); } ' +\n          'catch (x) { postMessage({ ok: false, e: String((x && x.message) || x) }); } };';\n        let w;\n        try { w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))); }\n        catch (x) { parent.postMessage({ id, ok: false, e: 'no se pudo crear el entorno aislado' }, '*'); return; }\n        w.onmessage = ev => { parent.postMessage({ id, ...ev.data }, '*'); w.terminate(); };\n        w.onerror = ev => { ev.preventDefault(); parent.postMessage({ id, ok: false, e: ev.message || 'error' }, '*'); w.terminate(); };\n        w.postMessage({ codigo, texto });\n      };\n    <\/script>`),
+    ((e.srcdoc = `<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${this.CSP}"><script>\n      const PRO = ${JSON.stringify(t)};\n      onmessage = e => {\n        const { id, codigo, texto } = e.data || {};\n        const src = PRO + 'const FA = Object.getPrototypeOf(async function () {}).constructor; onmessage = async ev => { try { const f = new FA("texto", ev.data.codigo); let r = await f(ev.data.texto); ' +\n          'if (r === undefined || r === null) r = ""; if (typeof r !== "string") { try { r = JSON.stringify(r, null, 2); } catch (_) { r = String(r); } } postMessage({ ok: true, r: String(r).slice(0, 100000) }); } ' +\n          'catch (x) { postMessage({ ok: false, e: String((x && x.message) || x) }); } };';\n        let w;\n        try { w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))); }\n        catch (x) { parent.postMessage({ id, ok: false, e: 'no se pudo crear el entorno aislado' }, '*'); return; }\n        w.onmessage = ev => { const d = ev.data || {}; parent.postMessage({ ok: !!d.ok, r: String(d.r ?? '').slice(0, 100000), e: String(d.e ?? '').slice(0, 300), id }, '*'); w.terminate(); };\n        w.onerror = ev => { ev.preventDefault(); parent.postMessage({ id, ok: false, e: ev.message || 'error' }, '*'); w.terminate(); };\n        w.postMessage({ codigo, texto });\n      };\n    <\/script>`),
       (this.listo = new Promise((t) => {
         e.onload = () => t();
       })),
@@ -6225,7 +6260,7 @@ window.addEventListener("message", (e) => {
   (Arena.espera.delete(e.data.id),
     clearTimeout(t.t),
     e.data.ok
-      ? t.res("string" == typeof e.data.r ? e.data.r : "")
+      ? t.res("string" == typeof e.data.r ? e.data.r.slice(0, 1e5) : "")
       : t.rej(new Error(String(e.data.e || "error").slice(0, 300))));
 });
 const Plugins = {
@@ -6290,7 +6325,8 @@ const Plugins = {
   },
 };
 async function ejecutarPluginLocal(e, t) {
-  const o = { role: "user", content: t, cmds: [e.id], local: !0 };
+  const o = { role: "user", content: t, cmds: [e.id], local: !0 },
+    c = convId;
   (pintarUsuario(o), historial.push(o));
   const a = crearMensaje("assistant");
   ((a.bubble.className = "bubble thinking"),
@@ -6302,6 +6338,8 @@ async function ejecutarPluginLocal(e, t) {
   } catch (e) {
     r = (e && e.message) || String(e);
   }
+  // (si mientras tanto se abrió otra conversación o un chat nuevo, el resultado no se cuela allí)
+  if (convId !== c) return null;
   ((a.bubble.className = "bubble" + (r ? " err" : "")),
     r
       ? (a.bubble.textContent = `❌ /${e.id}: ${r}`)
@@ -6927,7 +6965,9 @@ const LENGUAJES = {
           if (S.autoZip && this.raiz) this.guardarBloque(e, o, !1);
           else {
             const t = this.ruta(e, o);
-            (this.archivos.some((e) => e.ruta === t) || this.archivos.push({ ruta: t, contenido: e.codigo }),
+            // (si la IA vuelve a mandar el mismo archivo, cuenta la última versión: el .zip llevaba la primera)
+            const a = this.archivos.find((e) => e.ruta === t);
+            (a ? (a.contenido = e.codigo) : this.archivos.push({ ruta: t, contenido: e.codigo }),
               ($("zipBtn").style.display = ""),
               o && (o.querySelector(".carpeta").textContent = `📁 ${t}`));
           }
@@ -7219,11 +7259,29 @@ function importar(e) {
         !o.length)
       )
         throw new Error("sin conversaciones");
+      // Lo que se restaura de una copia tras borrarlo pasa a ser más reciente que el borrado (si no, la nube lo
+      // volvía a quitar a los pocos segundos). Una copia antigua no sustituye a una conversación que siguió después:
+      // se queda la más larga del mismo hilo y, si las dos son distintas, se guardan ambas.
+      const borradas = convsBorradas();
+      let restauradas = !1;
       for (const e of o) {
+        borradas[e.id] && ((e.fecha = new Date().toISOString()), delete borradas[e.id], (restauradas = !0));
         const t = convs.findIndex((t) => t.id === e.id);
-        t >= 0 ? (convs[t] = e) : convs.unshift(e);
+        if (t < 0) {
+          convs.unshift(e);
+          continue;
+        }
+        const a = huellasConv(convs[t]),
+          n = huellasConv(e);
+        if (esPrefijo(a, n) || esPrefijo(n, a)) {
+          n.length > a.length && (convs[t] = e);
+          continue;
+        }
+        const r = e.id.slice(0, 50) + "~" + hash36(JSON.stringify(n));
+        convs.some((e) => e.id === r) ||
+          convs.unshift({ ...e, id: r, titulo: String(e.titulo).replace(/ \(importada\)$/, "") + " (importada)" });
       }
-      Nube.programar(3e3);
+      (restauradas && almacen.set("cece_borradas", borradas), Nube.programar(3e3));
       const a = almacen.set("cece_convs", convs);
       (pintarConvs(),
         a
@@ -7425,16 +7483,17 @@ function conectarAjustes() {
     }),
     $("exportBtn").addEventListener("click", () => {
       const e = historial.filter((e) => tieneAlgo(e) && !e.error).map(mensajeParaGuardar),
-        t = [...convs];
-      (e.length &&
-        !t.some((e) => e.id === convId) &&
-        t.unshift({
+        t = [...convs],
+        o = t.findIndex((e) => e.id === convId),
+        // (la conversación abierta va tal como está ahora: si ya se había guardado, se exportaba la versión vieja)
+        a = e.length && {
           id: convId,
           titulo: tituloConv(e),
           fecha: new Date().toISOString(),
           modelo: S.modelo,
           mensajes: e,
-        }),
+        };
+      (a && (o < 0 ? t.unshift(a) : firmaConv(e) !== firmaConv(t[o].mensajes) && (t[o] = a)),
         t.length
           ? descargar(
               `cece-conversaciones-${sello()}.json`,
@@ -7858,7 +7917,10 @@ const firmaConv = (e) =>
       S.nubeAuto &&
         this.lista() &&
         !Boveda.necesitaDesbloqueo() &&
-        (clearTimeout(this._t), (this._t = setTimeout(() => this.sincronizar({ silencio: !0 }), e)));
+        (clearTimeout(this._t),
+        (this._t = setTimeout(() => {
+          ((this._t = null), S.nubeAuto && this.sincronizar({ silencio: !0 }));
+        }, e)));
     },
     alCambiarClaves() {
       (pintarNube(), S.nubeAuto && this.lista() && this.programar(2500));
@@ -8156,7 +8218,7 @@ function pintarNube() {
           : t.ultima
             ? ((o = `✓ Última vez: ${new Date(t.ultima).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })} · cifrado de extremo a extremo`),
               (a = "verde"))
-            : (o = "Lista para sincronizar. La primera vez crea un Gist privado en tu cuenta.")
+            : (o = "Lista para sincronizar. La primera vez usa tu Gist de Cece si ya existe, o crea uno privado.")
         : (o =
             "Sin configurar: pon un token de GitHub con permiso «gist» (nube_token) y una frase secreta larga (nube) en el bloque de configuración del principio del archivo."),
     (e.className = "aviso" + (a ? " aviso-" + a : "")),
@@ -8166,19 +8228,30 @@ function pintarNube() {
 }
 function conectarNube() {
   ($("swNubeAuto").addEventListener("change", (e) => {
-    ((S.nubeAuto = e.target.checked), guardarAjustes(), pintarNube(), S.nubeAuto && Nube.programar(500));
+    ((S.nubeAuto = e.target.checked),
+      guardarAjustes(),
+      pintarNube(),
+      S.nubeAuto ? Nube.programar(500) : (clearTimeout(Nube._t), (Nube._t = null)));
   }),
     $("nubeAhora").addEventListener("click", () => Nube.sincronizar()),
     $("nubeOlvidar").addEventListener("click", () => {
+      // Desvincular también apaga la sincronización automática: si no, el siguiente cambio volvía a encontrar el mismo
+      // Gist y seguía sincronizando.
       ((S.nubeGist = ""),
+        (S.nubeAuto = !1),
+        clearTimeout(Nube._t),
+        (Nube._t = null),
         guardarAjustes(),
         Nube.ponerMeta({ ultima: "", error: "" }),
         pintarNube(),
-        toast("Este equipo ya no recuerda el Gist (lo que hay en GitHub sigue ahí)."));
+        toast(
+          "Este equipo ya no se sincroniza (lo que hay en GitHub sigue ahí). «Sincronizar ahora» lo vuelve a enlazar.",
+        ));
     }),
     document.addEventListener("visibilitychange", () => {
       "hidden" === document.visibilityState &&
         Nube._t &&
+        S.nubeAuto &&
         (clearTimeout(Nube._t), (Nube._t = null), Nube.sincronizar({ silencio: !0 }));
     }));
 }
@@ -8441,7 +8514,9 @@ const Red = {
       this.pintar(),
       this.pendientes()
         ? (toast("🌐 Conexión recuperada: enviando lo que estaba pendiente…", "ok"), enviarPendiente())
-        : e && toast("🌐 Conexión recuperada.", "ok"));
+        : e && toast("🌐 Conexión recuperada.", "ok"),
+      // (como con el evento «online»: lo que la nube no pudo subir mientras no había internet se sube ahora)
+      e && Nube.programar(1500));
   },
   hayLocalPara(e) {
     return ("cece-pro" === e ? PRO_PARTES.map((e) => e.id) : [e]).some((e) =>
@@ -8475,7 +8550,7 @@ const Red = {
       $("chatArea").prepend(e),
       e.addEventListener("click", (e) => {
         e.target.closest("#enviarPendiente") &&
-          ((this.caida = !1), clearInterval(this._vigia), this.pintar(), enviarPendiente());
+          ((this.caida = !1), clearInterval(this._vigia), this.pintar(), enviarPendiente(), Nube.programar(1500));
       }));
     const t = this.sinRed(),
       o = this.pendientes(),
@@ -8541,6 +8616,16 @@ async function modelosLocales(e) {
       { prov: "local", red: !0, corto: "sin conexión" },
     );
   }
+  // (un 404 aquí no es de ningún modelo: casi siempre falta /v1 en la dirección)
+  if (404 === t.status && !o && !/\/v1\/?$/.test(e))
+    throw new ErrorApi(
+      `No encuentro la lista de modelos en ${e}/models. ¿Falta /v1 al final? Prueba con ${e.replace(/\/+$/, "")}/v1`,
+      {
+        prov: "local",
+        status: 404,
+        corto: "dirección sin /v1",
+      },
+    );
   if (!t.ok) throw errorHttp("local", t.status, await leerDetalle(t), "");
   let n;
   try {
