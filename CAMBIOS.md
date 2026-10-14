@@ -57,6 +57,11 @@ IA y sale en el menú de «/» y en `/ayuda`. Si ya tenías un plugin propio lla
 - Word con **control de cambios**: a la IA le llegaba lo borrado mezclado con lo nuevo («100120 euros»).
 - Excel con una hoja de gráfico en medio: los datos de una hoja llegaban con el nombre de otra.
 - Word: el texto de los cuadros de texto llegaba repetido.
+- Revisando el arreglo con 37 documentos reales (Word, LibreOffice, python-docx, openpyxl, xlsxwriter…) frente a la
+  versión anterior, se corrigió también: los emojis de Word 365 desaparecían, un documento con tablas que cabía
+  entero perdía el final (el máximo se medía antes de quitar los separadores), un .docx editado con un script
+  (prefijo `ns0:`) salía vacío y los saltos de línea de PowerPoint contaban doble. Ahora todo lo que cambia
+  respecto a la versión anterior son mejoras.
 
 ### Chat, comandos y Cece Pro
 
