@@ -1039,12 +1039,21 @@ prueba("GitHub: ventana con Escape y foco dentro; lo que se suelta no va al chat
     (await pagina.evaluate(() => window.__caches)).every((c) => c === "no-store"),
     "pide con caché",
   );
-  // el foco no sale de la ventana (antes, Shift+Tab llegaba a «Enviar» y Enter mandaba el borrador)
-  for (let i = 0; i < 25; i++) await pagina.keyboard.press("Shift+Tab");
-  cierto(
-    await pagina.evaluate(() => document.getElementById("cece-github-modal").contains(document.activeElement)),
-    "el foco salió de la ventana",
-  );
+  // el foco no sale de la ventana (antes, Shift+Tab llegaba a «Enviar» y Enter mandaba el borrador). Se mira en cada
+  // pulsación: al final de la vuelta podía volver a caer dentro por casualidad.
+  for (const tecla of ["Shift+Tab", "Tab"])
+    for (let i = 0; i < 25; i++) {
+      await pagina.keyboard.press(tecla);
+      cierto(
+        await pagina.evaluate(() => document.getElementById("cece-github-modal").contains(document.activeElement)),
+        `el foco salió de la ventana tras ${i + 1} × ${tecla}`,
+      );
+    }
+  await pagina.focus("#cece-gh-filepath");
+  const antes = peticiones.length;
+  await pagina.keyboard.press("Enter");
+  await pagina.waitForTimeout(300);
+  igual(peticiones.slice(antes).filter((p) => /deepseek/.test(p.url)).length, 0, "Enter mandó el borrador a la IA");
   // soltar un archivo sobre el editor lo carga ahí, no en el chat
   await pagina.evaluate(() => {
     const dt = new DataTransfer();
@@ -1616,6 +1625,45 @@ prueba("voz y CeceHub: frases de verdad no se tiran, código de Live al chat, r�
   cierto(!/habla para cortarme/.test(r.rotulo), "rótulo: " + r.rotulo);
   const motor = await pagina.evaluate(() => transcribir(new Blob(["x"]), "navegador").then(() => "sin error", (e) => e.corto));
   igual(motor, "motor de transcripción no válido");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("con el teclado: visor de imágenes, editor de plugins y «reducir movimiento»", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  await pagina.emulateMedia({ reducedMotion: "reduce" });
+  // visor: Tab no saca el foco (antes, tras un Tab, Escape ya no cerraba y Enter pulsaba lo de debajo)
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  await pagina.evaluate((src) => verImagen(src, "foto"), png);
+  await pagina.keyboard.press("Tab");
+  await pagina.keyboard.press("Tab");
+  cierto(await pagina.evaluate(() => document.activeElement.classList.contains("visor-img")), "el foco salió del visor");
+  cierto(await pagina.evaluate(() => document.getElementById("clearBtn").closest("[inert]") !== null), "lo de detrás sigue usable");
+  await pagina.keyboard.press("Escape");
+  cierto(await pagina.evaluate(() => !document.querySelector(".visor-img") && !document.querySelector("body > [inert]")), "el visor no se cerró bien");
+  // editor de plugins: Enter en «Texto de prueba» prueba, no guarda y cierra
+  await pagina.click("#settingsBtn");
+  await pagina.evaluate(() => document.getElementById("pluginNuevo").scrollIntoView());
+  await pagina.click("#pluginNuevo");
+  await pagina.fill("#plgId", "gritar");
+  await pagina.fill("#plgNombre", "Gritar");
+  await pagina.check('input[name="plgTipo"][value="js"]');
+  await pagina.fill("#plgCuerpo", 'return texto.toUpperCase() + "!!!"');
+  await pagina.fill("#plgPrueba", "hola");
+  await pagina.press("#plgPrueba", "Enter");
+  await pagina.waitForFunction(() => document.getElementById("plgSalida").textContent === "HOLA!!!", null, { timeout: 5000 });
+  cierto(await pagina.evaluate(() => document.getElementById("pluginModal").classList.contains("active")), "el editor se cerró");
+  igual(await pagina.evaluate(() => localStorage.getItem("cece_plugins")), null, "el plugin se guardó sin querer");
+  await pagina.keyboard.press("Escape");
+  // con «reducir movimiento», el índice de Configuración salta sin animación
+  const pasos = await pagina.evaluate(async () => {
+    const panel = document.querySelector(".settings-panel");
+    [...document.querySelectorAll("#ajustesNav [data-ir]")].pop().click();
+    const a = panel.scrollTop;
+    await new Promise((r) => setTimeout(r, 80));
+    return [a, panel.scrollTop];
+  });
+  cierto(pasos[0] > 0 && pasos[0] === pasos[1], "el desplazamiento va animado: " + pasos.join(" → "));
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });

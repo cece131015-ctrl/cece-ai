@@ -45,7 +45,16 @@ function ponerCarga(html, pagina, programa, semilla) {
   return html.replace(RE_CARGA, (_, a, _b, c, d, e) => a + b64 + c + d + e);
 }
 
+// El servidor de Python dentro del programa empaquetado. terser elige las comillas (si el Python lleva más comillas
+// dobles que simples, usa simples), así que valen las dos.
+function sacarPython(programa) {
+  const m = /\bconst CECEHUB_PY\s*=\s*("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')/.exec(programa);
+  if (!m) throw new Error("No encuentro CECEHUB_PY en el programa.");
+  const python = Function(`"use strict"; return ${m[1]};`)(); // (es un literal de cadena: no ejecuta nada más)
+  return { python, inicio: m.index, fin: m.index + m[0].length };
+}
+
 const leer = (r) => fs.readFileSync(r, "utf8");
 const escribir = (r, t) => fs.writeFileSync(r, t);
 
-module.exports = { RAIZ, RUTAS, MARCADOR_PY, leerCarga, ponerCarga, leer, escribir };
+module.exports = { RAIZ, RUTAS, MARCADOR_PY, leerCarga, ponerCarga, sacarPython, leer, escribir };

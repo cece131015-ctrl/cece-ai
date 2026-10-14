@@ -4676,13 +4676,21 @@ function verImagen(e, t) {
     (o.tabIndex = -1));
   const a = document.createElement("img");
   ((a.src = e), (a.alt = t || ""), o.appendChild(a));
+  // Lo de detrás no se puede usar mientras está abierto y Tab no saca el foco: antes, tras un Tab, Escape ya no lo
+  // cerraba y Enter pulsaba sin verlo lo que hubiera debajo (p. ej. «Limpiar»).
   const n = document.activeElement,
+    i = [...document.body.children].filter((e) => "toast" !== e.id && !e.inert && "SCRIPT" !== e.tagName),
     cerrar = () => {
+      for (const e of i) e.inert = !1;
       (o.remove(), n && n.focus && n.focus());
     };
+  for (const e of i) e.inert = !0;
   (o.addEventListener("click", cerrar),
     o.addEventListener("keydown", (e) => {
-      ("Escape" !== e.key && "Enter" !== e.key && " " !== e.key) || (e.preventDefault(), e.stopPropagation(), cerrar());
+      "Tab" === e.key
+        ? e.preventDefault()
+        : ("Escape" !== e.key && "Enter" !== e.key && " " !== e.key) ||
+          (e.preventDefault(), e.stopPropagation(), cerrar());
     }),
     document.body.appendChild(o),
     o.focus());
@@ -6587,18 +6595,22 @@ function conectarPlugins() {
         : atraparFoco($("pluginModal").querySelector(".modal-content"), e);
     }));
   for (const e of document.querySelectorAll('input[name="plgTipo"]')) e.addEventListener("change", ayudaTipoPlugin);
-  ($("plgProbar").addEventListener("click", async () => {
-    const e = datosEditorPlugin(),
-      t = $("plgSalida");
-    if ((($("plgError").textContent = ""), (t.hidden = !1), "plantilla" !== e.tipo)) {
-      t.textContent = "⏳ Ejecutando…";
-      try {
-        t.textContent = (await Arena.ejecutar(e.cuerpo, $("plgPrueba").value)) || "(no devolvió nada)";
-      } catch (e) {
-        t.textContent = "❌ " + e.message;
-      }
-    } else t.textContent = expandirPlantilla(e.cuerpo, $("plgPrueba").value);
+  // (Enter en «Texto de prueba» prueba el plugin: si no, enviaba el formulario, que lo guardaba y cerraba)
+  ($("plgPrueba").addEventListener("keydown", (e) => {
+    "Enter" !== e.key || e.isComposing || (e.preventDefault(), $("plgProbar").click());
   }),
+    $("plgProbar").addEventListener("click", async () => {
+      const e = datosEditorPlugin(),
+        t = $("plgSalida");
+      if ((($("plgError").textContent = ""), (t.hidden = !1), "plantilla" !== e.tipo)) {
+        t.textContent = "⏳ Ejecutando…";
+        try {
+          t.textContent = (await Arena.ejecutar(e.cuerpo, $("plgPrueba").value)) || "(no devolvió nada)";
+        } catch (e) {
+          t.textContent = "❌ " + e.message;
+        }
+      } else t.textContent = expandirPlantilla(e.cuerpo, $("plgPrueba").value);
+    }),
     $("pluginForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const t = validarPlugin(datosEditorPlugin(), _plgEditando);
@@ -7434,7 +7446,11 @@ function conectarNavAjustes() {
       const t = e.target.closest("[data-ir]"),
         o = t && $(t.dataset.ir);
       o &&
-        (o.scrollIntoView({ behavior: S.animaciones ? "smooth" : "auto", block: "start" }),
+        (o.scrollIntoView({
+          // (un desplazamiento pedido desde aquí no lo para el CSS de «reducir movimiento»)
+          behavior: S.animaciones && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto",
+          block: "start",
+        }),
         (o.tabIndex = -1),
         o.focus({ preventScroll: !0 }));
     }));

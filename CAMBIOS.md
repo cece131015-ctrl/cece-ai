@@ -110,14 +110,29 @@ IA y sale en el menú de «/» y en `/ayuda`. Si ya tenías un plugin propio lla
 - Un `cecehub.json` con un número donde va una dirección cerraba CeceHub con una traza.
 - Con `--no-discovery` seguía anunciando `cecehub.local`; un enlace `http://` de internet recibía `:9999` de más.
 
+### Interfaz y accesibilidad
+
+- El visor de fotos no encerraba el foco: tras un Tab, Escape ya no lo cerraba y Enter pulsaba sin verlo lo que
+  hubiera debajo (en la prueba, «Limpiar» borró el chat).
+- Editor de plugins: Enter en «Texto de prueba» guardaba y cerraba el plugin en vez de probarlo.
+- Contraste insuficiente (por debajo de 4,5:1) del código en línea en los temas Sepia y Claro, de las filas sin
+  clave de «Comprobar conexiones» y del gris atenuado del tema Nord. Ahora axe-core no da ningún aviso de
+  contraste en los 10 temas.
+- Con «reducir movimiento» en el sistema, el índice de Configuración seguía desplazándose con animación.
+
 ### Herramientas
 
 - `npm run lint` vigila también las variables usadas antes de declararse (así se cazaron dos fallos míos antes de
   subirlos) y fija las reglas de ruff y Python 3.8 (las versiones nuevas de ruff cambiaban las reglas por defecto).
+- `desempaquetar.js` fallaba si el servidor de Python llevaba más comillas dobles que simples (por ejemplo tras
+  `ruff format`): el archivo empaquetado ya no se podía volver a editar. Ahora vale con las dos y `empaquetar.js`
+  comprueba que lo que empaqueta se puede desempaquetar.
+- Una prueba («GitHub: ventana con Escape y foco dentro») pasaba aunque el foco se escapara del panel: ahora lo
+  mira en cada pulsación, y se ha comprobado que falla con el panel roto.
 
 ### Cómo se ha comprobado
 
-`npm run probar`: **43 pruebas** en Chromium con las IAs simuladas (y CeceHub de verdad con una IA local simulada),
+`npm run probar`: **44 pruebas** en Chromium con las IAs simuladas (y CeceHub de verdad con una IA local simulada),
 todas bien. `npm run lint`: sin avisos. CeceHub probado también con Python 3.8.
 
 ## 8 de octubre de 2026 — primera revisión

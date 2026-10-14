@@ -5,7 +5,7 @@
    Uso: node herramientas/empaquetar.js [destino.html]   (de fábrica, cece-ai.html) */
 "use strict";
 const path = require("path");
-const { RUTAS, MARCADOR_PY, leerCarga, ponerCarga, leer, escribir } = require("./comun");
+const { RUTAS, MARCADOR_PY, leerCarga, ponerCarga, sacarPython, leer, escribir } = require("./comun");
 
 async function main() {
   const destino = path.resolve(process.argv[2] || RUTAS.html);
@@ -17,7 +17,7 @@ async function main() {
 
   // La versión que Cece dice llevar dentro tiene que ser la del servidor que lleva dentro
   const vJs = (/\bCECEHUB_VERSION\s*=\s*"([^"]+)"/.exec(fuente) || [])[1];
-  const vPy = (/^VERSION\s*=\s*'([^']+)'/m.exec(python) || [])[1];
+  const vPy = (/^VERSION\s*=\s*(['"])([^'"]+)\1/m.exec(python) || [])[2];
   if (!vJs || vJs !== vPy) throw new Error(`CECEHUB_VERSION (${vJs}) no coincide con VERSION de cecehub-server.py (${vPy}).`);
 
   if (fuente.split(MARCADOR_PY).length !== 2) throw new Error(`El marcador ${MARCADOR_PY} tiene que aparecer una vez.`);
@@ -36,6 +36,8 @@ async function main() {
   // comprobación: lo empaquetado se lee igual
   const vuelta = leerCarga(leer(destino));
   if (vuelta.pagina !== pagina || vuelta.programa !== programa) throw new Error("El empaquetado no se lee igual.");
+  // …y desempaquetar.js podrá sacar otra vez el servidor de Python, tal cual
+  if (sacarPython(programa).python !== python) throw new Error("El servidor de Python no se recupera igual del programa.");
   console.log(`✅ fuente/ → ${path.basename(destino)} (programa ${programa.length} B)`);
 }
 
