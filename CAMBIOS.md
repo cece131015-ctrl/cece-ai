@@ -1,5 +1,43 @@
 # Informe de depuración
 
+## 15 de octubre de 2026 — modelo Cece Sol y tercera ronda
+
+### Novedad: modelo **Cece Sol**
+
+Se añade un modelo nuevo, **Cece Sol** (motor `gpt-6.1`), que aparece en el menú de modelos y se puede elegir con el
+comando **`/sol`**. Usa la API de OpenAI (la misma que Cece Astra), así que toma la clave del campo `astra` del bloque
+de configuración; no hace falta una clave nueva. El id del modelo es `gpt-6.1`: tiene que ser uno que tu cuenta/endpoint
+de OpenAI sirva (si no, la API lo rechazará, como con cualquier modelo que no exista todavía). El precio puesto es el
+mismo que el de Astra (10 $/50 $ por millón); cámbialo en `PRECIOS_MODELO` si tu cuenta cobra otra cosa.
+
+### Seguridad (bóveda y copia protegida)
+
+- Una clave antigua anotada **fuera de las llaves** de `CECE_KEYS` (en el comentario de cabecera o tras `};`) se
+  copiaba en claro a la copia protegida, que además decía «solo hay texto cifrado». Ahora también se limpia lo de fuera.
+- **«Bloquear ahora (y olvidar en este equipo)»** no borraba la llave de una copia creada con «Cambiar la contraseña»
+  (otro id), así que esa copia se seguía abriendo sin contraseña. Ahora se olvidan todas las llaves recordadas.
+- Tras «Cambiar la contraseña», Seguridad decía que el archivo antiguo «tiene las claves a la vista» (falso): ahora
+  dice que la copia antigua se abre con la contraseña anterior.
+
+### Motores (gasto y cortes)
+
+- Un intento que **gasta tokens pero no llega a responder** (se quedó pensando, o falló una vuelta del bucle de
+  herramientas) ya se cuenta en el gasto; antes desaparecía.
+- **Cece Pro: al pulsar «Parar»** se estima también lo que costaron la fusión y los borradores que iban a medias;
+  antes solo contaban los borradores ya terminados (y la fusión salía a 0).
+- Una respuesta **cortada por el filtro de contenido o por falta de recursos del proveedor** ahora se avisa en el
+  pie; antes se mostraba como si estuviera completa.
+- Si la IA **se niega a responder** (sin texto), se dice «prefirió no responder» en vez de «respuesta vacía», y el
+  texto de la negativa de Astra ya no se pierde.
+- Con un **adjunto grande y una conexión lenta**, ya no se agota el tiempo subiéndolo diciendo «no responde» (y
+  reenviándolo a cada motor): el límite se amplía según lo que pesa el archivo.
+- El gasto incluye ahora las **búsquedas web** de Enterprise y de Astra (10 $ por cada 1.000), como ya hacía con Kimi.
+
+### Cómo se ha comprobado
+
+`npm run probar`: **46 pruebas** en Chromium, todas bien (2 nuevas: Cece Sol y los cortes/rechazos de los motores).
+`npm run lint`: sin avisos.
+
 ## 13 de octubre de 2026 — segunda revisión
 
 Se ha repasado otra vez **todo** el archivo, por zonas: el panel de GitHub, las peticiones a las IAs, el chat y los

@@ -132,7 +132,7 @@ const PROVEEDORES = {
     tipo: "chat",
     fmt: "responses",
     base: "https://api.openai.com/v1",
-    modelos: ["gpt-6-astra"],
+    modelos: ["gpt-6-astra", "gpt-6.1"],
     h: ["buscar", "leer", "codigo"],
     vista: !0,
     pdf: !0,
@@ -219,6 +219,7 @@ const capacidad = (e, t) => {
   NOMBRE_MODELO = {
     "claude-fable-5-1": "Motor Enterprise",
     "gpt-6-astra": "Motor Astra",
+    "gpt-6.1": "Motor Sol",
     "kimi-k3": "Motor Max",
     "kimi-k2.7-code": "Motor Ultra Code",
     "deepseek-flash": "Motor Turbo",
@@ -234,6 +235,7 @@ const capacidad = (e, t) => {
   PRECIOS_MODELO = {
     "claude-fable-5-1": [10, 50],
     "gpt-6-astra": [10, 50],
+    "gpt-6.1": [10, 50],
     "kimi-k3": [3, 15],
     "kimi-k2.7-code": [0.95, 4],
     "kimi-k2.7-code-highspeed": [1.9, 8],
@@ -292,6 +294,22 @@ const capacidad = (e, t) => {
       motores: [
         "openai:gpt-6-astra",
         "anthropic:claude-fable-5-1",
+        "moonshot:kimi-k3",
+        "deepseek:deepseek-flash",
+        "groq:openai/gpt-oss-120b",
+      ],
+    },
+    {
+      id: "cece-sol",
+      label: "CECE SOL",
+      nombre: "Cece Sol",
+      color: "#ffce54",
+      neon: "#ffbf00",
+      insignia: ["badge-new", "☀️ Sol"],
+      motores: [
+        "openai:gpt-6.1",
+        "anthropic:claude-fable-5-1",
+        "openai:gpt-6-astra",
         "moonshot:kimi-k3",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
@@ -753,7 +771,9 @@ function reescribirBloque(e, t, o) {
   }
   const d = Object.keys(t).filter((e) => t[e] && !l.has(e) && /^[a-z][a-z0-9_]{0,30}$/.test(e));
   d.length && (s = d.map((e) => `\n  ${e}: ${literalJs(t[e])},`).join("") + (s.startsWith("\n") ? "" : "\n") + s);
-  let u = e.slice(0, n) + "{" + s + "}" + e.slice(r);
+  // (lo de fuera de las llaves, como el comentario de cabecera o una nota tras «};», tampoco puede llevar claves; el
+  // valor de CECE_BOVEDA se vuelve a escribir justo después)
+  let u = sinSecretos(e.slice(0, n)) + "{" + s + "}" + sinSecretos(e.slice(r));
   const m = _buscarConst(u, "CECE_BOVEDA");
   if (m) u = u.slice(0, m[0]) + literalJs(o) + u.slice(m[1]);
   else {
@@ -866,6 +886,9 @@ const Boveda = (() => {
       return (almacen.del(s), t && (await idb("set", idLlave(), r).catch(() => {})), !0);
     }
     async function bloquear() {
+      // «Olvidar en este equipo» olvida todas las llaves recordadas: también la de una copia hecha al cambiar la
+      // contraseña (otro id), que si no se seguía abriendo sin contraseña
+      for (const e of await idb("keys").catch(() => [])) /^boveda:/.test(e) && (await idb("del", e).catch(() => {}));
       (hayCifrada() && (await idb("del", idLlave()).catch(() => {})),
         (o = Object.assign(Object.create(null), t)),
         (n = !1),
@@ -1033,7 +1056,9 @@ function pintarSeguridad() {
   let o, a;
   (t.descargada
     ? ((o =
-        "✅ Archivo protegido descargado. Úsalo a partir de ahora y borra el antiguo: ese todavía tiene las claves a la vista."),
+        t.cifrada && !t.enClaro
+          ? "✅ Copia con la contraseña nueva descargada. Úsala y borra la antigua: esa todavía se abre con la contraseña anterior."
+          : "✅ Archivo protegido descargado. Úsalo a partir de ahora y borra el antiguo: ese todavía tiene las claves a la vista."),
       (a = "verde"))
     : t.rota
       ? ((o =
@@ -1308,10 +1333,26 @@ async function postJSON(e, t, o, a, n, r, i = {}) {
     d = !0;
   for (let o = Math.min(nivelQueFunciona[c] || 0, s.length - 1); o < s.length; o++) {
     let u;
+    // El límite cuenta desde que empieza la subida: con un adjunto grande y una conexión lenta, se agotaba subiéndolo
+    // («no responde») y el archivo se volvía a subir a cada motor. Se le da tiempo según lo que pesa (≥ 200 kbit/s).
+    const p = j[o].length > 2e6;
     try {
-      u = await fetchConTiempo(e, t, { method: "POST", headers: a, body: j[o] }, n, i.tiempo);
+      u = await fetchConTiempo(
+        e,
+        t,
+        { method: "POST", headers: a, body: j[o] },
+        n,
+        (i.tiempo || LIMITE.conectar) + Math.round(j[o].length / 25),
+      );
     } catch (t) {
-      if (esAbort(t) || t instanceof ErrorApi) throw t;
+      if (esAbort(t)) throw t;
+      if (t instanceof ErrorApi)
+        throw (
+          p &&
+            "tiempo agotado" === t.corto &&
+            (t.message = `${nombreProv(e)} no responde, o tu conexión sube el archivo muy despacio (tiempo agotado).`),
+          t
+        );
       throw errorRed(e);
     }
     if (u.ok) return (s.length > 1 && d && !1 !== i.recordar && (nivelQueFunciona[c] = o), (u.cuerpo = s[o]), u);
@@ -1452,6 +1493,8 @@ const conAdj = (e) => e.adjuntos && e.adjuntos.length,
     };
   },
   COSTE_WEB_KIMI = 0.002,
+  // Búsqueda web de Enterprise (Anthropic) y de Astra (OpenAI): 10 $ cada 1.000; no venían en el gasto
+  COSTE_BUSQUEDA = 0.01,
   FUNC_WEB = {
     buscar: {
       type: "function",
@@ -1674,100 +1717,108 @@ async function chatOpenAI(e, t) {
         (e.completion_tokens || e.prompt_tokens) &&
         ((E = E || { in: 0, out: 0 }), (E.in += e.prompt_tokens || 0), (E.out += e.completion_tokens || 0));
     };
-  for (let o = 0; o < 5; o++) {
-    const a = await postJSON(
-      e,
-      baseDe(e) + "/chat/completions",
-      cuerpos(4 === o).map((e) => ponerSistema(e, t)),
-      c,
-      t.signal,
-      t.modelo,
-      { recordar: !o },
-    );
-    o || (A = herramientasDelCuerpo(a.cuerpo));
-    let n = "",
-      r = "",
-      i = [];
-    if (((y = null), (w = !1), /event-stream/.test(a.headers.get("content-type") || ""))) {
-      let o = null;
-      (await leerSSE(
-        a,
-        (a, s) => {
-          if ("[DONE]" === s) return void (w = !0);
-          let c;
-          try {
-            c = JSON.parse(s);
-          } catch (a) {
-            return;
-          }
-          if (c.error)
-            throw new ErrorApi(`${nombreProv(e)}: ${c.error.message || JSON.stringify(c.error)}`, {
-              prov: e,
-              corto: "error",
-            });
-          const l = c.choices && c.choices[0];
-          if (l) {
-            const e = l.delta || l.message || {},
-              o = e.reasoning_content || e.reasoning;
-            ("string" == typeof o && o && ((r += o), t.onRazon && t.onRazon(o)),
-              "string" == typeof e.content && e.content && ((n += e.content), t.onTexto && t.onTexto(e.content)),
-              ejecutadas(e.executed_tools));
-            for (const t of e.tool_calls || []) {
-              const e = t.index ?? i.length,
-                o = i[e] || (i[e] = { id: "", type: "function", function: { name: "", arguments: "" } });
-              (t.id && (o.id = t.id),
-                t.function && t.function.name && !o.function.name && (o.function.name = t.function.name),
-                t.function && t.function.arguments && (o.function.arguments += t.function.arguments));
-            }
-            l.finish_reason && ((y = l.finish_reason), (w = !0));
-          }
-          const d = c.usage || (c.choices && c.choices[0] && c.choices[0].usage) || (c.x_groq && c.x_groq.usage);
-          d && (d.completion_tokens || d.prompt_tokens) && (o = d);
-        },
+  // (si falla una vuelta del bucle de herramientas, lo que ya cobraron las anteriores viaja con el error)
+  try {
+    for (let o = 0; o < 5; o++) {
+      const a = await postJSON(
         e,
-      ),
-        uso(o));
-    } else {
-      const o = await a.json();
-      if (o.error)
-        throw new ErrorApi(`${nombreProv(e)}: ${o.error.message || JSON.stringify(o.error)}`, {
-          prov: e,
-          corto: "error",
-        });
-      w = !0;
-      const s = (o.choices && o.choices[0] && o.choices[0].message) || {};
-      (ejecutadas(s.executed_tools),
-        (r = s.reasoning_content || s.reasoning || ""),
-        r && t.onRazon && t.onRazon(r),
-        (n = s.content || ""),
-        n && t.onTexto && t.onTexto(n),
-        (i = Array.isArray(s.tool_calls) ? s.tool_calls : []),
-        (y = o.choices && o.choices[0] && o.choices[0].finish_reason),
-        uso(o.usage));
+        baseDe(e) + "/chat/completions",
+        cuerpos(4 === o).map((e) => ponerSistema(e, t)),
+        c,
+        t.signal,
+        t.modelo,
+        { recordar: !o },
+      );
+      o || (A = herramientasDelCuerpo(a.cuerpo));
+      let n = "",
+        r = "",
+        i = [];
+      if (((y = null), (w = !1), /event-stream/.test(a.headers.get("content-type") || ""))) {
+        let o = null;
+        (await leerSSE(
+          a,
+          (a, s) => {
+            if ("[DONE]" === s) return void (w = !0);
+            let c;
+            try {
+              c = JSON.parse(s);
+            } catch (a) {
+              return;
+            }
+            if (c.error)
+              throw new ErrorApi(`${nombreProv(e)}: ${c.error.message || JSON.stringify(c.error)}`, {
+                prov: e,
+                corto: "error",
+              });
+            const l = c.choices && c.choices[0];
+            if (l) {
+              const e = l.delta || l.message || {},
+                o = e.reasoning_content || e.reasoning;
+              ("string" == typeof o && o && ((r += o), t.onRazon && t.onRazon(o)),
+                "string" == typeof e.content && e.content && ((n += e.content), t.onTexto && t.onTexto(e.content)),
+                ejecutadas(e.executed_tools));
+              for (const t of e.tool_calls || []) {
+                const e = t.index ?? i.length,
+                  o = i[e] || (i[e] = { id: "", type: "function", function: { name: "", arguments: "" } });
+                (t.id && (o.id = t.id),
+                  t.function && t.function.name && !o.function.name && (o.function.name = t.function.name),
+                  t.function && t.function.arguments && (o.function.arguments += t.function.arguments));
+              }
+              l.finish_reason && ((y = l.finish_reason), (w = !0));
+            }
+            const d = c.usage || (c.choices && c.choices[0] && c.choices[0].usage) || (c.x_groq && c.x_groq.usage);
+            d && (d.completion_tokens || d.prompt_tokens) && (o = d);
+          },
+          e,
+        ),
+          uso(o));
+      } else {
+        const o = await a.json();
+        if (o.error)
+          throw new ErrorApi(`${nombreProv(e)}: ${o.error.message || JSON.stringify(o.error)}`, {
+            prov: e,
+            corto: "error",
+          });
+        w = !0;
+        const s = (o.choices && o.choices[0] && o.choices[0].message) || {};
+        (ejecutadas(s.executed_tools),
+          (r = s.reasoning_content || s.reasoning || ""),
+          r && t.onRazon && t.onRazon(r),
+          (n = s.content || ""),
+          n && t.onTexto && t.onTexto(n),
+          (i = Array.isArray(s.tool_calls) ? s.tool_calls : []),
+          (y = o.choices && o.choices[0] && o.choices[0].finish_reason),
+          uso(o.usage));
+      }
+      if (
+        ((g += n),
+        (v += r),
+        (i = i.filter((e) => e && e.function && e.function.name)),
+        !d.length || !i.length || 4 === o)
+      )
+        break;
+      const l = {
+        role: "assistant",
+        content: n,
+        tool_calls: i.map((e, t) => ({ id: e.id || "call_" + o + "_" + t, type: "function", function: e.function })),
+      };
+      ((r || s) && (l.reasoning_content = r), u.push(l));
+      for (const [e, o] of l.tool_calls.entries()) {
+        let a = {};
+        try {
+          a = JSON.parse(o.function.arguments || "{}");
+        } catch (e) {}
+        const n =
+          e < 5
+            ? await herramientaKimi(o.function.name, a, t, C, m)
+            : { texto: "Error: demasiadas llamadas a la vez; usa como mucho 5." };
+        (n.cobra && (sesion.coste += COSTE_WEB_KIMI),
+          u.push({ role: "tool", tool_call_id: o.id, name: o.function.name, content: n.texto }));
+      }
+      n && !/\s$/.test(n) && ((g += "\n\n"), t.onTexto && t.onTexto("\n\n"));
     }
-    if (
-      ((g += n), (v += r), (i = i.filter((e) => e && e.function && e.function.name)), !d.length || !i.length || 4 === o)
-    )
-      break;
-    const l = {
-      role: "assistant",
-      content: n,
-      tool_calls: i.map((e, t) => ({ id: e.id || "call_" + o + "_" + t, type: "function", function: e.function })),
-    };
-    ((r || s) && (l.reasoning_content = r), u.push(l));
-    for (const [e, o] of l.tool_calls.entries()) {
-      let a = {};
-      try {
-        a = JSON.parse(o.function.arguments || "{}");
-      } catch (e) {}
-      const n =
-        e < 5
-          ? await herramientaKimi(o.function.name, a, t, C, m)
-          : { texto: "Error: demasiadas llamadas a la vez; usa como mucho 5." };
-      (n.cobra && (sesion.coste += COSTE_WEB_KIMI),
-        u.push({ role: "tool", tool_call_id: o.id, name: o.function.name, content: n.texto }));
-    }
-    n && !/\s$/.test(n) && ((g += "\n\n"), t.onTexto && t.onTexto("\n\n"));
+  } catch (o) {
+    throw (E && o instanceof ErrorApi && !o.usage && (o.usage = { ...E }), o);
   }
   return {
     texto: g,
@@ -1776,7 +1827,15 @@ async function chatOpenAI(e, t) {
     fin: y,
     fuentes: C.lista,
     usadas: A,
-    cortado: /length/.test(y || "") ? "tokens" : w ? null : "red",
+    cortado: /length/.test(y || "")
+      ? "tokens"
+      : /content_filter/.test(y || "")
+        ? "filtro"
+        : /insufficient_system_resource/.test(y || "")
+          ? "proveedor"
+          : w
+            ? null
+            : "red",
   };
 }
 async function chatResponses(e, t) {
@@ -1833,6 +1892,7 @@ async function chatResponses(e, t) {
     w = null,
     C = null,
     j = !1,
+    rechazo = !1,
     salidaTexto = null;
   const x = nuevasFuentes(),
     salidasCodigo = (e) => {
@@ -1865,7 +1925,10 @@ async function chatResponses(e, t) {
             (salidaTexto = k),
             (y += n.delta),
             t.onTexto && t.onTexto(n.delta));
-        } else if (/^response\.reasoning(_summary)?_text\.delta$/.test(r) && n.delta)
+        } else if ("response.refusal.delta" === r && n.delta)
+          // (la negativa llega en su propio campo: antes se perdía y salía «respuesta vacía»)
+          ((rechazo = !0), (y += n.delta), t.onTexto && t.onTexto(n.delta));
+        else if (/^response\.reasoning(_summary)?_text\.delta$/.test(r) && n.delta)
           ((A += n.delta), t.onRazon && t.onRazon(n.delta));
         else if ("response.output_text.annotation.added" === r && n.annotation)
           x.add(n.annotation.url, n.annotation.title);
@@ -1876,8 +1939,9 @@ async function chatResponses(e, t) {
           (t.onActividad && t.onActividad("🧮 Ejecutando código…"),
             t.onEjec && t.onEjec({ nuevo: !0, lenguaje: "python", codigo: i.code || "" }));
         else if ("response.output_item.done" === r && "code_interpreter_call" === i.type) salidasCodigo(i);
-        else if ("response.output_item.done" === r && "web_search_call" === i.type && i.action) {
-          const e = i.action,
+        else if ("response.output_item.done" === r && "web_search_call" === i.type) {
+          sesion.coste += COSTE_BUSQUEDA;
+          const e = i.action || {},
             o = (Array.isArray(e.queries) && e.queries[0]) || e.query;
           o
             ? t.onActividad && t.onActividad(`🔎 Buscando «${o}»`)
@@ -1891,7 +1955,11 @@ async function chatResponses(e, t) {
             for (const e of o.content || []) for (const t of e.annotations || []) x.add(t.url, t.title);
             if (!y && "message" === o.type)
               for (const e of o.content || [])
-                "output_text" === e.type && e.text && ((y += e.text), t.onTexto && t.onTexto(e.text));
+                "output_text" === e.type && e.text
+                  ? ((y += e.text), t.onTexto && t.onTexto(e.text))
+                  : "refusal" === e.type &&
+                    e.refusal &&
+                    ((rechazo = !0), (y += e.refusal), t.onTexto && t.onTexto(e.refusal));
           }
         } else if ("response.failed" === r || "error" === r) {
           const t = (n.response && n.response.error) || n.error || n;
@@ -1907,7 +1975,15 @@ async function chatResponses(e, t) {
       fin: C,
       fuentes: x.lista,
       usadas: herramientasDelCuerpo(E.cuerpo),
-      cortado: /max_output_tokens|max_tokens|length/.test(C || "") ? "tokens" : j ? null : "red",
+      cortado: rechazo
+        ? "rechazo"
+        : /max_output_tokens|max_tokens|length/.test(C || "")
+          ? "tokens"
+          : /content_filter/.test(C || "")
+            ? "filtro"
+            : j
+              ? null
+              : "red",
     }
   );
 }
@@ -2091,6 +2167,9 @@ async function chatClaude(e, t) {
           } else
             "message_delta" === r &&
               (n.usage && n.usage.output_tokens && (d.out += n.usage.output_tokens),
+              n.usage &&
+                n.usage.server_tool_use &&
+                (sesion.coste += COSTE_BUSQUEDA * (+n.usage.server_tool_use.web_search_requests || 0)),
               n.usage && n.usage.input_tokens && (s = Math.max(s, n.usage.input_tokens)),
               n.delta && n.delta.stop_reason && (u = n.delta.stop_reason));
         },
@@ -2239,7 +2318,16 @@ async function chatGemini(e, t) {
       fin: y,
       fuentes: A.lista,
       usadas: herramientasDelCuerpo(h.cuerpo),
-      cortado: "MAX_TOKENS" === y ? "tokens" : y ? null : "red",
+      cortado:
+        "MAX_TOKENS" === y
+          ? "tokens"
+          : /SAFETY|RECITATION|BLOCKLIST|PROHIBITED|SPII/.test(y || "")
+            ? "filtro"
+            : y && !/^(STOP|FINISH_REASON_UNSPECIFIED)$/.test(y)
+              ? "proveedor"
+              : y
+                ? null
+                : "red",
     }
   );
 }
@@ -2410,13 +2498,22 @@ async function llamarCece(e, t) {
           }),
           { texto: s, razon: c } = separarThink(i.texto);
         if (!s.trim()) {
+          // (lo que gastó este intento lo cobra el proveedor aunque no haya respuesta: se cuenta)
+          cobrarIntento(e, i.usage);
           const t = /length|max_tokens|max_output_tokens|incomplete/i.test(i.fin || "");
-          throw new ErrorApi(
-            t
-              ? `${etiquetaMotor(e)} se quedó sin tokens pensando y no llegó a responder. Sube el esfuerzo.`
-              : `${etiquetaMotor(e)} devolvió una respuesta vacía.`,
-            { prov: e.prov, corto: "respuesta vacía" },
-          );
+          throw "rechazo" === i.cortado
+            ? new ErrorApi(`${etiquetaMotor(e)} prefirió no responder a esto.`, { prov: e.prov, corto: "rechazo" })
+            : "filtro" === i.cortado
+              ? new ErrorApi(`El filtro de contenido de ${etiquetaMotor(e)} cortó la respuesta.`, {
+                  prov: e.prov,
+                  corto: "filtro de contenido",
+                })
+              : new ErrorApi(
+                  t
+                    ? `${etiquetaMotor(e)} se quedó sin tokens pensando y no llegó a responder. Sube el esfuerzo.`
+                    : `${etiquetaMotor(e)} devolvió una respuesta vacía.`,
+                  { prov: e.prov, corto: "respuesta vacía" },
+                );
         }
         const l = i.modelo && i.modelo !== e.modelo ? { ...e, modelo: i.modelo } : e,
           d = a.filter((t) => !(i.usadas || herramientasDe(e)).has(t));
@@ -2432,6 +2529,7 @@ async function llamarCece(e, t) {
           continue;
         }
         if (((a.motor = e), o)) throw ((a.parcial = !0), (a.saltos = r), a);
+        a.usage && (cobrarIntento(e, a.usage), (a.usage = null));
         (r.push({ motor: e, error: a }), errorDeCuenta(a) && i.add(e.prov), (s = a), t.onSalto && t.onSalto(e, a));
       }
       break;
@@ -3060,6 +3158,17 @@ function pulso(e, t) {
   const o = $(e);
   o && ((o.textContent = t), o.classList.remove("pulso"), o.offsetWidth, o.classList.add("pulso"));
 }
+// Lo que cobra el proveedor por un intento que no llega a dar respuesta (se quedó sin tokens pensando, falló una vuelta
+// del bucle de herramientas…): antes no se contaba y el gasto de la sesión salía más bajo de lo real.
+function cobrarIntento(e, t) {
+  const o = (t && t.in) || 0,
+    a = (t && t.out) || 0;
+  o + a &&
+    (sumarCoste(e, o, a),
+    (sesion.tokens += o + a),
+    pulso("totalTokens", sesion.tokens),
+    pulso("costeTotal", "$" + sesion.coste.toFixed(4) + (sesion.sinPrecio.size ? "+" : "")));
+}
 function sumarCoste(e, t, o) {
   if (!e) return;
   let a = PRECIOS_MODELO[e.modelo];
@@ -3332,7 +3441,11 @@ const avisoCorte = (e) =>
           ? ["✂️ se quedó a medias usando herramientas: pídele que siga"]
           : "rechazo" === e.cortado
             ? ["🚫 el modelo prefirió no responder a esto"]
-            : [],
+            : "filtro" === e.cortado
+              ? ["✂️ el filtro de contenido del proveedor cortó la respuesta"]
+              : "proveedor" === e.cortado
+                ? ["✂️ el proveedor cortó la respuesta antes de terminar: vuelve a pedirla"]
+                : [],
   avisoSinVer = (e) =>
     e && e.sinVer && e.sinVer.length ? [`📎 ${etiquetaMotor(e.motor)} no pudo abrir: ${e.sinVer.join(", ")}`] : [];
 function marcarPendiente() {
@@ -3526,6 +3639,23 @@ function sumarUsoPro(e) {
 }
 // Al pulsar «Parar» en Cece Pro, los borradores que ya habían terminado están cobrados: antes no se contaban y el
 // gasto de la sesión salía más bajo de lo real (0 $ si se paraba durante la fusión).
+// Partes de Cece Pro que estaban escribiendo cuando se pulsó Parar (sin resultado todavía) o la propia fusión a medias:
+// el proveedor cobra la entrada y lo que ya salió, así que se estima para que el gasto al parar no salga a cero.
+function enCursoPro(partes, mensajes) {
+  const entrada = estimarTokens(
+    (mensajes || [])
+      .map((e) => (e && "string" == typeof e.content ? e.content : JSON.stringify((e && e.content) || "")))
+      .join("\n"),
+  );
+  const fuera = [];
+  for (const p of partes || []) {
+    const t = p && p.texto && separarThink(p.texto).texto;
+    if (!p || p.r || !t || !t.trim()) continue;
+    const m = motoresDe(p.id)[0];
+    m && fuera.push({ motor: m, usage: { in: entrada, out: estimarTokens(t) } });
+  }
+  return fuera;
+}
 function cobrarParado(e) {
   const t = sumarUsoPro(e);
   t.in + t.out && contar({ usage: t }, "", 0, !0);
@@ -3604,7 +3734,7 @@ async function ejecutarRelevo(e, t = {}) {
     return (
       c(),
       m && (n.texto = finalRelevo(m, l)),
-      cobrarParado(d.map((e) => e.r)),
+      cobrarParado([...d.map((e) => e.r), ...enCursoPro(a, r)]),
       finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv })
     );
   }
@@ -3675,7 +3805,7 @@ async function ejecutarPro(e, t = {}) {
   if (e.aborted)
     return (
       d.length && (n.texto = d[0].texto),
-      cobrarParado(d.map((e) => e.r)),
+      cobrarParado([...d.map((e) => e.r), ...enCursoPro(a, r)]),
       finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv })
     );
   if (!d.length) {
@@ -3717,7 +3847,10 @@ async function ejecutarPro(e, t = {}) {
       if (esAbort(e))
         return (
           separarThink(n.texto).texto.trim() || (n.texto = d[0].texto),
-          cobrarParado(d.map((e) => e.r)),
+          cobrarParado([
+            ...d.map((e) => e.r),
+            ...enCursoPro([{ id: a, texto: n.texto }], [...r.slice(0, -1), { role: "user", content: c }]),
+          ]),
           finalizarConError(n, e, u, { conv: t.conv })
         );
       (u.push("fusión: " + (e.corto || "error")), (n.texto = ""));
@@ -4801,6 +4934,7 @@ const COMANDOS = [
       ["cece-argon", "argon", []],
       ["cece-astra", "astra", []],
       ["cece-max", "max", []],
+      ["cece-sol", "sol", []],
       ["cece-ultra-code", "ultracode", ["uc"]],
       ["cece-turbo", "turbo", []],
     ].map(([e, t, o]) => ({ id: t, alias: o, nivel: e, grupo: "nivel", nombre: CECE_MAP[e].nombre })),

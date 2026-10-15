@@ -1668,6 +1668,63 @@ prueba("con el teclado: visor de imágenes, editor de plugins y «reducir movimi
   await ctx.close();
 });
 
+prueba("Cece Sol (modelo nuevo): /sol usa gpt-6.1 por la API Responses y responde", async (nav) => {
+  let cuerpo = null;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
+    ia: {
+      "api.openai.com/v1/responses": (r) => {
+        cuerpo = r.cuerpo;
+        return {
+          cuerpo: sse([
+            { type: "response.output_text.delta", delta: "Hola, soy Cece Sol." },
+            { type: "response.completed", response: { usage: { input_tokens: 9, output_tokens: 5 }, output: [] } },
+          ]),
+        };
+      },
+    },
+  });
+  cierto(await pagina.$('#modelDropdown [data-model="cece-sol"]'), "Cece Sol no está en el menú de modelos");
+  await escribirYEnviar(pagina, "/sol hola");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Hola, soy Cece Sol\./.test(r.texto), r.texto);
+  cierto(/Motor Sol/.test(r.pie), r.pie);
+  igual(cuerpo && cuerpo.model, "gpt-6.1", "no usó gpt-6.1: " + JSON.stringify(cuerpo && cuerpo.model));
+  igual(await pagina.evaluate(() => S.modelo), "cece-sol");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("los motores avisan de un corte por filtro y de un rechazo (y no los dan por completos)", async (nav) => {
+  let modo = "filtro";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-astra" } },
+    ia: {
+      "api.openai.com/v1/responses": () => ({
+        cuerpo:
+          "filtro" === modo
+            ? sse([
+                { type: "response.output_text.delta", delta: "La receta lleva 1) harina, 2)" },
+                { type: "response.incomplete", response: { incomplete_details: { reason: "content_filter" }, usage: { input_tokens: 20, output_tokens: 9 }, output: [] } },
+              ])
+            : sse([
+                { type: "response.refusal.delta", delta: "No puedo ayudar con eso." },
+                { type: "response.completed", response: { usage: { input_tokens: 20, output_tokens: 6 }, output: [] } },
+              ]),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "algo");
+  let r = await ultimaRespuesta(pagina);
+  cierto(/filtro de contenido/.test(r.pie), "no avisa del corte por filtro: " + r.pie);
+  modo = "rechazo";
+  await escribirYEnviar(pagina, "otra cosa");
+  r = await ultimaRespuesta(pagina);
+  cierto(/No puedo ayudar con eso\./.test(r.texto), "se perdió el texto del rechazo: " + r.texto);
+  cierto(/prefirió no responder/.test(r.pie), "no avisa del rechazo: " + r.pie);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
