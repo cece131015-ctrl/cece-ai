@@ -3333,13 +3333,39 @@ async function enviarYa(e, t) {
       toast("🧩 Escribe /rea seguido de la aplicación/ruta y lo que quieres investigar.", "mal", 6500);
       return null;
     }
-    n = [
-      "MODO REA — tarea de ingeniería inversa solicitada por el usuario mediante /rea.",
-      "Objetivo del usuario: " + solicitud,
-      "Usa REA (morluto/rea) únicamente si tienes acceso real a sus herramientas MCP/CLI en este entorno. No inventes resultados, archivos inspeccionados, evidencias ni ejecuciones.",
-      "Si REA no está realmente conectado/disponible en esta sesión, dilo claramente y ofrece los pasos de conexión necesarios; no simules haber ejecutado REA. Si sí está disponible, analiza el objetivo, separa hechos de inferencias y cita la evidencia obtenida.",
-    ].join("\\n\\n");
-  }
+    const reaEndpoint = sessionStorage.getItem("cece_rea_endpoint") || "";
+    const reaToken = sessionStorage.getItem("cece_rea_token") || "";
+    if (reaEndpoint && reaToken) {
+      const partes = solicitud.split(/\s+[—–]\s+/);
+      const targetPath = partes.shift().trim();
+      try {
+        const respuestaREA = await fetch(reaEndpoint.replace(/\/$/, "") + "/api/rea", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + reaToken },
+          body: JSON.stringify({ targetPath }),
+        });
+        const datosREA = await respuestaREA.json().catch(() => ({}));
+        if (!respuestaREA.ok || datosREA.ok !== true) throw new Error(datosREA.error || ("HTTP " + respuestaREA.status));
+        n = [
+          "RESULTADO VERIFICADO DEL MOTOR REA (rea-agents).",
+          "Objetivo/ruta: " + targetPath,
+          "Solicitud adicional: " + partes.join(" — "),
+          "Evidencia devuelta por REA (JSON):",
+          JSON.stringify(datosREA.result, null, 2),
+          "Resume únicamente lo respaldado por este resultado. Distingue evidencia, inferencias y limitaciones.",
+        ].join("\\n\\n");
+      } catch (errorREA) {
+        n = "No se pudo ejecutar REA en el servidor configurado: " + String(errorREA && errorREA.message || errorREA) +
+          "\\n\\nComprueba la URL del servicio, el token y que la carpeta objetivo exista dentro del workspace remoto. No se ha realizado ningún análisis.";
+      }
+    } else {
+      n = [
+        "MODO REA — tarea de ingeniería inversa solicitada por el usuario mediante /rea.",
+        "Objetivo del usuario: " + solicitud,
+        "Usa REA (morluto/rea) únicamente si tienes acceso real a sus herramientas MCP/CLI en este entorno. No inventes resultados, archivos inspeccionados, evidencias ni ejecuciones.",
+        "Si REA no está realmente conectado/disponible en esta sesión, dilo claramente y ofrece los pasos de conexión necesarios; no simules haber ejecutado REA. Si sí está disponible, analiza el objetivo, separa hechos de inferencias y cita la evidencia obtenida.",
+      ].join("\\n\\n");
+    }  }
   let i = [],
     s = null;
   if (!t.voz) {
