@@ -169,36 +169,42 @@ const cierto = (v, msg) => {
   if (!v) throw new Error(msg || "falso");
 };
 
-prueba("comando /rea prepara una tarea y la envía a la IA sin fingir ejecución", async (nav) => {
+prueba("comando /rea ejecuta el servicio remoto y muestra evidencia devuelta", async (nav) => {
   let cuerpo = null;
   const htmlFuente = await htmlConFuenteActual();
   const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
-    ia: { "api.deepseek.com": (r) => {
+    ia: { "rea.example": (r) => {
       cuerpo = r.cuerpo;
-      return { cuerpo: respuestaOpenAI("No tengo acceso real a REA en esta sesión.") };
+      return { tipo: "application/json", cuerpo: JSON.stringify({ ok: true, engine: "rea-agents", result: { modules: ["index.js"], evidence: ["index.js: import ./lib.js"] } }) };
     } },
   });
-  await escribirYEnviar(pagina, "/rea app/demo — investiga el inicio de sesión");
-  const r = await ultimaRespuesta(pagina);
-  cierto(/No tengo acceso real a REA/.test(r.texto), "no se recibió la respuesta simulada: " + r.texto);
-  cierto(cuerpo && cuerpo.messages, "no se envió ninguna solicitud a la IA");
-  const prompt = cuerpo.messages[cuerpo.messages.length - 1].content;
-  cierto(/MODO REA/.test(prompt), "no se activó el modo REA: " + prompt.slice(0, 220));
-  cierto(/app\/demo/.test(prompt) && /inicio de sesión/.test(prompt), "se perdió el objetivo solicitado: " + prompt.slice(0, 260));
-  cierto(/No inventes resultados/.test(prompt), "falta la instrucción de no inventar resultados");
+  await pagina.evaluate(() => {
+    localStorage.setItem("cece_rea_endpoint", "https://rea.example");
+    sessionStorage.setItem("cece_rea_token", "token-prueba-no-real");
+  });
+  await escribirYEnviar(pagina, "/rea proyectos/demo — analiza los módulos");
+  await pagina.waitForFunction(() => {
+    const b = document.querySelector(".bot-msg:last-child .bubble");
+    return b && b.innerText.includes("REA terminó correctamente");
+  }, null, { timeout: 10000 });
+  const r = await pagina.locator(".bot-msg:last-child .bubble").innerText();
+  cierto(/REA terminó correctamente/.test(r), "no se mostró el resultado remoto: " + r);
+  cierto(/index\.js/.test(r) && /lib\.js/.test(r), "no se mostró la evidencia devuelta por el servidor");
+  cierto(cuerpo && cuerpo.targetPath === "proyectos/demo", "ruta incorrecta: " + JSON.stringify(cuerpo));
+  cierto(peticiones[0] && peticiones[0].metodo === "POST", "no se hizo POST al servicio REA");
   igual(peticiones.length, 1, "número de peticiones inesperado");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
 
-prueba("/rea sin objetivo pide información y no llama a la IA", async (nav) => {
+prueba("/rea sin objetivo no llama al servicio ni a la IA", async (nav) => {
   const htmlFuente = await htmlConFuenteActual();
   const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({}, leer(htmlFuente)));
   await escribirYEnviar(pagina, "/rea");
-  await pagina.waitForFunction(() => document.getElementById("userInput").value === "/rea ");
+  await pagina.waitForFunction(() => [...document.querySelectorAll(".bot-msg .bubble")].some((b) => b.innerText.includes("Escribe /rea seguido")));
+  cierto(/Escribe \/rea seguido/.test(await pagina.locator(".bot-msg:last-child .bubble").innerText()), "no se mostró la ayuda para /rea");
   igual(peticiones.length, 0, "/rea sin objetivo no debe enviar una petición");
-  igual(await pagina.inputValue("#userInput"), "/rea ", "no se conservó el comando para completarlo");
-  cierto(/Escribe \/rea seguido/.test(await pagina.innerText("#toast")), "no se mostró la ayuda para /rea");
+  igual(await pagina.inputValue("#userInput"), "", "el comando no se limpió tras mostrar la ayuda");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
