@@ -6,7 +6,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { RUTAS } = require("./comun");
+const { RUTAS, MARCADOR_PY, leerCarga, ponerCarga, leer } = require("./comun");
 
 function cargarPlaywright() {
   try {
@@ -23,8 +23,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "cece-prueba-"));
 const HTML = fs.readFileSync(ORIGEN, "utf8");
 
 // Copia con claves de prueba en el bloque de configuración (solo las de los motores que se piden)
-function conClaves(claves) {
-  let h = HTML;
+function conClaves(claves, htmlBase = HTML) {
+  let h = htmlBase;
   for (const [k, v] of Object.entries(claves)) {
     const re = new RegExp(`(\\n\\s*${k}:\\s*)""`);
     if (!re.test(h)) throw new Error("No encuentro la clave " + k);
@@ -33,6 +33,31 @@ function conClaves(claves) {
   const f = path.join(TMP, `cece-${Object.keys(claves).join("-") || "sin"}.html`);
   fs.writeFileSync(f, h);
   return f;
+}
+
+// Construye una copia temporal usando la fuente actual, sin modificar cece-ai.html ni ningún archivo del repositorio.
+let HTML_FUENTE_REA = null;
+async function htmlConFuenteActual() {
+  if (HTML_FUENTE_REA) return HTML_FUENTE_REA;
+  const { minify } = require("terser");
+  const base = leer(RUTAS.html);
+  const { semilla } = leerCarga(base);
+  const pagina = leer(RUTAS.pagina);
+  const python = leer(RUTAS.python);
+  let programa = leer(RUTAS.programa);
+  if (programa.split(MARCADOR_PY).length !== 2) throw new Error("La fuente debe contener exactamente un marcador CECEHUB_PY.");
+  programa = programa.replace(MARCADOR_PY, () => JSON.stringify(python));
+  const empaquetado = await minify(programa, {
+    ecma: 2022,
+    compress: { passes: 2 },
+    mangle: true,
+    format: { comments: false },
+  });
+  if (!empaquetado.code) throw new Error("Terser no generó el programa de prueba.");
+  const html = ponerCarga(base, pagina, empaquetado.code, semilla);
+  HTML_FUENTE_REA = path.join(TMP, "cece-fuente-actual.html");
+  fs.writeFileSync(HTML_FUENTE_REA, html);
+  return HTML_FUENTE_REA;
 }
 
 // ---------- IAs simuladas ----------
@@ -143,6 +168,61 @@ const igual = (a, b, msg) => {
 const cierto = (v, msg) => {
   if (!v) throw new Error(msg || "falso");
 };
+
+prueba("comando /rea prepara una tarea y la envía a la IA sin fingir ejecución", async (nav) => {
+  let cuerpo = null;
+  const htmlFuente = await htmlConFuenteActual();
+  const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
+    ia: { "api.deepseek.com": (r) => {
+      cuerpo = r.cuerpo;
+      return { cuerpo: respuestaOpenAI("No tengo acceso real a REA en esta sesión.") };
+    } },
+  });
+  await escribirYEnviar(pagina, "/rea app/demo — investiga el inicio de sesión");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/No tengo acceso real a REA/.test(r.texto), "no se recibió la respuesta simulada: " + r.texto);
+  cierto(cuerpo && cuerpo.messages, "no se envió ninguna solicitud a la IA");
+  const prompt = cuerpo.messages[cuerpo.messages.length - 1].content;
+  cierto(/MODO REA/.test(prompt), "no se activó el modo REA: " + prompt.slice(0, 220));
+  cierto(/app\/demo/.test(prompt) && /inicio de sesión/.test(prompt), "se perdió el objetivo solicitado: " + prompt.slice(0, 260));
+  cierto(/No inventes resultados/.test(prompt), "falta la instrucción de no inventar resultados");
+  igual(peticiones.length, 1, "número de peticiones inesperado");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("/rea sin objetivo pide información y no llama a la IA", async (nav) => {
+  const htmlFuente = await htmlConFuenteActual();
+  const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({}, leer(htmlFuente)));
+  await escribirYEnviar(pagina, "/rea");
+  await pagina.waitForFunction(() => document.getElementById("userInput").value === "/rea ");
+  igual(peticiones.length, 0, "/rea sin objetivo no debe enviar una petición");
+  igual(await pagina.inputValue("#userInput"), "/rea ", "no se conservó el comando para completarlo");
+  cierto(/Escribe \/rea seguido/.test(await pagina.innerText("#toast")), "no se mostró la ayuda para /rea");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("regresión: un mensaje normal no activa REA y se envía intacto", async (nav) => {
+  let cuerpo = null;
+  const htmlFuente = await htmlConFuenteActual();
+  const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
+    ia: { "api.deepseek.com": (r) => {
+      cuerpo = r.cuerpo;
+      return { cuerpo: respuestaOpenAI("Respuesta normal.") };
+    } },
+  });
+  await escribirYEnviar(pagina, "hola, esto es una consulta normal");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Respuesta normal/.test(r.texto), "no se recibió la respuesta simulada");
+  cierto(cuerpo && cuerpo.messages, "no se envió ninguna solicitud a la IA");
+  const prompt = cuerpo.messages[cuerpo.messages.length - 1].content;
+  igual(prompt, "hola, esto es una consulta normal", "el mensaje normal cambió");
+  cierto(!/MODO REA|ingeniería inversa solicitada/.test(prompt), "se activó REA sin /rea");
+  igual(peticiones.length, 1, "número de peticiones inesperado");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
 
 prueba("abre sin errores y sin claves", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
