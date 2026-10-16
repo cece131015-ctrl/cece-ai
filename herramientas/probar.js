@@ -794,6 +794,66 @@ prueba("Cece Pro por relevo: cada paso recibe los archivos del anterior", async 
   await ctx.close();
 });
 
+prueba("Cece Sol es una parte de Cece Pro (reparto de 5 y motor propio)", async (nav) => {
+  // Con solo la clave de OpenAI, las partes de Cece Pro se quedan en dos motores distintos: Astra (gpt-6-astra) y el
+  // nuevo Sol (gpt-6.1). Si Sol no estuviera dentro de Cece Pro, el relevo tendría un solo motor.
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk-sol" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.openai.com/v1/responses": ({ cuerpo }) => ({
+        cuerpo: sse([
+          { type: "response.output_text.delta", delta: /gpt-6\.1/.test(JSON.stringify(cuerpo)) ? "Soy Sol." : "Soy Astra." },
+          { type: "response.completed", response: { output: [] } },
+        ]),
+      }),
+    },
+  });
+  const rep = await pagina.evaluate(() => ({
+    filas: document.querySelectorAll("#repartoManual .rep-fila").length,
+    repE: !!document.getElementById("repE"),
+    sol: /Sol/.test(document.getElementById("repartoManual").textContent),
+  }));
+  igual(rep.filas, 5, "el reparto de Cece Pro no tiene 5 partes");
+  cierto(rep.repE && rep.sol, "falta la fila de reparto de Sol");
+  await escribirYEnviar(pagina, "hola equipo");
+  const r = await ultimaRespuesta(pagina, 30000);
+  cierto(/relevo/.test(r.pie), r.pie);
+  cierto(/Motor Sol/.test(r.pie), "Sol no aparece en Cece Pro: " + r.pie);
+  cierto(/Motor Astra/.test(r.pie), "Astra debería seguir estando: " + r.pie);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Pro por relevo: pasa los archivos y ordena según la petición", async (nav) => {
+  // Dos partes vivas: Enterprise (Anthropic, sin perfil de código) y Max (Moonshot, nivel de código). El orden del
+  // relevo cambia con la petición: en una pregunta normal manda el peso (termina Enterprise), pero si se pide código
+  // el más adecuado (Max) pasa a terminar. Y el archivo que crea el primer paso llega al siguiente y a la respuesta.
+  const entradasMax = [];
+  const TOKEN = "TOKEN_RELEVO_7391";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.anthropic.com": () => ({ cuerpo: respuestaClaude("```js\n// archivo: util.js\nconst " + TOKEN + " = true;\n```") }),
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => (
+        entradasMax.push(JSON.stringify(cuerpo.messages)), { cuerpo: respuestaOpenAI("Lo he revisado y está perfecto.") }
+      ),
+    },
+  });
+  await escribirYEnviar(pagina, "Cuéntame un cuento corto sobre el mar.");
+  const normal = await ultimaRespuesta(pagina, 30000);
+  cierto(/Motor Max → Motor Enterprise/.test(normal.pie), "orden normal (termina Enterprise): " + normal.pie);
+  await escribirYEnviar(pagina, "Escribe código JavaScript para ordenar una lista de números.");
+  const codigo = await ultimaRespuesta(pagina, 30000);
+  cierto(/Motor Enterprise → Motor Max/.test(codigo.pie), "con código debería terminar Max: " + codigo.pie);
+  cierto(
+    entradasMax.some((v) => v.includes(TOKEN) && /Relevo de Cece Pro/.test(v)),
+    "el paso siguiente no recibió el archivo del anterior",
+  );
+  cierto(codigo.texto.includes(TOKEN) && /Archivos del equipo/.test(codigo.texto), "la respuesta final perdió el archivo");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("crear una imagen (Cece Imagen) y que no se cuele un enlace raro", async (nav) => {
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
   let malo = false;

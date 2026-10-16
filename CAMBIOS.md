@@ -1,5 +1,19 @@
 # Informe de depuración
 
+## 16 de octubre de 2026 — Cece Sol dentro de Cece Pro y relevo que se adapta
+
+- **Cece Sol entra en Cece Pro**: ahora Cece Pro trabaja con **cinco** modelos (Enterprise Plus, Argon, Astra, Max y el
+  nuevo **Sol**) en vez de cuatro, tanto cuando responden a la vez como por relevo. El reparto de Configuración → Cece
+  Pro tiene su propia barra para Sol, y los pesos se reparten entre los cinco.
+- **El relevo se pasa los archivos**: cada paso del relevo recibe la última versión de los archivos que crearon los
+  pasos anteriores y, si no los cambia, pasan tal cual al siguiente y a la respuesta final (quedan recogidos bajo
+  «📁 Archivos del equipo»). Así el equipo construye sobre lo ya hecho en vez de empezar de cero cada vez.
+- **El orden del relevo cambia según la petición**: antes el relevo iba siempre del modelo de menos peso al de más.
+  Ahora, si la petición encaja mejor con unos modelos (por ejemplo, programar con los niveles de código, o ver
+  imágenes y PDF con los motores que saben hacerlo), esos pasan a hablar **al final**, que es quien da la respuesta.
+  Si la petición no pide nada especial, se mantiene el orden por peso de siempre, así que el comportamiento normal no
+  cambia.
+
 ## 16 de octubre de 2026 — crear y modificar apps
 
 Cece ya puede **crear tus propias aplicaciones** (originales y tuyas) y dejártelas **modificar como quieras**:

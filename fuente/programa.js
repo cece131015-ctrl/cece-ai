@@ -252,7 +252,13 @@ const capacidad = (e, t) => {
       neon: "#c44dff",
       code: !0,
       pro: !0,
-      motores: ["anthropic:claude-fable-5-1", "gemini:gemini-4-argon", "openai:gpt-6-astra", "moonshot:kimi-k3"],
+      motores: [
+        "anthropic:claude-fable-5-1",
+        "gemini:gemini-4-argon",
+        "openai:gpt-6-astra",
+        "moonshot:kimi-k3",
+        "openai:gpt-6.1",
+      ],
     },
     {
       id: "cece-enterprise-plus",
@@ -374,7 +380,7 @@ const capacidad = (e, t) => {
   ],
   CECE_MAP = Object.fromEntries(CECE.map((e) => [e.id, e])),
   colorDe = (e) => (e ? (e.neon && "neon" === temaEfectivo() ? e.neon : e.color) : ""),
-  REPARTO = ["A", "B", "C", "D"];
+  REPARTO = ["A", "B", "C", "D", "E"];
 function repartoEntero(e, t) {
   const o = t.reduce((e, t) => e + Math.max(0, t), 0),
     a = o > 0 ? t.map((e) => Math.max(0, e)) : t.map(() => 1),
@@ -394,10 +400,11 @@ function repartoEntero(e, t) {
 const DEF = {
     modelo: "cece-turbo",
     esf: "medio",
-    repA: 25,
-    repB: 25,
-    repC: 25,
-    repD: 25,
+    repA: 20,
+    repB: 20,
+    repC: 20,
+    repD: 20,
+    repE: 20,
     fusion: !0,
     maxi: !1,
     relevo: !0,
@@ -483,7 +490,15 @@ const DEF = {
     nubeGist: /^([0-9a-f]{20,40})?$/i,
     instrucciones: /^[\s\S]{0,1500}$/,
   },
-  RANGOS = { vel: [5, 500], repA: [0, 100], repB: [0, 100], repC: [0, 100], repD: [0, 100], silencio: [400, 2500] };
+  RANGOS = {
+    vel: [5, 500],
+    repA: [0, 100],
+    repB: [0, 100],
+    repC: [0, 100],
+    repD: [0, 100],
+    repE: [0, 100],
+    silencio: [400, 2500],
+  };
 function leerAjustes(e) {
   const t = { ...DEF, bases: {}, defModelo: {}, vozSel: {}, carpetas: {}, pluginsOff: [] };
   if (!e || "object" != typeof e || Array.isArray(e)) return t;
@@ -3487,6 +3502,7 @@ const PRO_PARTES = [
   { k: "D", id: "cece-argon", nom: "Argon" },
   { k: "B", id: "cece-astra", nom: "Astra" },
   { k: "C", id: "cece-max", nom: "Max" },
+  { k: "E", id: "cece-sol", nom: "Sol" },
 ].map((e) => ({
   ...e,
   get color() {
@@ -3670,13 +3686,59 @@ function cerrarPro(e, t, o, a, n, r, i, s) {
     console.error(e);
   }
 }
+// Perfil de la petición: qué pide el usuario (ver imágenes o PDF, o programar), mirando los adjuntos y el texto del
+// último mensaje. Sirve para que el relevo ponga a hablar al final a los modelos más adecuados para esa petición.
+function perfilPeticion(mensajes) {
+  const n = necesidades(mensajes);
+  let texto = "";
+  for (let i = (mensajes || []).length - 1; i >= 0; i--)
+    if (mensajes[i] && "user" === mensajes[i].role) {
+      texto = "string" == typeof mensajes[i].content ? mensajes[i].content : "";
+      break;
+    }
+  const codigo =
+    /```|\b(c[oó]digo|program\w*|funci[oó]n|script|bug|refactor\w*|compil\w*|depura\w*|algoritmo|javascript|typescript|html|css|python|golang|rust)\b/i.test(
+      texto,
+    ) ||
+    (mensajes || []).some((m) =>
+      (m.adjuntos || []).some(
+        (a) =>
+          a &&
+          /\.(js|mjs|cjs|ts|tsx|jsx|py|java|c|cc|cpp|h|cs|go|rb|php|rs|swift|kt|html?|css|scss|json|ya?ml|sh|sql)$/i.test(
+            a.nombre || "",
+          ),
+      ),
+    );
+  return { vista: n.vista, pdf: n.pdf, codigo: codigo };
+}
+// Puntúa cómo de adecuada es una parte de Cece Pro para esta petición, usando lo que de verdad sabe hacer su motor
+// (ver imágenes, leer PDF) y si su nivel está pensado para programar.
+function idoneidadRelevo(perfil, parte) {
+  const motor = motoresDe(parte.id)[0],
+    nivel = CECE_MAP[parte.id] || {};
+  return (
+    (perfil.vista && motor && capacidad(motor, "vista") ? 1 : 0) +
+    (perfil.pdf && motor && capacidad(motor, "pdf") ? 2 : 0) +
+    (perfil.codigo && nivel.code ? 3 : 0) +
+    (perfil.codigo && nivel.codePrompt ? 1 : 0)
+  );
+}
+// Ordena las partes del relevo según la petición: las menos adecuadas trabajan primero y las más adecuadas al final
+// (quien da la respuesta final). Si la petición no pide nada especial, todas empatan y se vuelve al orden por peso de
+// siempre, así que el comportamiento normal no cambia.
+function ordenarRelevo(partes, mensajes) {
+  const perfil = perfilPeticion(mensajes);
+  for (const p of partes) p.idoneidad = idoneidadRelevo(perfil, p);
+  return partes.sort((a, b) => a.idoneidad - b.idoneidad || a.peso - b.peso || b.i - a.i);
+}
 async function ejecutarRelevo(e, t = {}) {
   const o = esfuerzoDe(t);
   await Familias.prepararPara(PRO_PARTES.map((e) => e.id));
-  const a = partesPro("⏳ espera su turno").sort((e, t) => e.peso - t.peso || t.i - e.i),
-    n = (burbujaActiva = new Burbuja(`Relevo de ${a.length} modelos`));
+  const p = partesPro("⏳ espera su turno"),
+    n = (burbujaActiva = new Burbuja(`Relevo de ${p.length} modelos`));
   await Adjuntos.hidratar(historial);
   const r = historialApi(),
+    a = ordenarRelevo(p, r),
     i = performance.now(),
     { det: s, repintar: c } = montarBorradores(n, a, "🤝 Relevo", !0),
     l = new Map(),
@@ -6990,7 +7052,7 @@ function pintarPro() {
     ($("hintPro").textContent = S.relevo
       ? S.maxi
         ? `Los ${e} modelos trabajan por relevo al 100%, y termina el más potente.`
-        : `Los ${e} modelos trabajan por relevo, del de menos peso al de más: el de mayor peso termina y da la respuesta.`
+        : `Los ${e} modelos trabajan por relevo y se van pasando los archivos que crean. El orden se adapta a lo que pidas (quien mejor encaja con tu petición termina y da la respuesta); si no pides nada especial, van del de menos peso al de más.`
       : S.maxi
         ? `Los ${e} modelos van al 100% y cuentan por igual.`
         : `Los ${e} modelos responden a la vez. El de mayor peso marca la respuesta principal, la que se usa como contexto.`));
