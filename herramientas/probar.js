@@ -197,6 +197,35 @@ prueba("comando /rea ejecuta el servicio remoto y muestra evidencia devuelta", a
   await ctx.close();
 });
 
+prueba("/rea clona una URL usando la sintaxis app", async (nav) => {
+  let cuerpo = null;
+  const htmlFuente = await htmlConFuenteActual();
+  const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
+    ia: { "rea.example": (r) => {
+      cuerpo = r.cuerpo;
+      return { tipo: "application/json", cuerpo: JSON.stringify({ ok: true, mode: "html-snapshot",
+        sourceUrl: "https://spotify.com/", outputPath: "clones/spotify-demo", entryFile: "clones/spotify-demo/index.html",
+        bytes: 1200, note: "Captura estática." }) };
+    } },
+  });
+  await pagina.evaluate(() => {
+    localStorage.setItem("cece_rea_endpoint", "https://rea.example");
+    sessionStorage.setItem("cece_rea_token", "token-prueba-no-real");
+  });
+  await escribirYEnviar(pagina, "/rea quiero un clon de <app:Spotify:https://spotify.com>");
+  await pagina.waitForFunction(() => {
+    const b = document.querySelector(".bot-msg:last-child .bubble");
+    return b && b.innerText.includes("Captura HTML creada por REA");
+  }, null, { timeout: 10000 });
+  const r = await pagina.locator(".bot-msg:last-child .bubble").innerText();
+  cierto(/spotify\.com/.test(r) && /clones\/spotify-demo\/index\.html/.test(r), "no se mostró la ruta del clon: " + r);
+  cierto(cuerpo && cuerpo.mode === "clone" && cuerpo.url === "https://spotify.com/", "payload de clonación incorrecto: " + JSON.stringify(cuerpo));
+  cierto(peticiones[0] && peticiones[0].metodo === "POST", "no se hizo POST al servicio de clonación");
+  igual(peticiones.length, 1, "número de peticiones inesperado");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("/rea sin objetivo no llama al servicio ni a la IA", async (nav) => {
   const htmlFuente = await htmlConFuenteActual();
   const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({}, leer(htmlFuente)));
