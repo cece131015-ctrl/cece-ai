@@ -3320,6 +3320,26 @@ async function enviarYa(e, t) {
   const r = a && !t.voz && Adjuntos.lista.length > 0;
   if (a && Adjuntos.ocupado) return (toast("📎 Espera a que terminen de leerse los archivos."), null);
   if (!n && !r) return null;
+  // REA se activa exclusivamente con /rea al principio del mensaje. Esta app HTML no puede
+  // iniciar procesos locales ni hablar con un servidor MCP por sí sola; nunca fingimos que la herramienta se ejecutó.
+  if (!t.voz && /^\/rea(?:\s|$)/i.test(n)) {
+    const solicitud = n.replace(/^\/rea\s*/i, "").trim();
+    if (!solicitud) {
+      if (a) {
+        o.value = "/rea ";
+        autoAlto();
+        o.focus();
+      }
+      toast("🧩 Escribe /rea seguido de la aplicación/ruta y lo que quieres investigar.", "mal", 6500);
+      return null;
+    }
+    n = [
+      "MODO REA — tarea de ingeniería inversa solicitada por el usuario mediante /rea.",
+      "Objetivo del usuario: " + solicitud,
+      "Usa REA (morluto/rea) únicamente si tienes acceso real a sus herramientas MCP/CLI en este entorno. No inventes resultados, archivos inspeccionados, evidencias ni ejecuciones.",
+      "Si REA no está realmente conectado/disponible en esta sesión, dilo claramente y ofrece los pasos de conexión necesarios; no simules haber ejecutado REA. Si sí está disponible, analiza el objetivo, separa hechos de inferencias y cita la evidencia obtenida.",
+    ].join("\\n\\n");
+  }
   let i = [],
     s = null;
   if (!t.voz) {
@@ -5091,6 +5111,15 @@ const COMANDOS = [
       accion: "github",
       nombre: "GitHub",
       desc: "Abre el panel para conectar tu cuenta de GitHub cuando quieras",
+    },
+    {
+      id: "rea",
+      alias: ["reverse-engineer"],
+      emoji: "🧩",
+      accion: "rea",
+      arg: "app/ruta y qué investigar",
+      nombre: "Modo REA",
+      desc: "Prepara una tarea de ingeniería inversa; solo se activa al escribir /rea",
     },
     {
       id: "ayuda",
