@@ -1,52 +1,43 @@
 # Integración de REA en Cece AI
 
-## Qué hace esta integración
+## Comandos
 
-Cece AI mantiene el comando especial **`/rea`**. Los mensajes normales no activan REA. La versión HTML ofrece un pequeño botón **Configurar REA** y, cuando se configura un servicio remoto, envía la ruta objetivo a ese servicio. El servidor ejecuta el comando oficial de análisis estático de `rea-agents` y devuelve su resultado; la interfaz no afirma que REA se ejecutó si el servicio falla.
-
-**Importante:** un archivo HTML en el navegador no puede ejecutar la CLI de REA ni leer rutas del disco del servidor/ordenador sin un servicio con permisos explícitos. Este puente remoto analiza carpetas que ya estén dentro del workspace del servidor. No puede analizar una ruta local de tu PC directamente, ni implica que todas las capacidades MCP de REA estén disponibles a través de esta API.
-
-## Sintaxis del chat
+REA solo se activa cuando el mensaje empieza por `/rea`. Los mensajes normales conservan el flujo habitual.
 
 ```text
-/rea proyectos/mi-app — analiza la estructura JavaScript y sus módulos
+/rea quiero un clon de <app:Spotify:https://spotify.com>
+/rea quiero un clon de https://ejemplo.com
+/rea proyectos/mi-app — analiza su estructura JavaScript
 ```
 
-- La ruta debe ser relativa al workspace del servidor, por ejemplo `proyectos/mi-app`.
-- La carpeta debe existir en el servidor antes de ejecutar el comando.
-- La parte opcional después de `—` describe el objetivo para conservarlo en el flujo de trabajo; el analizador estático ejecutado por este endpoint devuelve el análisis de la aplicación.
-- `/rea` sin objetivo solicita que se indique una ruta.
-- Un mensaje que no comienza con `/rea` no activa el flujo REA.
-- La URL del servidor se guarda en `localStorage`; el token se conserva solo en `sessionStorage` y no se escribe en el repositorio.
+## Clonación web disponible
 
-## Desplegar el servicio remoto
+El servidor valida la URL pública, obtiene el HTML de la página, sigue un máximo de cuatro redirecciones y guarda la captura en `clones/<dominio>-<fecha>-<id>/index.html` dentro del workspace. Devuelve la ruta del archivo.
 
-Requisitos: Node.js **22.19 o posterior compatible con REA**, npm, conexión a npm y un directorio de workspace con las aplicaciones que se autoriza analizar.
+**Esta primera versión crea una captura HTML, no un clon funcional completo.** Conserva referencias a CSS, JavaScript, imágenes y APIs remotas; no descarga todos los recursos ni replica APIs privadas, autenticación, bases de datos o lógica de servidor. Algunas webs modernas pueden verse incompletas. El nombre dentro de `<app:...>` es descriptivo: se usa la URL que aparece en esa etiqueta.
 
-1. Despliega `integraciones/rea/servidor.mjs` en un servicio Node.js (por ejemplo, un servicio web privado).
-2. Define las variables de entorno:
-   - `CECE_REA_TOKEN`: token aleatorio largo y privado, obligatorio.
-   - `CECE_REA_WORKSPACE`: ruta absoluta de la carpeta que contendrá las aplicaciones autorizadas.
-   - `PORT`: puerto proporcionado por la plataforma (por defecto 4317).
-   - `CECE_REA_ORIGIN`: origen permitido por CORS. El valor por defecto es `*`; para producción, restríngelo al origen de tu interfaz cuando sea posible.
-   - `CECE_REA_TIMEOUT_MS`: tiempo límite en milisegundos (por defecto 120000).
-3. Asegúrate de que la carpeta del workspace contiene la aplicación a analizar. El servicio no ofrece un endpoint de subida ni clona automáticamente aplicaciones.
-4. Comprueba `GET /health`. La respuesta `auth: true` indica que el token está configurado; no garantiza por sí sola que el análisis REA esté listo.
-5. En Cece AI pulsa **Configurar REA**, introduce la URL HTTPS del servicio y el valor de `CECE_REA_TOKEN`.
-6. Envía `/rea proyectos/mi-app — explica los módulos`.
+## Despliegue
 
-El servidor ejecuta `npx --yes rea-agents@latest analyze-javascript-application <ruta> --json` mediante `spawn` con argumentos separados, sin shell. Rechaza rutas absolutas y traversal fuera del workspace, exige Bearer token y limita el tamaño de la petición y el tiempo de ejecución.
+Requisitos: Node.js 22+, npm, acceso a internet desde el servidor y un workspace persistente.
+
+1. Despliega `integraciones/rea/servidor.mjs` como servicio Node.
+2. Configura `CECE_REA_TOKEN` (token privado obligatorio), `CECE_REA_WORKSPACE` (ruta absoluta), `PORT` (asignado por la plataforma), `CECE_REA_ORIGIN` (origen CORS restringido) y opcionalmente `CECE_REA_TIMEOUT_MS`.
+3. Comprueba `GET /health`; `auth: true` indica que el token está configurado.
+4. En Cece AI pulsa **Configurar REA**, introduce la URL HTTPS y el token.
+5. Usa uno de los comandos anteriores.
+
+El servidor exige Bearer token, limita el tamaño del cuerpo HTML y el tiempo de espera, y valida los destinos públicos para reducir riesgos SSRF. No lo expongas sin autenticación.
 
 ## Límites y seguridad
 
-- El servicio debe desplegarse y configurarse por separado; subir este archivo a GitHub **no lo despliega** ni crea una URL.
-- No uses el servicio público sin autenticación ni compartas el token. Para producción, configura CORS restrictivo, HTTPS y controles de acceso adicionales.
-- El servicio solo expone análisis estático de aplicaciones JavaScript mediante el comando CLI documentado; no es un proxy genérico para ejecutar cualquier herramienta MCP de REA.
-- Analiza solo software para el que tengas autorización. No envíes contraseñas, tokens ni datos privados.
-- No se han incluido credenciales en los archivos.
+- Actualizar GitHub no despliega el servicio ni crea una URL pública.
+- El token se guarda en `sessionStorage` y no debe subirse al repositorio.
+- La captura guarda archivos en el workspace del servidor; el navegador no puede escribir en el disco local del usuario.
+- Clona solo sitios para los que tengas autorización y respeta derechos y condiciones.
+- La ejecución de extremo a extremo requiere desplegar y probar el servidor. No se afirma que ya esté activo.
 
-## Referencias oficiales
+## Referencias
 
-- [Repositorio de REA](https://github.com/morluto/rea)
-- [Instalación y configuración](https://github.com/morluto/rea/blob/main/docs/installation.md)
+- [Repositorio oficial de REA](https://github.com/morluto/rea)
+- [Documentación de instalación](https://github.com/morluto/rea/blob/main/docs/installation.md)
 - [Paquete npm rea-agents](https://www.npmjs.com/package/rea-agents)
