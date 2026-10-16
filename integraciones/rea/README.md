@@ -1,79 +1,52 @@
 # Integración de REA en Cece AI
 
-Este documento describe la integración parcial de **REA (Reverse Engineer Anything)** en Cece AI y distingue el comando de chat de la ejecución real de las herramientas.
+## Qué hace esta integración
 
-## Estado actual
+Cece AI mantiene el comando especial **`/rea`**. Los mensajes normales no activan REA. La versión HTML ofrece un pequeño botón **Configurar REA** y, cuando se configura un servicio remoto, envía la ruta objetivo a ese servicio. El servidor ejecuta el comando oficial de análisis estático de `rea-agents` y devuelve su resultado; la interfaz no afirma que REA se ejecutó si el servicio falla.
 
-- Cece AI reconoce `/rea` como comando explícito y `/reverse-engineer` como alias.
-- La lógica de `/rea` está en `fuente/programa.js`.
-- **La interfaz HTML no inicia procesos locales ni se conecta automáticamente a una sesión MCP.** Por tanto, registrar el comando no significa que REA se haya ejecutado.
-- Si el entorno de IA no tiene acceso real a REA, el modelo debe indicarlo y no inventar análisis, resultados ni evidencias.
-- No se han añadido claves, tokens ni credenciales a este repositorio.
+**Importante:** un archivo HTML en el navegador no puede ejecutar la CLI de REA ni leer rutas del disco del servidor/ordenador sin un servicio con permisos explícitos. Este puente remoto analiza carpetas que ya estén dentro del workspace del servidor. No puede analizar una ruta local de tu PC directamente, ni implica que todas las capacidades MCP de REA estén disponibles a través de esta API.
 
-## Activación exclusiva con `/rea`
-
-Para pedir un análisis, escribe el comando al principio del mensaje:
+## Sintaxis del chat
 
 ```text
-/rea D:/proyectos/mi-app — investiga cómo funciona el inicio de sesión
+/rea proyectos/mi-app — analiza la estructura JavaScript y sus módulos
 ```
 
-El texto después de `/rea` se convierte en la solicitud de análisis. Un mensaje normal que no comience con `/rea` no activa el flujo especial de REA.
+- La ruta debe ser relativa al workspace del servidor, por ejemplo `proyectos/mi-app`.
+- La carpeta debe existir en el servidor antes de ejecutar el comando.
+- La parte opcional después de `—` describe el objetivo para conservarlo en el flujo de trabajo; el analizador estático ejecutado por este endpoint devuelve el análisis de la aplicación.
+- `/rea` sin objetivo solicita que se indique una ruta.
+- Un mensaje que no comienza con `/rea` no activa el flujo REA.
+- La URL del servidor se guarda en `localStorage`; el token se conserva solo en `sessionStorage` y no se escribe en el repositorio.
 
-Ejemplo sin objetivo:
+## Desplegar el servicio remoto
 
-```text
-/rea
-```
+Requisitos: Node.js **22.19 o posterior compatible con REA**, npm, conexión a npm y un directorio de workspace con las aplicaciones que se autoriza analizar.
 
-Cece AI solicita que se especifique la aplicación o ruta y qué se quiere investigar.
+1. Despliega `integraciones/rea/servidor.mjs` en un servicio Node.js (por ejemplo, un servicio web privado).
+2. Define las variables de entorno:
+   - `CECE_REA_TOKEN`: token aleatorio largo y privado, obligatorio.
+   - `CECE_REA_WORKSPACE`: ruta absoluta de la carpeta que contendrá las aplicaciones autorizadas.
+   - `PORT`: puerto proporcionado por la plataforma (por defecto 4317).
+   - `CECE_REA_ORIGIN`: origen permitido por CORS. El valor por defecto es `*`; para producción, restríngelo al origen de tu interfaz cuando sea posible.
+   - `CECE_REA_TIMEOUT_MS`: tiempo límite en milisegundos (por defecto 120000).
+3. Asegúrate de que la carpeta del workspace contiene la aplicación a analizar. El servicio no ofrece un endpoint de subida ni clona automáticamente aplicaciones.
+4. Comprueba `GET /health`. La respuesta `auth: true` indica que el token está configurado; no garantiza por sí sola que el análisis REA esté listo.
+5. En Cece AI pulsa **Configurar REA**, introduce la URL HTTPS del servicio y el valor de `CECE_REA_TOKEN`.
+6. Envía `/rea proyectos/mi-app — explica los módulos`.
 
-## Requisitos oficiales de REA
+El servidor ejecuta `npx --yes rea-agents@latest analyze-javascript-application <ruta> --json` mediante `spawn` con argumentos separados, sin shell. Rechaza rutas absolutas y traversal fuera del workspace, exige Bearer token y limita el tamaño de la petición y el tiempo de ejecución.
 
-La distribución oficial del proyecto es el repositorio [morluto/rea](https://github.com/morluto/rea) y el paquete npm [rea-agents](https://www.npmjs.com/package/rea-agents). Consulta la [guía oficial de instalación](https://github.com/morluto/rea/blob/main/docs/installation.md) antes de instalar o configurar.
+## Límites y seguridad
 
-La guía oficial consultada indica que REA admite Node.js 22.x desde 22.19, 24.x desde 24.11 y 26 o superior. Node.js 23 y 25 no están soportados según esa guía.
-
-Inicio de la configuración guiada:
-
-```bash
-npx rea-agents@latest setup
-```
-
-REA muestra el plan de configuración y solicita aprobación antes de modificar la configuración del agente o instalar dependencias opcionales como Hopper. Revisa cada cambio y reinicia el cliente MCP cuando termine.
-
-Para un análisis puntual de una aplicación JavaScript/Electron extraída, la guía oficial también documenta:
-
-```bash
-npx -y rea-agents@latest analyze-javascript-application /ruta/absoluta/a/la/app --json
-```
-
-Sustituye la ruta de ejemplo por la ruta real del objetivo. Los comandos disponibles y sus requisitos dependen de la versión instalada y del tipo de análisis. Los análisis nativos pueden requerir configurar un motor como Hopper, Ghidra o IDA; no todos los análisis tienen los mismos requisitos.
-
-## Arquitectura necesaria para una conexión real
-
-REA ofrece un servidor MCP local. Para que el comando de Cece AI lo ejecute de verdad, hace falta una capa de conexión que:
-
-1. Se ejecute en un entorno con permisos para iniciar o conectarse al proceso REA.
-2. Inicie el servidor MCP mediante el mecanismo documentado por REA o se conecte a una instancia ya configurada.
-3. Envíe la tarea y procese la respuesta conforme al protocolo y las herramientas que anuncie la versión activa.
-4. Devuelva a Cece AI resultados y evidencias reales, con errores y límites explícitos.
-5. Pida autorización antes de acciones que modifiquen archivos, instalen componentes o cambien configuraciones.
-
-**No es suficiente incluir un comando en JavaScript del navegador.** Un HTML abierto directamente en el navegador no puede arrancar por sí solo una CLI local ni hablar con un servidor MCP stdio. Para ello se necesita una aplicación anfitriona o puente local compatible, o una integración MCP del agente que esté usando Cece AI.
-
-Esta capa de conexión no está implementada por este cambio. Hasta que se desarrolle y pruebe, `/rea` prepara y transmite la intención de análisis al modelo, pero no garantiza que las herramientas REA estén disponibles.
-
-## Seguridad y uso responsable
-
-- Analiza solo aplicaciones, archivos y sistemas para los que tengas autorización.
-- No copies secretos, tokens, contraseñas ni datos privados a los mensajes o registros.
-- Revisa los planes de instalación y configuración antes de aprobarlos.
-- No afirmes que se ha inspeccionado un archivo o ejecutado una herramienta si no existe evidencia verificable de esa operación.
+- El servicio debe desplegarse y configurarse por separado; subir este archivo a GitHub **no lo despliega** ni crea una URL.
+- No uses el servicio público sin autenticación ni compartas el token. Para producción, configura CORS restrictivo, HTTPS y controles de acceso adicionales.
+- El servicio solo expone análisis estático de aplicaciones JavaScript mediante el comando CLI documentado; no es un proxy genérico para ejecutar cualquier herramienta MCP de REA.
+- Analiza solo software para el que tengas autorización. No envíes contraseñas, tokens ni datos privados.
+- No se han incluido credenciales en los archivos.
 
 ## Referencias oficiales
 
 - [Repositorio de REA](https://github.com/morluto/rea)
 - [Instalación y configuración](https://github.com/morluto/rea/blob/main/docs/installation.md)
 - [Paquete npm rea-agents](https://www.npmjs.com/package/rea-agents)
-- [Web oficial de REA](https://rea.tools/)
