@@ -1239,32 +1239,52 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
   }
   async function execute(raw) {
     const solicitud = raw.replace(/^\/rea(?:\s+|$)/i, "").trim();
-    if (!solicitud) { addMessage("assistant", "Escribe /rea seguido de una ruta de aplicación que exista en el workspace del servidor, por ejemplo: /rea proyectos/mi-app — analiza su estructura."); return; }
+    if (!solicitud) { addMessage("assistant", "Usa /rea quiero un clon de <app:Spotify:https://spotify.com> o /rea quiero un clon de https://ejemplo.com. También puedes analizar una carpeta con /rea proyectos/mi-app — analiza su estructura."); return; }
     let endpoint = (localStorage.getItem(endpointKey) || "").trim();
     let token = sessionStorage.getItem(tokenKey) || "";
     if (!endpoint || !token) {
       if (!config()) { addMessage("assistant", "REA no se ejecutó: falta configurar el servidor remoto y su token."); return; }
       endpoint = (localStorage.getItem(endpointKey) || "").trim(); token = sessionStorage.getItem(tokenKey) || "";
     }
+    const appTag = solicitud.match(/<app:([^:>]+):(https?:\/\/[^>]+)>/i);
+    let cloneUrl = appTag ? appTag[2].trim() : "";
+    const actionText = solicitud;
+    if (!cloneUrl && /\bclon\b|\bclona\b|\bclonar\b/i.test(solicitud)) {
+      const urlMatch = solicitud.match(/https?:\/\/[^\s<>]+/i);
+      if (urlMatch) cloneUrl = urlMatch[0].replace(/[),.;]+$/, "");
+    }
     const parts = solicitud.split(/\s+[—–]\s+/);
     const targetPath = parts.shift().trim();
-    if (!targetPath || /^https?:\/\//i.test(targetPath) || targetPath.startsWith("/") || targetPath.split("/").includes("..")) {
-      addMessage("assistant", "Ruta no válida. Usa una ruta relativa dentro del workspace del servidor; REA no puede acceder a archivos locales de tu ordenador desde el navegador.");
+    const isClone = Boolean(cloneUrl);
+    if (isClone) {
+      try {
+        const u = new URL(cloneUrl);
+        if (!["http:", "https:"].includes(u.protocol) || u.username || u.password) throw new Error("URL no válida");
+        cloneUrl = u.href;
+      } catch {
+        addMessage("assistant", "URL no válida. Usa /rea quiero un clon de <app:Nombre:https://sitio.com> o una URL pública HTTPS.");
+        return;
+      }
+    } else if (!targetPath || /^https?:\/\//i.test(targetPath) || targetPath.startsWith("/") || targetPath.split("/").includes("..")) {
+      addMessage("assistant", "Indica una URL pública para clonar o una ruta relativa de una carpeta del workspace para analizar.");
       return;
     }
     addMessage("user", raw);
-    addMessage("assistant", "Ejecutando rea-agents en el servidor remoto…");
+    addMessage("assistant", isClone ? "REA está capturando la página pública y guardando el HTML en el servidor…" : "Ejecutando rea-agents en el servidor remoto…");
     const pending = $("messages") && $("messages").lastElementChild;
     try {
-      const response = await fetch(endpoint.replace(/\/$/, "") + "/api/rea", {
+      const response = await fetch(endpoint.replace(/\/$/, "") + (isClone ? "/api/rea/clone" : "/api/rea"), {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-        body: JSON.stringify({ targetPath, question: parts.join(" — ") }),
+        body: JSON.stringify(isClone ? { mode: "clone", url: cloneUrl, request: actionText } : { targetPath, question: parts.join(" — ") }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.ok !== true) throw new Error(data.error || ("HTTP " + response.status));
-      if (pending) pending.querySelector(".bubble").textContent = "REA terminó correctamente. Evidencia devuelta por el motor:\n\n" + JSON.stringify(data.result, null, 2);
-      if (pending) { const m = pending.querySelector(".msg-meta"); if (m) m.textContent = "REA ejecutado · " + new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}); }
+      const resultText = data.mode === "html-snapshot"
+        ? "Captura HTML creada por REA.\nURL: " + data.sourceUrl + "\nArchivo de entrada: " + data.entryFile + "\nCarpeta del proyecto: " + data.outputPath + "\nTamaño: " + data.bytes + " bytes.\n\n" + data.note
+        : "REA terminó correctamente. Evidencia devuelta por el motor:\n\n" + JSON.stringify(data.result, null, 2);
+      if (pending) pending.querySelector(".bubble").textContent = resultText;
+      if (pending) { const m = pending.querySelector(".msg-meta"); if (m) m.textContent = (data.mode === "html-snapshot" ? "Captura creada" : "REA ejecutado") + " · " + new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}); }
     } catch (e) {
       if (pending) pending.querySelector(".bubble").textContent = "No se pudo ejecutar REA: " + (e && e.message || String(e)) + "\n\nNo se ha confirmado ningún análisis. Comprueba que el servidor esté desplegado, que el token sea válido y que la carpeta exista en el workspace remoto.";
       if (pending) { const m = pending.querySelector(".msg-meta"); if (m) m.textContent = "REA sin ejecutar"; }
