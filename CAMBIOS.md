@@ -1,5 +1,19 @@
 # Informe de depuración
 
+## 16 de octubre de 2026 — crear y modificar apps
+
+Cece ya puede **crear tus propias aplicaciones** (originales y tuyas) y dejártelas **modificar como quieras**:
+
+- **`/crear` (o `/app`, `/web`)**: describe lo que quieres («/crear una calculadora con historial») y Cece te programa una
+  app o web completa en un solo archivo HTML, lista para abrir con doble clic.
+- **`/modificar` (o `/cambiar`, `/edita`)**: cambia la última app que ha hecho Cece a tu gusto («/modificar ponla en modo
+  oscuro»). Devuelve el archivo entero otra vez. También puedes, sin comando, seguir pidiéndole cambios por el chat: Cece
+  recuerda la conversación y sigue editando la misma app.
+- **👁️ Ver**: los bloques de código HTML llevan un botón para **ver la app funcionando** en una ventana. Esa vista va
+  aislada (sin compartir origen con Cece), así que la app que pruebas no puede ver tus claves ni tu historial.
+
+Es para construir lo tuyo, no para copiar webs o apps de otros.
+
 ## 15 de octubre de 2026 — modelo Cece Sol y tercera ronda
 
 ### Novedad: modelo **Cece Sol**

@@ -1725,6 +1725,41 @@ prueba("los motores avisan de un corte por filtro y de un rechazo (y no los dan 
   await ctx.close();
 });
 
+prueba("/crear programa una app y /crear se puede ver en una ventana aislada; luego se modifica", async (nav) => {
+  let cuerpo = null;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-turbo" } },
+    ia: {
+      "api.deepseek.com": (r) => {
+        cuerpo = r.cuerpo;
+        return { cuerpo: respuestaOpenAI("Aquí tienes:\n\n```html\n<!doctype html><title>t</title><h1>Mi calculadora</h1>\n```\n\nListo.") };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "/crear una calculadora");
+  const r = await ultimaRespuesta(pagina);
+  const prompt = cuerpo.messages[cuerpo.messages.length - 1].content;
+  cierto(/aplicaci[oó]n web COMPLETA y ORIGINAL/i.test(prompt) && /una calculadora/.test(prompt), "no se expandió la plantilla: " + prompt.slice(0, 80));
+  // el bloque HTML trae botón de vista previa
+  const ver = await pagina.$('.bot-msg:last-of-type [data-acc="ver"]');
+  cierto(ver, "no hay botón de vista previa en el bloque HTML");
+  await ver.click();
+  await pagina.waitForSelector(".visor-app iframe[sandbox]", { timeout: 5000 });
+  const sandbox = await pagina.getAttribute(".visor-app iframe", "sandbox");
+  cierto(!/allow-same-origin/.test(sandbox), "la vista previa comparte origen con Cece: " + sandbox);
+  cierto(/Mi calculadora/.test(await pagina.getAttribute(".visor-app iframe", "srcdoc")), "la vista previa no lleva la app");
+  cierto(await pagina.evaluate(() => document.getElementById("messages").closest("[inert]") !== null), "lo de detrás no quedó inerte");
+  await pagina.keyboard.press("Escape");
+  cierto(await pagina.evaluate(() => !document.querySelector(".visor-app") && !document.querySelector("body > [inert]")), "la vista previa no se cerró bien");
+  // /modificar manda la orden de cambio a la IA
+  await escribirYEnviar(pagina, "/modificar ponla en azul");
+  await ultimaRespuesta(pagina);
+  const prompt2 = cuerpo.messages[cuerpo.messages.length - 1].content;
+  cierto(/Modifica la última aplicaci[oó]n/i.test(prompt2) && /ponla en azul/.test(prompt2), "no se expandió /modificar: " + prompt2.slice(0, 80));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

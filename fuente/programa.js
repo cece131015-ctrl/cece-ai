@@ -2683,7 +2683,7 @@ function mdInline(e) {
 function bloqueCodigo(e, t, o, a) {
   const n = String(e || "").toLowerCase(),
     r = (t || "").trim().split(/\s+/)[1] || "";
-  return `<div class="code-wrap" data-lang="${esc(n)}" data-n="${a}"${r ? ` data-nombre="${esc(r)}"` : ""}><div class="code-head"><span class="lang">${esc(n || "código")}</span><span class="carpeta"></span><span class="acciones"><button class="copy-btn" data-acc="guardar" title="Guardar como archivo">💾</button><button class="copy-btn" data-acc="copiar">Copiar</button></span></div><pre class="code-block"><code>${esc(o)}</code></pre></div>`;
+  return `<div class="code-wrap" data-lang="${esc(n)}" data-n="${a}"${r ? ` data-nombre="${esc(r)}"` : ""}><div class="code-head"><span class="lang">${esc(n || "código")}</span><span class="carpeta"></span><span class="acciones">${/^(html|htm|xhtml|svg)$/.test(n) ? '<button class="copy-btn" data-acc="ver" title="Ver la app en una ventana">👁️ Ver</button>' : ""}<button class="copy-btn" data-acc="guardar" title="Guardar como archivo">💾</button><button class="copy-btn" data-acc="copiar">Copiar</button></span></div><pre class="code-block"><code>${esc(o)}</code></pre></div>`;
 }
 function vallas(e) {
   const t = e.split("\n"),
@@ -4828,6 +4828,50 @@ function verImagen(e, t) {
     document.body.appendChild(o),
     o.focus());
 }
+function verApp(e, t) {
+  if (!e || !e.trim()) return;
+  const o = document.createElement("div");
+  (o.classList.add("visor-img", "visor-app"),
+    o.setAttribute("role", "dialog"),
+    o.setAttribute("aria-modal", "true"),
+    o.setAttribute("aria-label", "Vista previa de la app"),
+    (o.tabIndex = -1));
+  const f = document.createElement("iframe");
+  // aislado: puede ejecutar su JS, pero NO comparte origen con Cece, así que no ve tus claves, tu historial ni tu
+  // almacenamiento. El código se pone por srcdoc, no por red.
+  (f.setAttribute("sandbox", "allow-scripts allow-forms allow-modals allow-popups"),
+    f.setAttribute("title", "Vista previa"),
+    f.setAttribute("referrerpolicy", "no-referrer"),
+    (f.style.cssText =
+      "width:min(1100px,96vw);height:min(92vh,900px);border:0;border-radius:12px;background:#fff;box-shadow:0 20px 80px #0009"),
+    (f.srcdoc = /svg/.test(t || "")
+      ? `<!doctype html><meta charset="utf-8"><body style="margin:0;display:grid;place-items:center;min-height:100vh">${e}</body>`
+      : e));
+  const b = document.createElement("button");
+  ((b.type = "button"),
+    (b.className = "mini-btn"),
+    (b.textContent = "Cerrar ✕"),
+    (b.style.cssText = "position:absolute;top:12px;right:14px;z-index:1"));
+  (o.appendChild(f), o.appendChild(b));
+  const n = document.activeElement,
+    i = [...document.body.children].filter((e) => "toast" !== e.id && !e.inert && "SCRIPT" !== e.tagName),
+    cerrar = () => {
+      for (const e of i) e.inert = !1;
+      (o.remove(), n && n.focus && n.focus());
+    };
+  for (const e of i) e.inert = !0;
+  (b.addEventListener("click", cerrar),
+    o.addEventListener("click", (e) => {
+      e.target === o && cerrar();
+    }),
+    o.addEventListener("keydown", (e) => {
+      "Tab" === e.key
+        ? (e.preventDefault(), b.focus())
+        : "Escape" !== e.key || (e.preventDefault(), e.stopPropagation(), cerrar());
+    }),
+    document.body.appendChild(o),
+    b.focus());
+}
 function conectarAdjuntos() {
   const e = $("adjInput");
   ($("adjBtn").addEventListener("click", () => e.click()),
@@ -6002,6 +6046,26 @@ const Temporizadores = {
   cod = (e) => "`" + String(e).replace(/`/g, "ˋ") + "`",
   PLUGINS_INTEGRADOS = [
     {
+      id: "crear",
+      alias: ["crea", "app", "web", "aplicacion"],
+      emoji: "🪄",
+      arg: "qué app quieres",
+      nombre: "Crear una app",
+      desc: "Cece te programa una app o web completa, original y tuya, en un solo archivo",
+      plantilla:
+        "Crea una aplicación web COMPLETA y ORIGINAL en un solo archivo HTML (HTML, CSS y JavaScript dentro del mismo archivo; sin librerías externas salvo que sean imprescindibles, y en ese caso por CDN). Tiene que funcionar abriéndola con doble clic en el navegador. Esto es lo que debe hacer:\n\n{texto}\n\nDevuelve el archivo entero dentro de un único bloque de código ```html. Debajo, en una o dos frases, resume qué hace y qué puedo pedirte para cambiarla.",
+    },
+    {
+      id: "modificar",
+      alias: ["modifica", "cambiar", "editar", "edita"],
+      emoji: "🔧",
+      arg: "qué cambiar",
+      nombre: "Modificar la app",
+      desc: "Cambia la última app o código que ha creado Cece, como tú quieras",
+      plantilla:
+        "Modifica la última aplicación o el último código que has creado en esta conversación según esto:\n\n{texto}\n\nDevuelve el archivo COMPLETO otra vez, entero, dentro de un único bloque de código (no solo el trozo que cambia). Debajo, resume en una frase qué has cambiado.",
+    },
+    {
       id: "calc",
       alias: ["calculadora", "cuenta", "cuentas"],
       emoji: "🧮",
@@ -6525,7 +6589,7 @@ const Plugins = {
           nombre: e.nombre,
           desc: e.desc,
           grupo: "plugin",
-          plugin: { local: !0, integrado: !0, f: e.f },
+          plugin: e.plantilla ? { plantilla: e.plantilla, integrado: !0 } : { local: !0, integrado: !0, f: e.f },
         });
     for (const e of this.propios)
       this.activo("propio:" + e.id) &&
@@ -7785,9 +7849,11 @@ function conectarAjustes() {
       if (!t) return;
       const o = t.closest(".code-wrap"),
         a = o.querySelector("pre").textContent;
-      "copiar" === t.dataset.acc
-        ? copiar(a, t)
-        : Codigo.guardarBloque({ lang: o.dataset.lang, nombre: o.dataset.nombre || "", codigo: a }, o, !0);
+      "ver" === t.dataset.acc
+        ? verApp(a, o.dataset.lang)
+        : "copiar" === t.dataset.acc
+          ? copiar(a, t)
+          : Codigo.guardarBloque({ lang: o.dataset.lang, nombre: o.dataset.nombre || "", codigo: a }, o, !0);
     }),
     document.addEventListener("keydown", (e) => {
       (!e.ctrlKey ||
