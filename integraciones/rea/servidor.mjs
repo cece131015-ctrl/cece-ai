@@ -86,15 +86,21 @@ const server = http.createServer(async (req, res) => {
     if (input.targetPath.includes("\\") || path.isAbsolute(input.targetPath) || input.targetPath.split("/").includes("..")) {
       return json(res, 400, { error: "La ruta debe ser relativa y no puede salir del workspace." });
     }
-    const target = path.resolve(ROOT, input.targetPath);
-    if (target !== ROOT && !target.startsWith(ROOT + path.sep)) {
+    const rootReal = await fs.realpath(ROOT).catch(() => null);
+    if (!rootReal) return json(res, 503, { error: "El workspace configurado no existe en el servidor." });
+    const target = path.resolve(rootReal, input.targetPath);
+    if (target !== rootReal && !target.startsWith(rootReal + path.sep)) {
       return json(res, 400, { error: "Ruta fuera del workspace permitido." });
     }
-    const stat = await fs.stat(target).catch(() => null);
+    const targetReal = await fs.realpath(target).catch(() => null);
+    if (!targetReal || (targetReal !== rootReal && !targetReal.startsWith(rootReal + path.sep))) {
+      return json(res, 404, { error: "La carpeta no existe dentro del workspace autorizado o intenta salir de él mediante un enlace." });
+    }
+    const stat = await fs.stat(targetReal).catch(() => null);
     if (!stat || !stat.isDirectory()) {
       return json(res, 404, { error: "No existe una carpeta de aplicación con esa ruta en el workspace del servidor." });
     }
-    const result = await runRea(target);
+    const result = await runRea(targetReal);
     return json(res, 200, { ok: true, engine: "rea-agents", targetPath: input.targetPath, result });
   } catch (e) {
     return json(res, e.status || 500, { error: e.message || "Error ejecutando REA." });
