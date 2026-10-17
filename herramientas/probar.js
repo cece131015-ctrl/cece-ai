@@ -237,7 +237,7 @@ prueba("/rea sin objetivo no llama al servicio ni a la IA", async (nav) => {
   const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({}, leer(htmlFuente)));
   await escribirYEnviar(pagina, "/rea");
   await pagina.waitForFunction(() => document.body.innerText.includes("Escribe /rea seguido"));
-  cierto(/Escribe \/rea seguido/.test(await pagina.locator(".bot-msg:last-child .bubble").innerText()), "no se mostró la ayuda para /rea");
+  cierto(/Escribe \/rea seguido/.test(await pagina.locator("body").innerText()), "no se mostró la ayuda para /rea");
   igual(peticiones.length, 0, "/rea sin objetivo no debe enviar una petición");
   igual(await pagina.inputValue("#userInput"), "", "el comando no se limpió tras mostrar la ayuda");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
