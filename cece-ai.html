@@ -1250,5 +1250,18 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
   document.addEventListener("click", intercept, true);
 })();
 </script>
+<script id="cece-remove-rea-button">
+/* Oculta únicamente el botón visual de acceso a /rea; el comando /rea sigue funcionando. */
+(() => {
+  const removeReaButton = () => {
+    document.querySelectorAll("button, [role='button']").forEach((el) => {
+      const label = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+      if (/\/rea\s*[·•-]\s*Modo análisis/i.test(label)) el.remove();
+    });
+  };
+  removeReaButton();
+  new MutationObserver(removeReaButton).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
 </body>
 </html>
