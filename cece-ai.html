@@ -1216,14 +1216,7 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
     alert("Servidor REA guardado para esta pestaña. El token se borrará al cerrar la sesión del navegador.");
     return true;
   }
-  const settings = document.createElement("button");
-  settings.type = "button";
-  settings.textContent = "🧩 Configurar REA";
-  settings.title = "Configura la URL del servidor REA y su token";
-  settings.style.cssText = "position:fixed;right:14px;top:14px;z-index:2147483000;padding:9px 13px;border:1px solid #7764d8;border-radius:12px;background:#171526;color:#fff;font:600 13px system-ui;cursor:pointer;box-shadow:0 4px 18px #0005";
-  settings.addEventListener("click", config);
-  document.addEventListener("DOMContentLoaded", () => document.body.appendChild(settings));
-  if (document.readyState !== "loading") document.body.appendChild(settings);
+  // No se añade un botón flotante: /rea solicita la configuración cuando sea necesaria.
 
   function addMessage(role, text, meta) {
     const host = $("messages");
@@ -1277,6 +1270,7 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
         body: JSON.stringify(isClone ? { mode: "clone", url: cloneUrl, request: actionText } : { targetPath, question: parts.join(" — ") }),
+        signal: AbortSignal.timeout(180000),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.ok !== true) throw new Error(data.error || ("HTTP " + response.status));
