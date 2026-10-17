@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: ["main", "master", "integracion/rea-slash-command"]
   workflow_dispatch:
+concurrency:
+  group: cece-rea-functional
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
