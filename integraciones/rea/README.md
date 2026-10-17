@@ -16,6 +16,14 @@ El servidor valida la URL pública, obtiene el HTML de la página, sigue un máx
 
 **Esta primera versión crea una captura HTML, no un clon funcional completo.** Conserva referencias a CSS, JavaScript, imágenes y APIs remotas; no descarga todos los recursos ni replica APIs privadas, autenticación, bases de datos o lógica de servidor. Algunas webs modernas pueden verse incompletas. El nombre dentro de `<app:...>` es descriptivo: se usa la URL que aparece en esa etiqueta.
 
+## Versión de REA
+
+El puente está fijado a `rea-agents@6.5.0`, la última versión publicada en npm que se ha verificado para esta actualización. El repositorio `morluto/rea` puede recibir commits en `main` antes de que exista una nueva versión publicada; esos cambios de desarrollo no se incorporan automáticamente al paquete estable.
+
+- Paquete: https://www.npmjs.com/package/rea-agents
+- Código fuente: https://github.com/morluto/rea
+- Commit reciente de `main` revisado: https://github.com/morluto/rea/commit/264799b0ff501b2d2da36153fd3afbc063ab9ef4
+
 ## Despliegue
 
 Requisitos: Node.js 22+, npm, acceso a internet desde el servidor y un workspace persistente.
