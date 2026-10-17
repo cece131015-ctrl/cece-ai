@@ -3320,32 +3320,75 @@ async function enviarYa(e, t) {
   const r = a && !t.voz && Adjuntos.lista.length > 0;
   if (a && Adjuntos.ocupado) return (toast("📎 Espera a que terminen de leerse los archivos."), null);
   if (!n && !r) return null;
-  // REA se activa exclusivamente con /rea al principio del mensaje. Esta app HTML no puede
-  // iniciar procesos locales ni hablar con un servidor MCP por sí sola; nunca fingimos que la herramienta se ejecutó.
+  // REA solo se ejecuta si /rea aparece al principio. No fingimos análisis si el servicio falla.
   if (!t.voz && /^\/rea(?:\s|$)/i.test(n)) {
     const solicitud = n.replace(/^\/rea\s*/i, "").trim();
     if (!solicitud) {
-      if (a) {
-        o.value = "/rea ";
-        autoAlto();
-        o.focus();
-      }
-      toast("🧩 Escribe /rea seguido de la aplicación/ruta y lo que quieres investigar.", "mal", 6500);
+      toast("🧩 Escribe /rea seguido de una URL pública o una ruta relativa del workspace.", "mal", 6500);
       return null;
     }
-    const reaEndpoint = sessionStorage.getItem("cece_rea_endpoint") || "";
-    const reaToken = sessionStorage.getItem("cece_rea_token") || "";
-    if (reaEndpoint && reaToken) {
-      const partes = solicitud.split(/\s+[—–]\s+/);
-      const targetPath = partes.shift().trim();
+    let reaEndpoint = (localStorage.getItem("cece_rea_endpoint") || sessionStorage.getItem("cece_rea_endpoint") || "").trim().replace(/\/$/, "");
+    let reaToken = sessionStorage.getItem("cece_rea_token") || "";
+    if (!reaEndpoint || !reaToken) {
+      const endpointEscrito = prompt("URL HTTPS del servicio REA (HTTP solo para localhost):", reaEndpoint);
+      if (endpointEscrito === null) return null;
+      reaEndpoint = endpointEscrito.trim().replace(/\/$/, "");
+      let u;
+      try { u = new URL(reaEndpoint); } catch { toast("URL del servicio REA no válida.", "mal"); return null; }
+      if (!(u.protocol === "https:" || (u.protocol === "http:" && ["localhost", "127.0.0.1"].includes(u.hostname))) || u.username || u.password) {
+        toast("Usa HTTPS; HTTP solo se permite en localhost.", "mal");
+        return null;
+      }
+      const tokenEscrito = prompt("Token CECE_REA_TOKEN del servicio. No lo guardes en GitHub:");
+      if (tokenEscrito === null || !tokenEscrito.trim()) return null;
+      reaToken = tokenEscrito.trim();
+      localStorage.setItem("cece_rea_endpoint", reaEndpoint);
+      sessionStorage.setItem("cece_rea_token", reaToken);
+    }
+    const appTag = solicitud.match(/<app:([^:>]+):(https?:\/\/[^>]+)>/i);
+    let cloneUrl = appTag ? appTag[2].trim() : "";
+    if (!cloneUrl && /\bclon(?:a|ar)?\b/i.test(solicitud)) {
+      const m = solicitud.match(/https?:\/\/[^\s<>]+/i);
+      if (m) cloneUrl = m[0].replace(/[),.;]+$/, "");
+    }
+    const partes = solicitud.split(/\s+[—–]\s+/);
+    const targetPath = partes.shift().trim();
+    const esClon = Boolean(cloneUrl);
+    if (esClon) {
       try {
-        const respuestaREA = await fetch(reaEndpoint.replace(/\/$/, "") + "/api/rea", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: "Bearer " + reaToken },
-          body: JSON.stringify({ targetPath }),
-        });
-        const datosREA = await respuestaREA.json().catch(() => ({}));
-        if (!respuestaREA.ok || datosREA.ok !== true) throw new Error(datosREA.error || ("HTTP " + respuestaREA.status));
+        const u = new URL(cloneUrl);
+        if (!["http:", "https:"].includes(u.protocol) || u.username || u.password) throw new Error("URL no válida");
+        cloneUrl = u.href;
+      } catch {
+        toast("URL pública no válida. Usa /rea quiero un clon de <app:Nombre:https://sitio.com>.", "mal", 6500);
+        return null;
+      }
+    } else if (!targetPath || /^https?:\/\//i.test(targetPath) || targetPath.startsWith("/") || targetPath.includes("\\") || targetPath.split("/").includes("..")) {
+      toast("Indica una URL pública para clonar o una ruta relativa de carpeta del workspace para analizar.", "mal", 6500);
+      return null;
+    }
+    try {
+      const respuestaREA = await fetch(reaEndpoint + (esClon ? "/api/rea/clone" : "/api/rea"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + reaToken },
+        body: JSON.stringify(esClon
+          ? { mode: "clone", url: cloneUrl, request: solicitud }
+          : { targetPath, question: partes.join(" — ") }),
+        signal: AbortSignal.timeout(180000),
+      });
+      const datosREA = await respuestaREA.json().catch(() => ({}));
+      if (!respuestaREA.ok || datosREA.ok !== true) throw new Error(datosREA.error || ("HTTP " + respuestaREA.status));
+      if (datosREA.mode === "html-snapshot") {
+        n = [
+          "REA ha guardado una captura HTML estática; no es un clon funcional completo.",
+          "URL: " + datosREA.sourceUrl,
+          "Archivo de entrada: " + datosREA.entryFile,
+          "Carpeta del proyecto: " + datosREA.outputPath,
+          "Tamaño: " + datosREA.bytes + " bytes.",
+          datosREA.note || "",
+          "No afirmes que se han copiado recursos, backend, autenticación o bases de datos.",
+        ].filter(Boolean).join("\n\n");
+      } else {
         n = [
           "RESULTADO VERIFICADO DEL MOTOR REA (rea-agents).",
           "Objetivo/ruta: " + targetPath,
@@ -3353,19 +3396,13 @@ async function enviarYa(e, t) {
           "Evidencia devuelta por REA (JSON):",
           JSON.stringify(datosREA.result, null, 2),
           "Resume únicamente lo respaldado por este resultado. Distingue evidencia, inferencias y limitaciones.",
-        ].join("\\n\\n");
-      } catch (errorREA) {
-        n = "No se pudo ejecutar REA en el servidor configurado: " + String(errorREA && errorREA.message || errorREA) +
-          "\\n\\nComprueba la URL del servicio, el token y que la carpeta objetivo exista dentro del workspace remoto. No se ha realizado ningún análisis.";
+        ].join("\n\n");
       }
-    } else {
-      n = [
-        "MODO REA — tarea de ingeniería inversa solicitada por el usuario mediante /rea.",
-        "Objetivo del usuario: " + solicitud,
-        "Usa REA (morluto/rea) únicamente si tienes acceso real a sus herramientas MCP/CLI en este entorno. No inventes resultados, archivos inspeccionados, evidencias ni ejecuciones.",
-        "Si REA no está realmente conectado/disponible en esta sesión, dilo claramente y ofrece los pasos de conexión necesarios; no simules haber ejecutado REA. Si sí está disponible, analiza el objetivo, separa hechos de inferencias y cita la evidencia obtenida.",
-      ].join("\\n\\n");
-    }  }
+    } catch (errorREA) {
+      toast("No se pudo ejecutar REA: " + String(errorREA && errorREA.message || errorREA) + ". No se ha realizado ningún análisis.", "mal", 9000);
+      return null;
+    }
+  }
   let i = [],
     s = null;
   if (!t.voz) {
