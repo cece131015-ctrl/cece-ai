@@ -219,6 +219,7 @@ prueba("/rea clona una URL usando la sintaxis app", async (nav) => {
   }, null, { timeout: 10000 });
   const r = await pagina.locator(".bot-msg:last-child .bubble").innerText();
   cierto(/spotify\.com/.test(r) && /clones\/spotify-demo\/index\.html/.test(r), "no se mostró la ruta del clon: " + r);
+  cierto(!(await pagina.locator("button").allTextContents()).some((s) => /Configurar REA/.test(s)), "sigue apareciendo el botón flotante de REA");
   cierto(cuerpo && cuerpo.mode === "clone" && cuerpo.url === "https://spotify.com/", "payload de clonación incorrecto: " + JSON.stringify(cuerpo));
   cierto(peticiones[0] && peticiones[0].metodo === "POST", "no se hizo POST al servicio de clonación");
   igual(peticiones.length, 1, "número de peticiones inesperado");
