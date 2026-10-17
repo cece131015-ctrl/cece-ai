@@ -1202,25 +1202,7 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
   const command = /^\/rea(?:\s|$)/i;
   let busy = false;
 
-  function showButton() {
-    if (document.getElementById("cece-rea-help")) return;
-    const button = document.createElement("button");
-    button.id = "cece-rea-help";
-    button.type = "button";
-    button.textContent = "🧩 /rea · Modo análisis";
-    button.title = "Usa la IA actual de Cece AI para analizar o reconstruir un proyecto";
-    button.style.cssText = "position:fixed;right:14px;top:14px;z-index:2147483000;padding:9px 13px;border:1px solid #7764d8;border-radius:12px;background:#171526;color:#fff;font:600 13px system-ui;cursor:pointer;box-shadow:0 4px 18px #0005";
-    button.addEventListener("click", () => {
-      const el = input();
-      if (!el) return;
-      el.value = "/rea Analiza el código que pegue y propón una reconstrucción funcional.";
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.focus();
-    });
-    document.body.appendChild(button);
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", showButton);
-  else showButton();
+  // Se ha eliminado únicamente el botón flotante de REA; el comando /rea sigue disponible.
 
   function makePrompt(raw) {
     const goal = raw.replace(command, "").trim();
