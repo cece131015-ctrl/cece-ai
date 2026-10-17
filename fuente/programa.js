@@ -3386,7 +3386,8 @@ async function enviarYa(e, t) {
       if (!respuestaREA.ok || datosREA.ok !== true) throw new Error(datosREA.error || ("HTTP " + respuestaREA.status));
       if (datosREA.mode === "html-snapshot") {
         n = [
-          "REA ha guardado una captura HTML estática; no es un clon funcional completo.",
+          "El usuario quiere reconstruir una web a partir de esta captura. Crea una implementación ORIGINAL y funcional; entrega el HTML/CSS/JavaScript completo listo para probar, mantén las interacciones visibles y adapta el diseño según la evidencia.",
+          "La captura no contiene por sí sola backend, autenticación, bases de datos ni todos los recursos. Explica qué partes requieren servicios o datos reales; no afirmes que esos sistemas se han copiado.",
           "URL: " + datosREA.sourceUrl,
           "Archivo de entrada: " + datosREA.entryFile,
           "Carpeta del proyecto: " + datosREA.outputPath,
