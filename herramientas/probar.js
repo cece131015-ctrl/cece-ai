@@ -265,6 +265,26 @@ prueba("regresión: un mensaje normal no activa REA y se envía intacto", async 
   await ctx.close();
 });
 
+prueba("regresión: mencionar /rea dentro de un mensaje normal no activa REA", async (nav) => {
+  let cuerpo = null;
+  const htmlFuente = await htmlConFuenteActual();
+  const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
+    ia: { "api.deepseek.com": (r) => {
+      cuerpo = r.cuerpo;
+      return { cuerpo: respuestaOpenAI("Consulta normal recibida.") };
+    } },
+  });
+  const mensaje = "Quiero saber cómo integrar /rea en mi proyecto, pero esto es una pregunta normal.";
+  await escribirYEnviar(pagina, mensaje);
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Consulta normal recibida/.test(r.texto), "no respondió la IA a la consulta normal");
+  const prompt = cuerpo && cuerpo.messages[cuerpo.messages.length - 1].content;
+  igual(prompt, mensaje, "el mensaje que solo menciona /rea se modificó");
+  igual(peticiones.length, 1, "mencionar /rea no debe llamar al servicio REA");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("abre sin errores y sin claves", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
   cierto(await pagina.isVisible(".bot-msg"), "falta el saludo");
