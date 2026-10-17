@@ -1200,7 +1200,7 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
   const endpointKey = "cece_rea_endpoint";
   const tokenKey = "cece_rea_token";
   const endpointOK = (value) => {
-    try { const u = new URL(value); return (u.protocol === "https:" || u.hostname === "localhost" || u.hostname === "127.0.0.1") && !u.username && !u.password; }
+    try { const u = new URL(value); return (u.protocol === "https:" || (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1"))) && !u.username && !u.password; }
     catch { return false; }
   };
   function config() {
