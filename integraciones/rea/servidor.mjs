@@ -172,7 +172,12 @@ const server = http.createServer(async (req, res) => {
     return json(res, e.status || 500, { error: e.message || "Error ejecutando REA." });
   }
 });
-server.listen(PORT, "0.0.0.0", () => {
-  if (!TOKEN) console.error("ERROR: define CECE_REA_TOKEN antes de exponer el servicio.");
-  console.log("Cece REA escuchando en :" + PORT + " | workspace=" + ROOT);
+fs.mkdir(ROOT, { recursive: true }).then(() => {
+  server.listen(PORT, "0.0.0.0", () => {
+    if (!TOKEN) console.error("ERROR: define CECE_REA_TOKEN antes de exponer el servicio.");
+    console.log("Cece REA escuchando en :" + PORT + " | workspace=" + ROOT);
+  });
+}).catch((error) => {
+  console.error("No se pudo preparar el workspace REA:", error && error.message || error);
+  process.exitCode = 1;
 });
