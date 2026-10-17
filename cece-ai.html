@@ -1303,5 +1303,21 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
   document.addEventListener("click", intercept, true);
 })();
 </script>
+<script id="cece-remove-rea-button">
+/* Quita solo el acceso visual /rea situado junto a GitHub; conserva el comando /rea. */
+(() => {
+  const hideReaShortcut = () => {
+    document.querySelectorAll("button, [role='button'], a, [title], [aria-label]").forEach((el) => {
+      const text = [el.innerText, el.textContent, el.getAttribute("title"), el.getAttribute("aria-label")]
+        .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+      if (!/\/rea/i.test(text) || !/modo análisis/i.test(text)) return;
+      const target = el.closest("button, [role='button'], a") || el;
+      if (target.id !== "cece-github-open" && target.id !== "settingsBtn") target.remove();
+    });
+  };
+  hideReaShortcut();
+  new MutationObserver(hideReaShortcut).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
 </body>
 </html>
