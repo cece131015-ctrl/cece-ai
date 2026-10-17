@@ -8,7 +8,8 @@
     "lint": "eslint fuente/programa.js && ruff check fuente/cecehub-server.py",
     "probar": "node herramientas/probar.js",
     "probar:rea-servidor": "node herramientas/probar-rea-servidor.js",
-    "test": "npm run probar && npm run probar:rea-servidor"
+    "test": "npm run probar && npm run probar:rea-servidor",
+    "start": "node integraciones/rea/servidor.mjs"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
