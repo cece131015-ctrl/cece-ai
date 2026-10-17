@@ -20,7 +20,7 @@ El servidor valida la URL pública, obtiene el HTML de la página, sigue un máx
 
 Requisitos: Node.js 22+, npm, acceso a internet desde el servidor y un workspace persistente.
 
-1. Despliega `integraciones/rea/servidor.mjs` como servicio Node.
+1. Despliega el repositorio como servicio Node. El comando `npm start` inicia `integraciones/rea/servidor.mjs`; `railway.json` configura el arranque y la comprobación de salud para Railway.
 2. Configura `CECE_REA_TOKEN` (token privado obligatorio), `CECE_REA_WORKSPACE` (ruta absoluta), `PORT` (asignado por la plataforma), `CECE_REA_ORIGIN` (origen CORS restringido) y opcionalmente `CECE_REA_TIMEOUT_MS`.
 3. Comprueba `GET /health`; `auth: true` indica que el token está configurado.
 4. En Cece AI escribe `/rea` seguido del objetivo. Si falta la configuración, el chat solicita la URL HTTPS y el token; ya no hay un botón flotante de REA.
