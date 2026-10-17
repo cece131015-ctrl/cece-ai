@@ -169,60 +169,65 @@ const cierto = (v, msg) => {
   if (!v) throw new Error(msg || "falso");
 };
 
-prueba("comando /rea ejecuta el servicio remoto y muestra evidencia devuelta", async (nav) => {
-  let cuerpo = null;
+prueba("comando /rea ejecuta REA y entrega su evidencia a Cece", async (nav) => {
+  let cuerpoREA = null, cuerpoIA = null;
   const htmlFuente = await htmlConFuenteActual();
   const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
-    ia: { "rea.example": (r) => {
-      cuerpo = r.cuerpo;
-      return { tipo: "application/json", cuerpo: JSON.stringify({ ok: true, engine: "rea-agents", result: { modules: ["index.js"], evidence: ["index.js: import ./lib.js"] } }) };
-    } },
+    ia: {
+      "rea.example": (r) => {
+        cuerpoREA = r.cuerpo;
+        return { tipo: "application/json", cuerpo: JSON.stringify({ ok: true, engine: "rea-agents", result: { modules: ["index.js"], evidence: ["index.js: import ./lib.js"] } }) };
+      },
+      "api.deepseek.com": (r) => {
+        cuerpoIA = r.cuerpo;
+        return { cuerpo: respuestaOpenAI("Cece ha usado la evidencia de REA.") };
+      },
+    },
   });
   await pagina.evaluate(() => {
     localStorage.setItem("cece_rea_endpoint", "https://rea.example");
     sessionStorage.setItem("cece_rea_token", "token-prueba-no-real");
   });
   await escribirYEnviar(pagina, "/rea proyectos/demo — analiza los módulos");
-  await pagina.waitForFunction(() => {
-    const b = document.querySelector(".bot-msg:last-child .bubble");
-    return b && b.innerText.includes("REA terminó correctamente");
-  }, null, { timeout: 10000 });
-  const r = await pagina.locator(".bot-msg:last-child .bubble").innerText();
-  cierto(/REA terminó correctamente/.test(r), "no se mostró el resultado remoto: " + r);
-  cierto(/index\.js/.test(r) && /lib\.js/.test(r), "no se mostró la evidencia devuelta por el servidor");
-  cierto(cuerpo && cuerpo.targetPath === "proyectos/demo", "ruta incorrecta: " + JSON.stringify(cuerpo));
-  cierto(peticiones[0] && peticiones[0].metodo === "POST", "no se hizo POST al servicio REA");
-  igual(peticiones.length, 1, "número de peticiones inesperado");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Cece ha usado la evidencia de REA/.test(r.texto), "no respondió Cece después de REA: " + r.texto);
+  cierto(cuerpoREA && cuerpoREA.targetPath === "proyectos/demo", "ruta incorrecta: " + JSON.stringify(cuerpoREA));
+  const prompt = cuerpoIA && cuerpoIA.messages[cuerpoIA.messages.length - 1].content;
+  cierto(/RESULTADO VERIFICADO DEL MOTOR REA/.test(prompt || "") && /index\.js/.test(prompt || "") && /lib\.js/.test(prompt || ""), "Cece no recibió la evidencia real de REA");
+  igual(peticiones.length, 2, "se esperaba una petición a REA y otra a Cece");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
 
-prueba("/rea clona una URL usando la sintaxis app", async (nav) => {
-  let cuerpo = null;
+prueba("/rea clona una URL y entrega la captura a Cece", async (nav) => {
+  let cuerpoREA = null, cuerpoIA = null;
   const htmlFuente = await htmlConFuenteActual();
   const { pagina, peticiones, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }, leer(htmlFuente)), {
-    ia: { "rea.example": (r) => {
-      cuerpo = r.cuerpo;
-      return { tipo: "application/json", cuerpo: JSON.stringify({ ok: true, mode: "html-snapshot",
-        sourceUrl: "https://spotify.com/", outputPath: "clones/spotify-demo", entryFile: "clones/spotify-demo/index.html",
-        bytes: 1200, note: "Captura estática." }) };
-    } },
+    ia: {
+      "rea.example": (r) => {
+        cuerpoREA = r.cuerpo;
+        return { tipo: "application/json", cuerpo: JSON.stringify({ ok: true, mode: "html-snapshot",
+          sourceUrl: "https://spotify.com/", outputPath: "clones/spotify-demo", entryFile: "clones/spotify-demo/index.html",
+          bytes: 1200, htmlPreview: "<!doctype html><title>Spotify</title><h1>Spotify</h1>", note: "Captura estática." }) };
+      },
+      "api.deepseek.com": (r) => {
+        cuerpoIA = r.cuerpo;
+        return { cuerpo: respuestaOpenAI("Cece ha recibido la captura de la web.") };
+      },
+    },
   });
   await pagina.evaluate(() => {
     localStorage.setItem("cece_rea_endpoint", "https://rea.example");
     sessionStorage.setItem("cece_rea_token", "token-prueba-no-real");
   });
   await escribirYEnviar(pagina, "/rea quiero un clon de <app:Spotify:https://spotify.com>");
-  await pagina.waitForFunction(() => {
-    const b = document.querySelector(".bot-msg:last-child .bubble");
-    return b && b.innerText.includes("Captura HTML creada por REA");
-  }, null, { timeout: 10000 });
-  const r = await pagina.locator(".bot-msg:last-child .bubble").innerText();
-  cierto(/spotify\.com/.test(r) && /clones\/spotify-demo\/index\.html/.test(r), "no se mostró la ruta del clon: " + r);
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Cece ha recibido la captura de la web/.test(r.texto), "Cece no respondió con el resultado de captura: " + r.texto);
+  cierto(cuerpoREA && cuerpoREA.mode === "clone" && cuerpoREA.url === "https://spotify.com/", "payload de clonación incorrecto: " + JSON.stringify(cuerpoREA));
+  const prompt = cuerpoIA && cuerpoIA.messages[cuerpoIA.messages.length - 1].content;
+  cierto(/spotify\.com/.test(prompt || "") && /<h1>Spotify<\/h1>/.test(prompt || ""), "la captura HTML no llegó al modelo de Cece");
   cierto(!(await pagina.locator("button").allTextContents()).some((s) => /Configurar REA/.test(s)), "sigue apareciendo el botón flotante de REA");
-  cierto(cuerpo && cuerpo.mode === "clone" && cuerpo.url === "https://spotify.com/", "payload de clonación incorrecto: " + JSON.stringify(cuerpo));
-  cierto(peticiones[0] && peticiones[0].metodo === "POST", "no se hizo POST al servicio de clonación");
-  igual(peticiones.length, 1, "número de peticiones inesperado");
+  igual(peticiones.length, 2, "se esperaba una petición a REA y otra a Cece");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
