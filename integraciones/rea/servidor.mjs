@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 "use strict";
 
-// Servicio HTTP para Cece AI: puente autenticado hacia el analizador estático de REA.
+// Servicio HTTP para Cece AI: puente autenticado hacia REA rea-agents 6.5.0 (última versión publicada verificada el 17-10-2026).
 // Ejecutar en un servidor Node.js 22.19+, con npm y un workspace de análisis preparado.
 // No expone un shell ni acepta comandos arbitrarios.
 const http = require("node:http");
@@ -110,7 +110,7 @@ async function clonePublicWebsite(raw) {
 function runRea(target) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.platform === "win32" ? "npx.cmd" : "npx", [
-      "--yes", "rea-agents@latest", "analyze-javascript-application", target, "--json",
+      "--yes", "rea-agents@6.5.0", "analyze-javascript-application", target, "--json",
     ], { cwd: ROOT, shell: false, windowsHide: true, env: { ...process.env, CI: "1" } });
     let stdout = "", stderr = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), TIMEOUT_MS);
