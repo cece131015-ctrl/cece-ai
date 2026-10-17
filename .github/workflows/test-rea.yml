@@ -1,7 +1,7 @@
 name: Test Cece AI and REA
 on:
   push:
-    branches: ["fix/rea-functional-2026-10-17"]
+    branches: ["fix/**"]
   pull_request:
     branches: ["main", "master", "integracion/rea-slash-command"]
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/rea-functional-2026-10-17
+          ref: ${{ github.head_ref || github.ref_name }}
           persist-credentials: true
       - uses: actions/setup-node@v4
         with:
