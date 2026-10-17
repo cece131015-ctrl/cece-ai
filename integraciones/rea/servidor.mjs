@@ -104,7 +104,7 @@ async function clonePublicWebsite(raw) {
   return { ok: true, mode: "html-snapshot", sourceUrl: page.url,
     outputPath: path.relative(ROOT, dir).split(path.sep).join("/"),
     entryFile: path.relative(ROOT, path.join(dir, "index.html")).split(path.sep).join("/"),
-    bytes: page.bytes, note: "Captura HTML guardada. No es un clon funcional completo y puede depender de recursos remotos." };
+    bytes: page.bytes, htmlPreview: page.html.slice(0, 50000), note: "Captura HTML guardada. No es un clon funcional completo y puede depender de recursos remotos." };
 }
 
 function runRea(target) {
@@ -172,7 +172,12 @@ const server = http.createServer(async (req, res) => {
     return json(res, e.status || 500, { error: e.message || "Error ejecutando REA." });
   }
 });
-server.listen(PORT, "0.0.0.0", () => {
-  if (!TOKEN) console.error("ERROR: define CECE_REA_TOKEN antes de exponer el servicio.");
-  console.log("Cece REA escuchando en :" + PORT + " | workspace=" + ROOT);
+fs.mkdir(ROOT, { recursive: true }).then(() => {
+  server.listen(PORT, "0.0.0.0", () => {
+    if (!TOKEN) console.error("ERROR: define CECE_REA_TOKEN antes de exponer el servicio.");
+    console.log("Cece REA escuchando en :" + PORT + " | workspace=" + ROOT);
+  });
+}).catch((error) => {
+  console.error("No se pudo preparar el workspace REA:", error && error.message || error);
+  process.exitCode = 1;
 });

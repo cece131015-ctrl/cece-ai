@@ -6,12 +6,21 @@
     "desempaquetar": "node herramientas/desempaquetar.js",
     "empaquetar": "node herramientas/empaquetar.js",
     "lint": "eslint fuente/programa.js && ruff check fuente/cecehub-server.py",
-    "probar": "node herramientas/probar.js"
+    "probar": "node herramientas/probar.js",
+    "probar:rea-servidor": "node herramientas/probar-rea-servidor.js",
+    "test": "npm run probar:rea && npm run probar:rea-servidor",
+    "start": "node integraciones/rea/servidor.mjs",
+    "probar:rea": "node herramientas/probar.js \"\" \"(/rea|regresión: un mensaje normal|abre sin errores)\"",
+    "test:full": "node herramientas/probar.js"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
     "prettier": "^3.0.0",
-    "terser": "^5.0.0"
+    "terser": "^5.0.0",
+    "playwright": "^1.55.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
   }
 }

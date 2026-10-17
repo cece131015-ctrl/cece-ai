@@ -1,0 +1,38 @@
+name: Test Cece AI and REA
+on:
+  push:
+    branches: ["fix/rea-functional-2026-10-17"]
+  pull_request:
+    branches: ["main", "master", "integracion/rea-slash-command"]
+  workflow_dispatch:
+concurrency:
+  group: cece-rea-functional
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rea-functional-2026-10-17
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19"
+          cache: npm
+      - run: npm install
+      - run: npm run empaquetar
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: Commit generated HTML bundle and dependency lock
+        run: |
+          if ! git diff --quiet -- cece-ai.html package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add cece-ai.html package-lock.json
+            git commit -m "Build Cece AI HTML bundle and update lockfile"
+            git push
+          fi
