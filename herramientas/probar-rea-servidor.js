@@ -62,7 +62,8 @@ async function main() {
     assert.equal(analysis.status, 200, "falló la ejecución real de rea-agents: " + JSON.stringify(analysis.data));
     assert.equal(analysis.data.ok, true);
     assert.equal(analysis.data.engine, "rea-agents");
-    assert.match(JSON.stringify(analysis.data.result), /index\\.js|lib\\.js/);
+    const evidence = JSON.stringify(analysis.data.result);
+    assert.ok(evidence.includes("index.js") || evidence.includes("lib.js"), "REA no devolvió evidencia de los módulos de prueba");
     assert.equal((await request("/api/rea", "{no-json")).status, 400);
     const privateUrl = await request("/api/rea/clone", { url: "http://127.0.0.1/admin" });
     assert.equal(privateUrl.status, 400);
