@@ -1304,19 +1304,16 @@ var EMOJI_SETS = {"windows":{"img":"data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAA
 })();
 </script>
 <script id="cece-remove-rea-button">
-/* Quita solo el acceso visual /rea situado junto a GitHub; conserva el comando /rea. */
+/* Elimina únicamente el botón flotante «Configurar REA»; conserva el comando /rea. */
 (() => {
-  const hideReaShortcut = () => {
-    document.querySelectorAll("button, [role='button'], a, [title], [aria-label]").forEach((el) => {
-      const text = [el.innerText, el.textContent, el.getAttribute("title"), el.getAttribute("aria-label")]
-        .filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-      if (!/\/rea/i.test(text) || !/modo análisis/i.test(text)) return;
-      const target = el.closest("button, [role='button'], a") || el;
-      if (target.id !== "cece-github-open" && target.id !== "settingsBtn") target.remove();
+  const removeReaConfigButton = () => {
+    document.querySelectorAll("button").forEach((button) => {
+      const label = (button.innerText || button.textContent || "").replace(/\s+/g, " ").trim();
+      if (label === "🧩 Configurar REA" || label === "Configurar REA") button.remove();
     });
   };
-  hideReaShortcut();
-  new MutationObserver(hideReaShortcut).observe(document.documentElement, { childList: true, subtree: true });
+  removeReaConfigButton();
+  new MutationObserver(removeReaConfigButton).observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>
 </body>
