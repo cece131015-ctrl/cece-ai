@@ -27,8 +27,7 @@ jobs:
       - run: npm run empaquetar
       - run: npx playwright install --with-deps chromium
       - run: npm test
-      - name: Commit generated HTML and dependency lock on branch pushes
-        if: github.event_name == 'push'
+      - name: Commit generated HTML bundle and dependency lock
         run: |
           if ! git diff --quiet -- cece-ai.html package-lock.json; then
             git config user.name "github-actions[bot]"
