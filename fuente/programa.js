@@ -3326,7 +3326,11 @@ async function enviarYa(e, t) {
     reaMostrar = n;
     const solicitud = n.replace(/^\/rea\s*/i, "").trim();
     if (!solicitud) {
-      toast("🧩 Escribe /rea seguido de una URL pública o una ruta relativa del workspace.", "mal", 6500);
+      if (a) { o.value = ""; autoAlto(); }
+      const ayudaREA = crearMensaje("assistant");
+      ayudaREA.bubble.textContent = "🧩 Escribe /rea seguido de una URL pública para capturarla o de una ruta relativa del workspace para analizarla.";
+      ayudaREA.meta.textContent = horaCorta();
+      toast("🧩 Falta el objetivo de /rea.", "mal", 6500);
       return null;
     }
     let reaEndpoint = (localStorage.getItem("cece_rea_endpoint") || sessionStorage.getItem("cece_rea_endpoint") || "").trim().replace(/\/$/, "");
