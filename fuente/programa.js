@@ -3321,7 +3321,9 @@ async function enviarYa(e, t) {
   if (a && Adjuntos.ocupado) return (toast("📎 Espera a que terminen de leerse los archivos."), null);
   if (!n && !r) return null;
   // REA solo se ejecuta si /rea aparece al principio. No fingimos análisis si el servicio falla.
+  let reaMostrar = null;
   if (!t.voz && /^\/rea(?:\s|$)/i.test(n)) {
+    reaMostrar = n;
     const solicitud = n.replace(/^\/rea\s*/i, "").trim();
     if (!solicitud) {
       toast("🧩 Escribe /rea seguido de una URL pública o una ruta relativa del workspace.", "mal", 6500);
@@ -3385,6 +3387,7 @@ async function enviarYa(e, t) {
           "Archivo de entrada: " + datosREA.entryFile,
           "Carpeta del proyecto: " + datosREA.outputPath,
           "Tamaño: " + datosREA.bytes + " bytes.",
+          "HTML capturado (máximo 50 KB): " + String(datosREA.htmlPreview || "").slice(0, 40000),
           datosREA.note || "",
           "No afirmes que se han copiado recursos, backend, autenticación o bases de datos.",
         ].filter(Boolean).join("\n\n");
@@ -3418,7 +3421,8 @@ async function enviarYa(e, t) {
   }
   if (s && s.plugin.local) return (a && ((o.value = ""), autoAlto()), await ejecutarPluginLocal(s, n), null);
   const c = { role: "user", content: n };
-  (i.length && (c.cmds = i),
+  (reaMostrar && (c.mostrar = reaMostrar),
+    i.length && (c.cmds = i),
     s && s.plugin.plantilla && ((c.mostrar = n), (c.content = expandirPlantilla(s.plugin.plantilla, n))),
     r && ((c.adjuntos = Adjuntos.sacar()), Adjuntos.guardar(c.adjuntos)),
     a && ((o.value = ""), autoAlto()));
