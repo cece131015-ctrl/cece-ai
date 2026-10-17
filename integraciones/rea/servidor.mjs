@@ -104,7 +104,7 @@ async function clonePublicWebsite(raw) {
   return { ok: true, mode: "html-snapshot", sourceUrl: page.url,
     outputPath: path.relative(ROOT, dir).split(path.sep).join("/"),
     entryFile: path.relative(ROOT, path.join(dir, "index.html")).split(path.sep).join("/"),
-    bytes: page.bytes, note: "Captura HTML guardada. No es un clon funcional completo y puede depender de recursos remotos." };
+    bytes: page.bytes, htmlPreview: page.html.slice(0, 50000), note: "Captura HTML guardada. No es un clon funcional completo y puede depender de recursos remotos." };
 }
 
 function runRea(target) {
