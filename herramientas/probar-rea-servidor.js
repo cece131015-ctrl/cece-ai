@@ -15,7 +15,11 @@ async function puertoLibre() {
 }
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cece-rea-test-"));
-  fs.mkdirSync(path.join(root, "proyectos", "demo"), { recursive: true });
+  const demo = path.join(root, "proyectos", "demo");
+  fs.mkdirSync(demo, { recursive: true });
+  fs.writeFileSync(path.join(demo, "package.json"), JSON.stringify({ name: "rea-test-fixture", type: "module" }));
+  fs.writeFileSync(path.join(demo, "index.js"), 'import { suma } from "./lib.js";\\nconsole.log(suma(2, 3));\\n');
+  fs.writeFileSync(path.join(demo, "lib.js"), "export const suma = (a, b) => a + b;\\n");
   const port = await puertoLibre();
   const token = "test-token-only";
   const child = spawn(process.execPath, [path.join(__dirname, "..", "integraciones", "rea", "servidor.mjs")], {
@@ -26,12 +30,12 @@ async function main() {
   child.stdout.on("data", (b) => { logs += b.toString(); });
   child.stderr.on("data", (b) => { logs += b.toString(); });
   const base = "http://127.0.0.1:" + port;
-  async function request(pathname, body, auth = token) {
+  async function request(pathname, body, auth = token, timeoutMs = 3000) {
     const headers = { "content-type": "application/json" };
     if (auth) headers.authorization = "Bearer " + auth;
     const r = await fetch(base + pathname, { method: body === undefined ? "GET" : "POST", headers,
       ...(body === undefined ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }),
-      signal: AbortSignal.timeout(3000) });
+      signal: AbortSignal.timeout(timeoutMs) });
     return { status: r.status, data: await r.json().catch(() => ({})) };
   }
   try {
@@ -54,10 +58,15 @@ async function main() {
     assert.match(missing.data.error, /targetPath/);
     assert.equal((await request("/api/rea", { targetPath: "../fuera" })).status, 400);
     assert.equal((await request("/api/rea", { targetPath: "no-existe" })).status, 404);
+    const analysis = await request("/api/rea", { targetPath: "proyectos/demo" }, token, 180000);
+    assert.equal(analysis.status, 200, "falló la ejecución real de rea-agents: " + JSON.stringify(analysis.data));
+    assert.equal(analysis.data.ok, true);
+    assert.equal(analysis.data.engine, "rea-agents");
+    assert.match(JSON.stringify(analysis.data.result), /index\\.js|lib\\.js/);
     assert.equal((await request("/api/rea", "{no-json")).status, 400);
     const privateUrl = await request("/api/rea/clone", { url: "http://127.0.0.1/admin" });
     assert.equal(privateUrl.status, 400);
-    console.log("✅ pruebas HTTP REA: health, token, cuerpo, rutas y protección SSRF");
+    console.log("✅ pruebas HTTP REA: auth, validación, SSRF y análisis real con rea-agents");
   } finally {
     child.kill("SIGTERM");
     await new Promise((resolve) => {
