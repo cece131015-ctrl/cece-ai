@@ -854,6 +854,58 @@ prueba("Cece Pro por relevo: pasa los archivos y ordena según la petición", as
   await ctx.close();
 });
 
+prueba("reparto de Cece Pro: la versión antigua de 4 partes migra a 5 parejas (Sol no se queda corto)", async (nav) => {
+  // Antes, unos ajustes de la versión de 4 partes (repA..D=25, sin repE) normalizaban a 21/21/21/21/16: Sol salía
+  // perjudicado. Ahora se detecta ese reparto por defecto antiguo y se reparte parejo entre los cinco.
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", repA: 25, repB: 25, repC: 25, repD: 25 } },
+  });
+  const rep = await pagina.evaluate(() =>
+    ["repA", "repB", "repC", "repD", "repE"].map((e) => +document.getElementById(e).value),
+  );
+  igual(rep.join(","), "20,20,20,20,20", "el reparto de 4 partes no migró parejo a cinco");
+  await ctx.close();
+});
+
+prueba("el relevo detecta que la petición es de código por un archivo adjunto (no solo por el texto)", async (nav) => {
+  // Un .js adjunto va incrustado en el texto como <archivo nombre="orden.js">…; antes la detección miraba .adjuntos
+  // (que a esa altura solo tiene imágenes/PDF) y nunca se activaba. El mensaje no lleva palabras de código a propósito.
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.anthropic.com": () => ({ cuerpo: respuestaClaude("Le he echado un ojo.") }),
+      "api.moonshot.ai/v1/chat/completions": () => ({ cuerpo: respuestaOpenAI("Revisado.") }),
+    },
+  });
+  await pagina.setInputFiles("#adjInput", [
+    { name: "orden.js", mimeType: "text/plain", buffer: Buffer.from("const ordena = (a) => a.slice().sort();") },
+  ]);
+  await pagina.waitForFunction(() => document.querySelectorAll("#adjBandeja .adj-item:not(.adj-cargando)").length === 1);
+  await escribirYEnviar(pagina, "revísame esto, por favor");
+  const r = await ultimaRespuesta(pagina, 30000);
+  cierto(/Motor Enterprise → Motor Max/.test(r.pie), "con un .js adjunto debería terminar Max (código): " + r.pie);
+  await ctx.close();
+});
+
+prueba("la vista «Ver» de una app se cierra con Escape aunque el foco esté fuera del overlay", async (nav) => {
+  // El iframe aislado es de otro origen: un Escape con el foco dentro no llega al padre (quedan el botón y el fondo).
+  // Pero con el foco en el body sí: antes el listener solo estaba en el overlay y no se enteraba; ahora hay uno en
+  // el documento (captura).
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({}));
+  await pagina.evaluate(() => verApp("<!doctype html><title>x</title><body>hola</body>", "html"));
+  await pagina.waitForSelector(".visor-app iframe[sandbox]", { timeout: 5000 });
+  await pagina.evaluate(() => {
+    document.body.focus();
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  });
+  await pagina.waitForFunction(() => !document.querySelector(".visor-app"), null, { timeout: 3000 });
+  cierto(
+    await pagina.evaluate(() => !document.querySelector(".visor-app") && !document.querySelector("body > [inert]")),
+    "la vista no se cerró con Escape desde el body",
+  );
+  await ctx.close();
+});
+
 prueba("crear una imagen (Cece Imagen) y que no se cuele un enlace raro", async (nav) => {
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
   let malo = false;
@@ -1431,6 +1483,33 @@ prueba("Cece Pro: al parar durante la fusión se cuenta lo que ya costaron los b
   cierto(/detenido/.test(r.pie), "pie: " + r.pie);
   const s = await pagina.evaluate(() => ({ tokens: sesion.tokens, coste: sesion.coste }));
   cierto(s.tokens > 50 && s.coste > 0, "no se ha contado lo de los borradores: " + JSON.stringify(s));
+  await ctx.close();
+});
+
+prueba("Cece Pro: al parar la fusión no se cuenta dos veces el borrador de reserva", async (nav) => {
+  // La fusión se para antes de emitir nada: se cobran los dos borradores que SÍ terminaron, pero la fusión (que no
+  // soltó texto) no se factura como si hubiera devuelto un borrador entero. Antes el texto de reserva se contaba como
+  // salida de la fusión y el gasto salía ~10 veces mayor.
+  const llamadas = {};
+  const ia = (prov, f) => async (r) => {
+    if (!r.url.includes("/chat/") && !r.url.includes("/messages")) return null;
+    if ((llamadas[prov] = (llamadas[prov] || 0) + 1) === 2) await new Promise((ok) => setTimeout(ok, 8000));
+    return { cuerpo: f(`Borrador de ${prov}. ` + "bla ".repeat(200)) };
+  };
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: false, fusion: true } },
+    ia: { "api.anthropic.com": ia("anthropic", respuestaClaude), "api.moonshot.ai": ia("moonshot", respuestaOpenAI) },
+  });
+  await escribirYEnviar(pagina, "hola");
+  await pagina.waitForFunction(() => /Fusionando/.test(document.querySelector(".bot-msg:last-of-type .bubble").innerText), null, {
+    timeout: 20000,
+  });
+  await pagina.click("#sendBtn");
+  const r = await ultimaRespuesta(pagina, 10000);
+  cierto(/detenido/.test(r.pie), "pie: " + r.pie);
+  const s = await pagina.evaluate(() => ({ tokens: sesion.tokens, coste: sesion.coste }));
+  cierto(s.tokens > 50, "no contó los borradores terminados: " + JSON.stringify(s));
+  cierto(s.tokens < 300, "contó de más: el borrador de reserva se facturó como salida de la fusión: " + JSON.stringify(s));
   await ctx.close();
 });
 

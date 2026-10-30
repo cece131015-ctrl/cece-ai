@@ -1,5 +1,25 @@
 # Informe de depuración
 
+## 30 de octubre de 2026 — motor de Cece Max y cuatro arreglos
+
+- **Cece Max pasa a usar el modelo `kimi-k3.1-pro`** (antes `kimi-k3`): se renombra en la lista de modelos de Moonshot,
+  en el nombre que se muestra, en los niveles (Pro, Argon, Turbo…) y en la tabla de precios. El precio se deja igual
+  (3 $/15 $ por millón) hasta confirmar la tarifa real; cámbialo en `PRECIOS_MODELO` si tu cuenta cobra otra cosa.
+- **Reparto de Cece Pro — migración de 4 a 5 partes:** quien venía de la versión de 4 modelos (reparto por defecto
+  25/25/25/25) se quedaba con Sol al ~16 % al normalizar. Ahora ese reparto por defecto antiguo se detecta y se
+  reparte parejo entre los cinco (20/20/20/20/20). Los repartos personalizados no se tocan.
+- **Orden del relevo según la petición — archivos de código:** si adjuntabas un archivo de código sin escribir
+  palabras como «código» o «programa», el relevo no detectaba que era una tarea de programación (miraba una lista de
+  adjuntos que a esa altura solo tiene imágenes y PDF). Ahora lo detecta por el archivo incrustado en el texto, así que
+  los modelos con perfil de código terminan el relevo cuando toca.
+- **Parar la fusión de Cece Pro:** si parabas justo cuando estaba fundiendo y aún no había soltado texto, el gasto se
+  contaba casi diez veces mayor de lo real (se facturaba el borrador de reserva como si fuera la salida de la fusión).
+  Ahora solo se cobra lo que de verdad salió.
+- **Vista «Ver» de apps:** la ventana de vista previa no se cerraba con Escape si el foco estaba fuera del recuadro
+  (por ejemplo en el fondo de la página). Ahora Escape la cierra desde cualquier parte de Cece. (Si el foco está dentro
+  de la propia app —un iframe aislado de otro origen— el navegador no deja oír la tecla al exterior: ahí quedan el
+  botón «Cerrar ✕» y el clic en el fondo.)
+
 ## 16 de octubre de 2026 — Cece Sol dentro de Cece Pro y relevo que se adapta
 
 - **Cece Sol entra en Cece Pro**: ahora Cece Pro trabaja con **cinco** modelos (Enterprise Plus, Argon, Astra, Max y el

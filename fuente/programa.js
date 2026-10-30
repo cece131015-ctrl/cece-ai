@@ -526,11 +526,16 @@ function leerAjustes(e) {
     2 !== e.versionTema && "oscuro" === e.tema && (t.tema = "neon"),
     // la migración del tema ya está hecha: si no se apunta, el «Oscuro» que elija después se pierde al recargar
     (t.versionTema = DEF.versionTema),
-    Object.hasOwn(e, "repD") ||
-      Object.hasOwn(e, "repE") ||
-      34 !== e.repA ||
-      33 !== e.repB ||
-      33 !== e.repC ||
+    // Reparto por defecto de versiones anteriores (3 y 4 partes): se migra al reparto nuevo en vez de dejarlo
+    // descuadrado. Un usuario de 4 partes (repA..D=25, sin repE) tenía a Sol al ~16% al normalizar
+    // [25,25,25,25,20]; ahora se reparte parejo entre los cinco. Los pesos personalizados no se tocan.
+    ((!Object.hasOwn(e, "repD") && !Object.hasOwn(e, "repE") && 34 === e.repA && 33 === e.repB && 33 === e.repC) ||
+      (Object.hasOwn(e, "repD") &&
+        !Object.hasOwn(e, "repE") &&
+        25 === e.repA &&
+        25 === e.repB &&
+        25 === e.repC &&
+        25 === e.repD)) &&
       REPARTO.forEach((e) => {
         t["rep" + e] = DEF["rep" + e];
       }));
@@ -3696,18 +3701,23 @@ function perfilPeticion(mensajes) {
       texto = "string" == typeof mensajes[i].content ? mensajes[i].content : "";
       break;
     }
+  // Los archivos de código no llegan en .adjuntos (historialApi solo deja ahí imágenes y PDF): se incrustan en el
+  // texto como <archivo nombre="algo.js">…</archivo>. Por eso se detectan por ese marcador o por el nombre dentro del
+  // contenido, además de por palabras clave en el último mensaje.
+  const RE_EXT_CODIGO =
+    /\.(js|mjs|cjs|ts|tsx|jsx|py|java|c|cc|cpp|h|cs|go|rb|php|rs|swift|kt|html?|css|scss|json|ya?ml|sh|sql)\b/i;
   const codigo =
     /```|\b(c[oó]digo|program\w*|funci[oó]n|script|bug|refactor\w*|compil\w*|depura\w*|algoritmo|javascript|typescript|html|css|python|golang|rust)\b/i.test(
       texto,
     ) ||
-    (mensajes || []).some((m) =>
-      (m.adjuntos || []).some(
-        (a) =>
-          a &&
-          /\.(js|mjs|cjs|ts|tsx|jsx|py|java|c|cc|cpp|h|cs|go|rb|php|rs|swift|kt|html?|css|scss|json|ya?ml|sh|sql)$/i.test(
-            a.nombre || "",
-          ),
-      ),
+    (mensajes || []).some(
+      (m) =>
+        m &&
+        "user" === m.role &&
+        "string" == typeof m.content &&
+        (/<archivo nombre="[^"]+"/i.test(m.content)
+          ? (m.content.match(/<archivo nombre="([^"]+)"/gi) || []).some((e) => RE_EXT_CODIGO.test(e))
+          : !1),
     );
   return { vista: n.vista, pdf: n.pdf, codigo: codigo };
 }
@@ -3906,15 +3916,19 @@ async function ejecutarPro(e, t = {}) {
       })),
         (m = h.texto));
     } catch (e) {
-      if (esAbort(e))
+      if (esAbort(e)) {
+        // Lo que de verdad emitió la fusión (puede ser nada). El texto de reserva d[0] es solo para mostrar: no se
+        // factura como salida de la fusión, porque ya se cobró como borrador (antes se contaba dos veces).
+        const parcial = separarThink(n.texto).texto.trim();
+        parcial || (n.texto = d[0].texto);
         return (
-          separarThink(n.texto).texto.trim() || (n.texto = d[0].texto),
           cobrarParado([
             ...d.map((e) => e.r),
-            ...enCursoPro([{ id: a, texto: n.texto }], [...r.slice(0, -1), { role: "user", content: c }]),
+            ...enCursoPro([{ id: a, texto: parcial }], [...r.slice(0, -1), { role: "user", content: c }]),
           ]),
           finalizarConError(n, e, u, { conv: t.conv })
         );
+      }
       (u.push("fusión: " + (e.corto || "error")), (n.texto = ""));
     }
   }
@@ -4917,9 +4931,15 @@ function verApp(e, t) {
   (o.appendChild(f), o.appendChild(b));
   const n = document.activeElement,
     i = [...document.body.children].filter((e) => "toast" !== e.id && !e.inert && "SCRIPT" !== e.tagName),
+    // Escape a nivel de documento (captura): si el foco está fuera del overlay —p. ej. en el body— el listener del
+    // overlay no lo oiría. Si el foco entra DENTRO del iframe aislado (otro origen) ningún listener del padre recibe
+    // la tecla; para ese caso quedan el botón «Cerrar ✕» y el clic en el fondo.
+    onEscDoc = (e) => {
+      "Escape" === e.key && (e.preventDefault(), e.stopPropagation(), cerrar());
+    },
     cerrar = () => {
       for (const e of i) e.inert = !1;
-      (o.remove(), n && n.focus && n.focus());
+      (document.removeEventListener("keydown", onEscDoc, !0), o.remove(), n && n.focus && n.focus());
     };
   for (const e of i) e.inert = !0;
   (b.addEventListener("click", cerrar),
@@ -4927,10 +4947,9 @@ function verApp(e, t) {
       e.target === o && cerrar();
     }),
     o.addEventListener("keydown", (e) => {
-      "Tab" === e.key
-        ? (e.preventDefault(), b.focus())
-        : "Escape" !== e.key || (e.preventDefault(), e.stopPropagation(), cerrar());
+      "Tab" === e.key && (e.preventDefault(), b.focus());
     }),
+    document.addEventListener("keydown", onEscDoc, !0),
     document.body.appendChild(o),
     b.focus());
 }
