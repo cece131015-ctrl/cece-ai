@@ -906,6 +906,33 @@ prueba("la vista «Ver» de una app se cierra con Escape aunque el foco esté fu
   await ctx.close();
 });
 
+prueba("modo de esfuerzo: bajo/medio/alto/extra/max junto a UltraCode, se elige y se recuerda", async (nav) => {
+  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
+  await pagina.click("#settingsBtn");
+  const niveles = await pagina.$$eval("#esfuerzoRow .esf-btn", (bs) => bs.map((b) => b.dataset.esf));
+  igual(niveles.join(","), "bajo,medio,alto,extra,max,ultracode", "faltan niveles de esfuerzo: " + niveles.join(","));
+  await pagina.click('#esfuerzoRow .esf-btn[data-esf="extra"]');
+  cierto(
+    await pagina.evaluate(() => document.querySelector('.esf-btn[data-esf="extra"]').classList.contains("on")),
+    "«Extra» no quedó marcado",
+  );
+  await pagina.click('#esfuerzoRow .esf-btn[data-esf="ultracode"]');
+  igual(
+    await pagina.evaluate(() => JSON.parse(localStorage.getItem("cece_ajustes") || "{}").esf),
+    "ultracode",
+    "no se guardó el esfuerzo UltraCode",
+  );
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.evaluate(() => document.getElementById("cece-startup")?.remove());
+  await pagina.click("#settingsBtn");
+  cierto(
+    await pagina.evaluate(() => document.querySelector('.esf-btn[data-esf="ultracode"]').classList.contains("on")),
+    "no recordó UltraCode tras recargar",
+  );
+  await ctx.close();
+});
+
 prueba("crear una imagen (Cece Imagen) y que no se cuele un enlace raro", async (nav) => {
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
   let malo = false;
