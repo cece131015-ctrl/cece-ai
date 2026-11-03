@@ -5338,6 +5338,10 @@ function abrirPanelGitHub() {
   // usable el chat de debajo)
   e ? setTimeout(() => e.click()) : toast("🐙 Este archivo no trae el panel de GitHub.", "mal");
 }
+// Puente de solo lectura para el panel de GitHub (que va aparte, fuera del programa): los archivos de código que Cece ha
+// escrito en el chat, en su última versión, con la ruta con la que los guarda (carpeta-del-lenguaje/nombre). Es una
+// copia: el panel no puede cambiar nada del programa por aquí.
+window.ceceArchivosChat = () => Codigo.archivos.map((e) => ({ ruta: e.ruta, contenido: e.contenido }));
 // Acciones que solo abren una ventana: no tocan la conversación, así que no hace falta cortar la respuesta en curso.
 const soloVentana = (e) => "github" === e.accion || "ajustes" === e.accion;
 function aplicarComandos(e, t) {

@@ -1812,6 +1812,33 @@ prueba("«Descargar todo el código» lleva la última versión de cada archivo"
   await ctx.close();
 });
 
+prueba("GitHub: «Subir el código del chat» sube todos los archivos de Cece al repositorio (con confirmación)", async (nav) => {
+  // Cece escribe dos archivos en el chat; uno ya existía en el repo (se actualiza con su SHA, sin conflicto). Se suben
+  // sin la carpeta por lenguaje (index.html y app.js en la raíz), tras una confirmación que lista los archivos.
+  const g = githubSimulado();
+  g.poner("cece/repo0", "app.js", "console.log('viejo');\n");
+  const resp =
+    "Aquí está:\n\n```html index.html\n<!doctype html>\n<html>\n<body>Hola</body>\n</html>\n```\n\n" +
+    "```js app.js\nconsole.log('nuevo');\nconst a = 1;\nconst b = 2;\nconst c = 3;\n```";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI(resp) }), "api.github.com": g.manejar },
+  });
+  await escribirYEnviar(pagina, "hazme una web con su script");
+  await ultimaRespuesta(pagina);
+  igual(await pagina.evaluate(() => window.ceceArchivosChat().length), 2, "el chat no tiene los dos archivos");
+  const dialogos = await abrirGitHub(pagina);
+  await pagina.click("#cece-gh-push-chat");
+  await esperarGitHub(pagina, /Subidos|No se pudo/);
+  const aviso = dialogos.find((d) => /CONFIRMAR SUBIDA/.test(d)) || "";
+  cierto(/index\.html/.test(aviso) && /app\.js/.test(aviso) && /cece\/repo0/.test(aviso), "la confirmación no lista lo que sube: " + aviso);
+  cierto(/<body>Hola<\/body>/.test(g.leer("cece/repo0", "index.html") || ""), "no subió index.html a la raíz");
+  cierto(/nuevo/.test(g.leer("cece/repo0", "app.js") || ""), "no actualizó app.js (que ya existía)");
+  cierto(!g.puts.some((p) => /^(html|javascript)\//.test(p.ruta)), "subió con la carpeta por lenguaje: " + g.puts.map((p) => p.ruta).join(", "));
+  cierto(/Subidos 2 archivo/.test(await pagina.textContent("#cece-github-status")), await pagina.textContent("#cece-github-status"));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("voz y CeceHub: frases de verdad no se tiran, código de Live al chat, rótulos y enlaces http", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
   const r = await pagina.evaluate(() => {

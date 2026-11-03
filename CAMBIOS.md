@@ -1,5 +1,21 @@
 # Informe de depuración
 
+## 3 de noviembre de 2026 — subir a GitHub el código que escribe Cece
+
+- El panel **🐙 GitHub** (`/github`) ya permitía conectar tu cuenta, ver repositorios y archivos, editar y guardar un
+  archivo y **crear repositorios privados**, siempre con confirmación. Ahora además tiene **«⬆️ Subir el código del
+  chat»**: sube de una vez al repositorio y rama elegidos **todos los archivos de código que Cece ha escrito en la
+  conversación** (la última versión de cada uno).
+- Antes de subir, enseña la lista de archivos, el repositorio, la rama y el mensaje, y pide confirmación. Los archivos
+  que ya existan se actualizan (se sobrescriben) y los nuevos se crean. Si alguno falla, dice cuáles.
+- Las rutas se suben **sin la carpeta por lenguaje** que Cece usa al descargar (`html/`, `javascript/`…), para que un
+  proyecto web quede bien montado (`index.html` junto a `style.css` y `app.js`). Si dos archivos se llamaran igual, se
+  conserva la ruta completa.
+- Flujo: pídele a Cece que programe algo (o usa `/crear`) → `/github` → conecta con tu token → crea o elige un
+  repositorio → «Subir el código del chat». Cada archivo va en su propio commit.
+- El token sigue viviendo **solo en la memoria de la pestaña** (no se guarda en el archivo ni en el navegador). Para
+  crear repositorios, el token necesita permiso de administración además de contenidos.
+
 ## 3 de noviembre de 2026 — Cece Pro pasa a ser un pipeline de papeles
 
 - **Cece Pro por relevo** deja de ser un pase simple entre modelos y pasa a un **pipeline de papeles fijos**: un
