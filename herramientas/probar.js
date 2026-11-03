@@ -758,38 +758,32 @@ prueba("Motor Enterprise: sigue tras «pause_turn» (pausa en mitad de una búsq
   await ctx.close();
 });
 
-prueba("Cece Pro por relevo: cada paso recibe los archivos del anterior", async (nav) => {
-  const vistos = [];
-  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", astra: "sk-b", max: "sk-c" }), {
+prueba("Cece Pro (pipeline): los archivos del equipo pasan entre pasos y llegan al final", async (nav) => {
+  // Anthropic crea un archivo con un token único en sus pasos de construcción; Moonshot nunca lo reescribe. El archivo
+  // tiene que llegar a algún paso posterior (incrustado en el contexto) y a la respuesta final.
+  const TOKEN = "TOKEN_PIPE_8842";
+  const entradas = [];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
     almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
     ia: {
       "api.anthropic.com": ({ cuerpo }) => (
-        vistos.push(JSON.stringify(cuerpo.messages)),
-        { cuerpo: respuestaClaude("```js\n// archivo: app.js\nconsole.log('v1');\n```") }
-      ),
-      "api.openai.com/v1/responses": ({ cuerpo }) => (
-        vistos.push(JSON.stringify(cuerpo.input)),
-        {
-          cuerpo: sse([
-            { type: "response.output_text.delta", delta: "Revisado: todo bien." },
-            { type: "response.completed", response: { output: [] } },
-          ]),
-        }
+        entradas.push(JSON.stringify(cuerpo.messages)),
+        { cuerpo: respuestaClaude("```js\n// archivo: util.js\nconst " + TOKEN + " = 1;\n```") }
       ),
       "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => (
-        vistos.push(JSON.stringify(cuerpo.messages)),
-        { cuerpo: respuestaOpenAI("Final del relevo.") }
+        entradas.push(JSON.stringify(cuerpo.messages)),
+        { cuerpo: respuestaOpenAI("Lo he revisado, sin tocar los archivos.") }
       ),
     },
   });
-  await escribirYEnviar(pagina, "haz un app.js");
-  const r = await ultimaRespuesta(pagina, 30000);
-  cierto(/relevo/.test(r.pie), r.pie);
+  await escribirYEnviar(pagina, "hazme una utilidad");
+  const r = await ultimaRespuesta(pagina, 45000);
+  cierto(/relevo/.test(r.pie), "pie: " + r.pie);
+  cierto(r.texto.includes(TOKEN), "la respuesta final perdió el archivo del equipo: " + r.texto.slice(0, 160));
   cierto(
-    vistos.length >= 2 && vistos.slice(1).some((v) => /app\.js/.test(v) && /Relevo de Cece Pro/.test(v)),
-    "el siguiente paso no recibió el archivo",
+    entradas.some((v) => v.includes(TOKEN) && /Relevo de Cece Pro/.test(v)),
+    "ningún paso posterior recibió el archivo del equipo",
   );
-  cierto(/Archivos del equipo/.test(r.texto) || /app\.js/.test(r.texto), "la respuesta final no lleva el archivo");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -844,34 +838,29 @@ prueba("Muse Wonder es un motor solo de Cece Pro (no en el menú, sí en el rele
   await ctx.close();
 });
 
-prueba("Cece Pro por relevo: pasa los archivos y ordena según la petición", async (nav) => {
-  // Dos partes vivas: Enterprise (Anthropic, sin perfil de código) y Max (Moonshot, nivel de código). El orden del
-  // relevo cambia con la petición: en una pregunta normal manda el peso (termina Enterprise), pero si se pide código
-  // el más adecuado (Max) pasa a terminar. Y el archivo que crea el primer paso llega al siguiente y a la respuesta.
-  const entradasMax = [];
-  const TOKEN = "TOKEN_RELEVO_7391";
-  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
-    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
-    ia: {
-      "api.anthropic.com": () => ({ cuerpo: respuestaClaude("```js\n// archivo: util.js\nconst " + TOKEN + " = true;\n```") }),
-      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => (
-        entradasMax.push(JSON.stringify(cuerpo.messages)), { cuerpo: respuestaOpenAI("Lo he revisado y está perfecto.") }
-      ),
-    },
+prueba("Cece Pro (pipeline): el bucle buscar→corregir para si no hay errores y se limita si los hay", async (nav) => {
+  // El paso «buscar» se reconoce por su instrucción. Si responde SIN ERRORES, el bucle no sigue (menos revisiones);
+  // si siempre encuentra errores, el bucle se repite hasta el tope (más revisiones), nunca infinito.
+  const motor = (sinErrores) => ({ cuerpo }) => ({
+    cuerpo: respuestaOpenAI(
+      /Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? (sinErrores ? "SIN ERRORES" : "Error: falta validar la entrada.") : "Hecho.",
+    ),
   });
-  await escribirYEnviar(pagina, "Cuéntame un cuento corto sobre el mar.");
-  const normal = await ultimaRespuesta(pagina, 30000);
-  cierto(/Motor Max → Motor Enterprise/.test(normal.pie), "orden normal (termina Enterprise): " + normal.pie);
-  await escribirYEnviar(pagina, "Escribe código JavaScript para ordenar una lista de números.");
-  const codigo = await ultimaRespuesta(pagina, 30000);
-  cierto(/Motor Enterprise → Motor Max/.test(codigo.pie), "con código debería terminar Max: " + codigo.pie);
-  cierto(
-    entradasMax.some((v) => v.includes(TOKEN) && /Relevo de Cece Pro/.test(v)),
-    "el paso siguiente no recibió el archivo del anterior",
-  );
-  cierto(codigo.texto.includes(TOKEN) && /Archivos del equipo/.test(codigo.texto), "la respuesta final perdió el archivo");
-  igual(errores.length, 0, "errores: " + errores.join(" | "));
-  await ctx.close();
+  const revisiones = async (sinErrores) => {
+    const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
+      almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+      ia: { "api.moonshot.ai/v1/chat/completions": motor(sinErrores) },
+    });
+    await escribirYEnviar(pagina, "hola");
+    const r = await ultimaRespuesta(pagina, 60000);
+    igual(errores.length, 0, "errores: " + errores.join(" | "));
+    const n = +(r.pie.match(/(\d+) revisiones/) || [0, 0])[1];
+    return (await ctx.close(), n);
+  };
+  const limpio = await revisiones(true),
+    conErrores = await revisiones(false);
+  cierto(conErrores > limpio, `con errores debería repasar más (${conErrores}) que sin ellos (${limpio})`);
+  cierto(conErrores <= 4, "el bucle no respetó el tope de vueltas: " + conErrores);
 });
 
 prueba("reparto de Cece Pro: un reparto por defecto antiguo migra parejo (nadie se queda corto)", async (nav) => {
@@ -889,23 +878,30 @@ prueba("reparto de Cece Pro: un reparto por defecto antiguo migra parejo (nadie 
   await ctx.close();
 });
 
-prueba("el relevo detecta que la petición es de código por un archivo adjunto (no solo por el texto)", async (nav) => {
-  // Un .js adjunto va incrustado en el texto como <archivo nombre="orden.js">…; antes la detección miraba .adjuntos
-  // (que a esa altura solo tiene imágenes/PDF) y nunca se activaba. El mensaje no lleva palabras de código a propósito.
-  const { pagina, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-a", max: "sk-c" }), {
+prueba("Cece Pro (pipeline): hace los seis papeles en orden", async (nav) => {
+  // El panel «cómo lo va haciendo» muestra un paso por papel: base, completar, revisar, buscar errores, corregir y
+  // calidad máxima, en ese orden.
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
     almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
     ia: {
-      "api.anthropic.com": () => ({ cuerpo: respuestaClaude("Le he echado un ojo.") }),
-      "api.moonshot.ai/v1/chat/completions": () => ({ cuerpo: respuestaOpenAI("Revisado.") }),
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => ({
+        cuerpo: respuestaOpenAI(/Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "SIN ERRORES" : "Hecho."),
+      }),
     },
   });
-  await pagina.setInputFiles("#adjInput", [
-    { name: "orden.js", mimeType: "text/plain", buffer: Buffer.from("const ordena = (a) => a.slice().sort();") },
-  ]);
-  await pagina.waitForFunction(() => document.querySelectorAll("#adjBandeja .adj-item:not(.adj-cargando)").length === 1);
-  await escribirYEnviar(pagina, "revísame esto, por favor");
-  const r = await ultimaRespuesta(pagina, 30000);
-  cierto(/Motor Enterprise → Motor Max/.test(r.pie), "con un .js adjunto debería terminar Max (código): " + r.pie);
+  await escribirYEnviar(pagina, "hola");
+  const r = await ultimaRespuesta(pagina, 45000);
+  const papeles = await pagina.evaluate(() =>
+    [...document.querySelectorAll(".bot-msg:last-of-type .borrador-cab")]
+      .slice(0, 6)
+      .map((e) => (e.textContent.split("·")[0] || "").replace(/[^\p{L} ]/gu, "").trim()),
+  );
+  igual(
+    papeles.join(" | "),
+    "Base | Completar | Revisar | Buscar errores | Corregir | Calidad máxima",
+    "los seis papeles no están en orden: " + papeles.join(" / "),
+  );
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
 

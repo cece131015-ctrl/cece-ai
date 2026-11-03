@@ -1,5 +1,18 @@
 # Informe de depuración
 
+## 3 de noviembre de 2026 — Cece Pro pasa a ser un pipeline de papeles
+
+- **Cece Pro por relevo** deja de ser un pase simple entre modelos y pasa a un **pipeline de papeles fijos**: un
+  modelo hace la **base**, otro la **completa**, otro **revisa/depura**, otro **busca errores**, otro los **corrige** y
+  otro **pule la calidad**. Después repite **buscar errores → corregir** en bucle **hasta que no quede ninguno**.
+- El bucle tiene un **tope de 3 vueltas** (`MAX_REV_PRO`) para acotar el coste y evitar que se quede dando vueltas: en
+  el peor caso son los 6 papeles + 3 repasos. El paso «buscar» avisa de que no hay errores respondiendo `SIN ERRORES`,
+  y entonces el bucle se detiene.
+- Si hay menos de seis modelos disponibles, los papeles se reparten entre los que haya (un mismo modelo puede hacer
+  varios papeles). Los archivos del equipo se siguen pasando de un paso al siguiente y llegan completos a la respuesta.
+- Mientras trabaja se ve un panel **«cómo lo va haciendo Cece Pro»** con cada paso (qué papel, qué modelo y su estado
+  en directo).
+
 ## 3 de noviembre de 2026 — nuevo motor Muse Wonder (solo Cece Pro)
 
 - **Muse Wonder** se añade como un motor más **dentro de Cece Pro** (sexta parte del relevo/borradores), con su propia

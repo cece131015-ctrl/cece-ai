@@ -3633,31 +3633,95 @@ function notasDe(e, t = 6e4) {
 }
 const INSTR_RELEVO =
   "Trabajas en equipo con otros modelos de Cece por relevo: todos tenéis el mismo objetivo (lo que pide el usuario) y os vais pasando los archivos que creáis. Si el objetivo pide código u otros archivos, escribe cada archivo COMPLETO en su propio bloque de código con el lenguaje y, en la primera línea, un comentario con su nombre (por ejemplo: // archivo: app.js o # archivo: main.py). Responde siempre al usuario directamente: no hables del equipo, del relevo ni de los pasos.";
-function contextoRelevo(e, t, o, a) {
-  const n = [`🤝 Relevo de Cece Pro — paso ${e + 1} de ${t}.`],
-    r = [...o.values()];
-  if (r.length) {
-    let e = 0;
-    const t = [],
-      o = [];
-    for (const a of r) {
-      const n = bloqueArchivo(a);
-      e + n.length > TOPE_MESA && t.length ? o.push(a.nombre) : ((e += n.length), t.push(`De ${a.autor}:\n${n}`));
-    }
-    n.push(
-      "Archivos que ha creado el equipo hasta ahora (la última versión de cada uno):\n\n" +
-        t.join("\n\n") +
-        (o.length ? `\n\n(No caben aquí, pero existen y pasan tal cual: ${o.join(", ")}.)` : ""),
-    );
+// Pipeline de Cece Pro: papeles fijos. El equipo hace la base, la completa, la revisa, busca errores, los corrige y
+// pule la calidad; luego repite «buscar errores → corregir» hasta que no quede ninguno (con tope de vueltas). El papel
+// «buscar» solo critica: no entrega trabajo ni archivos.
+const ROLES_PRO = [
+  {
+    clave: "base",
+    nom: "Base",
+    emoji: "🏗️",
+    critic: !1,
+    instr:
+      "Haz la BASE del trabajo: una primera versión completa que cumpla el objetivo del usuario de principio a fin. No tiene que ser perfecta, pero sí entera y funcional. Escribe completo cada archivo (con su nombre en la primera línea).",
+  },
+  {
+    clave: "completar",
+    nom: "Completar",
+    emoji: "➕",
+    critic: !1,
+    instr:
+      "Completa lo que falte: partes a medias, huecos y casos sin cubrir. Entrega el trabajo entero ya completo, cada archivo completo.",
+  },
+  {
+    clave: "revisar",
+    nom: "Revisar",
+    emoji: "🔎",
+    critic: !1,
+    instr:
+      "Depura y revisa el trabajo: mejora la estructura y la claridad y déjalo coherente. Entrega la versión revisada completa.",
+  },
+  {
+    clave: "buscar",
+    nom: "Buscar errores",
+    emoji: "🐞",
+    critic: !0,
+    instr:
+      "NO cambies el trabajo. Búscale errores, fallos y casos límite y enuméralos de forma concreta (dónde y por qué). Si no encuentras NINGÚN error, responde SOLO con: SIN ERRORES",
+  },
+  {
+    clave: "corregir",
+    nom: "Corregir",
+    emoji: "🔧",
+    critic: !1,
+    instr:
+      "Corrige TODOS los errores que te acaban de señalar. Entrega el trabajo entero ya corregido, cada archivo completo.",
+  },
+  {
+    clave: "calidad",
+    nom: "Calidad máxima",
+    emoji: "✨",
+    critic: !1,
+    instr:
+      "Pule el trabajo hasta la máxima calidad posible: correcto, claro y completo. Es la respuesta final para el usuario: dásela directamente, sin hablar del equipo ni de los pasos. Escribe completo cada archivo.",
+  },
+];
+const MAX_REV_PRO = 3; // vueltas máximas del bucle buscar→corregir: acota el coste y evita un bucle infinito
+function planPro(partes) {
+  const n = partes.length,
+    idx = (c) => ROLES_PRO.findIndex((r) => r.clave === c),
+    paso = (c) => ({ rol: ROLES_PRO[idx(c)], parte: partes[idx(c) % n] });
+  const plan = ["base", "completar", "revisar", "buscar", "corregir", "calidad"].map(paso);
+  for (let v = 0; v < MAX_REV_PRO; v++) plan.push(paso("buscar"), paso("corregir"));
+  return plan;
+}
+function mesaArchivos(o) {
+  const r = [...o.values()];
+  if (!r.length) return "";
+  let e = 0;
+  const dentro = [],
+    fuera = [];
+  for (const a of r) {
+    const n = bloqueArchivo(a);
+    e + n.length > TOPE_MESA && dentro.length ? fuera.push(a.nombre) : ((e += n.length), dentro.push(`De ${a.autor}:\n${n}`));
   }
+  return (
+    "Archivos que ha creado el equipo hasta ahora (la última versión de cada uno):\n\n" +
+    dentro.join("\n\n") +
+    (fuera.length ? `\n\n(No caben aquí, pero existen y pasan tal cual: ${fuera.join(", ")}.)` : "")
+  );
+}
+function contextoRelevo(o, a, instr) {
+  const n = ["🤝 Relevo de Cece Pro — trabajo en equipo."],
+    mesa = mesaArchivos(o);
+  mesa && n.push(mesa);
   const i = a ? notasDe(a.texto) : "";
   return (
-    i && n.push(`Lo que respondió el paso anterior (${a.nom}):\n${i}`),
-    n.push(
-      e === t - 1
-        ? "Eres el último del relevo: da la respuesta final para el usuario, completa y clara, con el mismo objetivo. Corrige lo que esté mal y mejóralo. Escribe completo cada archivo que cambies o crees (con su nombre en la primera línea); los que no cambies se entregarán tal cual junto a tu respuesta."
-        : "Tu turno: con el mismo objetivo, revisa ese trabajo, corrige los errores y mejóralo. Escribe completo cada archivo que cambies o crees (con su nombre en la primera línea); los que no cambies no hace falta repetirlos: pasan tal cual al siguiente.",
-    ),
+    i &&
+      n.push(
+        `${a.rol && a.rol.critic ? "Errores que te han señalado" : `Lo que hay hasta ahora (${a.rol ? a.rol.nom : "paso anterior"})`}:\n${i}`,
+      ),
+    n.push(instr),
     n.join("\n\n")
   );
 }
@@ -3774,28 +3838,46 @@ function ordenarRelevo(partes, mensajes) {
 async function ejecutarRelevo(e, t = {}) {
   const o = esfuerzoDe(t);
   await Familias.prepararPara(PRO_PARTES.map((e) => e.id));
-  const p = partesPro("⏳ espera su turno"),
-    n = (burbujaActiva = new Burbuja(`Relevo de ${p.length} modelos`));
+  const partes = partesPro("⏳ espera su turno"),
+    n = (burbujaActiva = new Burbuja(`Cece Pro · ${partes.length} modelos en equipo`));
   await Adjuntos.hidratar(historial);
   const r = historialApi(),
-    a = ordenarRelevo(p, r),
-    i = performance.now(),
-    { det: s, repintar: c } = montarBorradores(n, a, "🤝 Relevo", !0),
+    i = performance.now();
+  if (!partes.length) return finalizarConError(n, new Error("Ningún modelo respondió."), [], { conv: t.conv });
+  const plan = planPro(ordenarRelevo(partes, r)),
+    pasos = plan.map((p, i) => ({
+      k: "p" + i,
+      i: i,
+      rol: p.rol,
+      id: p.parte.id,
+      critic: p.rol.critic,
+      nom: `${p.rol.emoji} ${p.rol.nom} · ${p.parte.nom}`,
+      color: p.parte.color,
+      estado: "⏳ espera su turno",
+      texto: "",
+    })),
+    { det: det, repintar: c } = montarBorradores(n, pasos, "🧠 Cómo lo va haciendo Cece Pro", !1),
     l = new Map(),
     d = [],
     u = [];
-  let m = null;
-  for (let i = 0; i < a.length && !e.aborted; i++) {
-    const s = a[i];
+  let m = null,
+    entrega = null,
+    limpio = !1;
+  for (let idx = 0; idx < pasos.length && !e.aborted; idx++) {
+    const s = pasos[idx];
+    // El bucle de revisión (buscar→corregir) solo empieza tras los 6 papeles; se salta en cuanto «buscar» no halla errores.
+    6 === idx && (limpio = !1);
+    if (idx >= 6 && limpio) {
+      ((s.estado = "✓ sin errores: no hizo falta"), c());
+      continue;
+    }
     ((s.turno = !0),
-      (s.estado = "✍️ trabajando…"),
-      n.pensando(
-        `Paso ${i + 1} de ${a.length} · ${s.nom}` + (l.size ? ` · ${l.size} archivo${l.size > 1 ? "s" : ""}` : ""),
-      ),
+      (s.estado = `✍️ ${s.rol.nom}…`),
+      n.pensando(`${s.rol.emoji} ${s.rol.nom}` + (l.size ? ` · ${l.size} archivo${l.size > 1 ? "s" : ""}` : "")),
       c());
     try {
-      const n = await llamarCece(s.id, {
-        mensajes: i ? conContexto(r, contextoRelevo(i, a.length, l, m)) : r,
+      const res = await llamarCece(s.id, {
+        mensajes: conContexto(r, contextoRelevo(l, m, s.rol.instr)),
         sistema: sistemaPara(s.id, INSTR_RELEVO, o),
         maxTok: Math.max(maxTokens(o), 8192),
         esf: o,
@@ -3812,54 +3894,59 @@ async function ejecutarRelevo(e, t = {}) {
           ((s.texto = ""), (s.estado = `${etiquetaMotor(e)} falló, probando otro…`), c());
         },
       });
-      ((s.r = n), (s.texto = n.texto));
-      const u = archivosDe(n.texto);
-      for (const e of u) l.set(e.nombre, { ...e, autor: s.nom });
-      ((s.archivos = u.map((e) => e.nombre)),
-        (s.estado =
-          `✓ ${etiquetaMotor(n.motor)}` + (u.length ? ` · pasa ${u.length} archivo${u.length > 1 ? "s" : ""}` : "")),
-        d.push(s),
-        (m = s));
+      ((s.r = res), (s.texto = res.texto), (m = s), d.push(s));
+      if (s.critic) {
+        ((limpio = /\bSIN\s+ERRORES\b/i.test(separarThink(res.texto).texto)),
+          (s.estado = limpio ? "✓ sin errores" : "⚠️ encontró errores"));
+      } else {
+        const arch = archivosDe(res.texto);
+        for (const e of arch) l.set(e.nombre, { ...e, autor: s.rol.nom });
+        ((s.archivos = arch.map((e) => e.nombre)),
+          (entrega = s),
+          (s.estado =
+            `✓ ${etiquetaMotor(res.motor)}` + (arch.length ? ` · ${arch.length} archivo${arch.length > 1 ? "s" : ""}` : "")));
+      }
     } catch (e) {
       if (esAbort(e)) {
         ((s.estado = "⏹ detenido"), (s.turno = !1));
         break;
       }
-      ((s.error = e),
-        (s.estado = `❌ ${e.corto || "error"}` + (i < a.length - 1 ? " · sigue el siguiente" : "")),
-        u.push(`${s.nom}: ${e.corto || "error"}`));
+      ((s.error = e), (s.estado = `❌ ${e.corto || "error"}`), u.push(`${s.rol.nom}: ${e.corto || "error"}`));
     }
     ((s.turno = !1), c());
   }
   if (e.aborted) {
-    for (const e of a) e.r || e.error || !e.estado.startsWith("⏳") || (e.estado = "⏹ no llegó a su turno");
+    for (const e of pasos) e.r || e.error || !e.estado.startsWith("⏳") || (e.estado = "⏹ no llegó a su turno");
     return (
       c(),
-      m && (n.texto = finalRelevo(m, l)),
-      cobrarParado([...d.map((e) => e.r), ...enCursoPro(a, r)]),
+      entrega && (n.texto = finalRelevo(entrega, l)),
+      cobrarParado([...d.map((e) => e.r), ...enCursoPro(pasos, r)]),
       finalizarConError(n, new DOMException("stop", "AbortError"), [], { conv: t.conv })
     );
   }
-  if (!d.length) {
-    return finalizarConError(n, (a.find((e) => e.error) || {}).error || new Error("Ningún modelo respondió."), [], {
+  if (!entrega) {
+    return finalizarConError(n, (pasos.find((e) => e.error) || {}).error || new Error("Ningún modelo respondió."), [], {
       conv: t.conv,
     });
   }
-  const h = finalRelevo(m, l),
-    g = [].concat(...d.map((e) => e.r.fuentes || [])).filter((e, t, o) => o.findIndex((t) => t.url === e.url) === t);
+  const h = finalRelevo(entrega, l),
+    g = [].concat(...d.map((e) => (e.r && e.r.fuentes) || [])).filter((e, t, o) => o.findIndex((t) => t.url === e.url) === t),
+    motores = [...new Set(d.map((e) => etiquetaMotor(e.r.motor)))],
+    nPasos = d.filter((e) => !e.critic).length,
+    nRev = d.filter((e) => e.critic).length;
   return (
     (n.texto = h),
     anotar(t.conv, { role: "assistant", content: h, via: "Cece Pro" }),
     await n.terminar(),
     n.fuentes(g),
-    (s.open = !1),
+    (det.open = !1),
     cerrarPro(
       n,
       h,
       d.map((e) => e.r),
-      m.r,
+      entrega.r,
       i,
-      "Cece Pro · relevo · " + d.map((e) => etiquetaMotor(e.r.motor)).join(" → "),
+      `Cece Pro · relevo · ${motores.join(", ")} · ${nPasos} pasos${nRev ? ` y ${nRev} revisiones` : ""}`,
       u.concat(...d.map((e) => avisoSinVer(e.r))),
       g,
     ),
