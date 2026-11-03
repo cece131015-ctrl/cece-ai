@@ -10,8 +10,10 @@
   y entonces el bucle se detiene.
 - Si hay menos de seis modelos disponibles, los papeles se reparten entre los que haya (un mismo modelo puede hacer
   varios papeles). Los archivos del equipo se siguen pasando de un paso al siguiente y llegan completos a la respuesta.
-- Mientras trabaja se ve un panel **«cómo lo va haciendo Cece Pro»** con cada paso (qué papel, qué modelo y su estado
-  en directo).
+- **Barrita en directo, plegable (como ChatGPT/Claude):** mientras trabaja, una sola línea dice qué está haciendo ahora
+  («🔧 Corregir · Max · pensando…», «🐞 Buscar errores…»). Tiene una flechita: al pulsarla gira y despliega el detalle
+  de cada paso (papel, modelo, estado, el **razonamiento** 💭 y el texto que va escribiendo, todo en directo). Al
+  terminar queda plegada con el número de pasos. Vale también para Cece Pro «a la vez».
 
 ## 3 de noviembre de 2026 — nuevo motor Muse Wonder (solo Cece Pro)
 

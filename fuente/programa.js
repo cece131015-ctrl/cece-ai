@@ -3558,18 +3558,22 @@ function partesPro(e = "⏳ trabajando…") {
   });
 }
 function montarBorradores(e, t, o, a) {
-  const n = document.createElement("details");
+  const titulo = o,
+    n = document.createElement("details");
+  // Barrita colapsable (como ChatGPT/Claude): el resumen enseña en directo qué está haciendo el equipo; la flecha nativa
+  // de <details> gira al abrir y despliega el detalle de cada paso (razonamiento, estado y texto en directo).
   ((n.className = "borradores"),
-    (n.open = !0),
+    (n.open = !1),
     (n.innerHTML =
-      `<summary>${esc(o)} (${t.length})</summary>` +
+      `<summary class="bor-barra" style="cursor:pointer">${esc(titulo)}</summary>` +
       t
         .map(
           (e, t) =>
-            `<div class="borrador" data-k="${e.k}" style="border-left-color:${e.color};--c:${e.color}"><div class="borrador-cab" style="color:${e.color}">${a ? t + 1 + " · " : ""}${esc(e.nom)}<span class="est">${esc(e.estado)}</span></div><div class="borrador-archivos" hidden></div><div class="borrador-txt"></div></div>`,
+            `<div class="borrador" data-k="${e.k}" style="border-left-color:${e.color};--c:${e.color}"><div class="borrador-cab" style="color:${e.color}">${a ? t + 1 + " · " : ""}${esc(e.nom)}<span class="est">${esc(e.estado)}</span></div><div class="borrador-archivos" hidden></div><div class="borrador-razon" style="opacity:.6;font-size:12px;white-space:pre-wrap;margin:2px 0" hidden></div><div class="borrador-txt"></div></div>`,
         )
         .join("")),
     e.wrap.querySelector(".msg-body").insertBefore(n, e.meta));
+  const barra = n.querySelector(".bor-barra");
   let r = !1;
   const repintar = () => {
     r ||
@@ -3577,13 +3581,18 @@ function montarBorradores(e, t, o, a) {
       requestAnimationFrame(() => {
         r = !1;
         for (const e of t) {
-          const t = n.querySelector(`[data-k="${e.k}"]`);
-          ((t.querySelector(".est").textContent = e.estado), t.classList.toggle("turno", !!e.turno));
-          const o = t.querySelector(".borrador-archivos");
-          ((o.hidden = !(e.archivos && e.archivos.length)),
-            o.hidden || (o.textContent = "📄 " + e.archivos.join(", ")),
-            (t.querySelector(".borrador-txt").innerHTML = md(separarThink(e.texto).texto)));
+          const o = n.querySelector(`[data-k="${e.k}"]`);
+          ((o.querySelector(".est").textContent = e.estado), o.classList.toggle("turno", !!e.turno));
+          const i = o.querySelector(".borrador-archivos");
+          ((i.hidden = !(e.archivos && e.archivos.length)), i.hidden || (i.textContent = "📄 " + e.archivos.join(", ")));
+          const p = separarThink(e.texto),
+            rz = o.querySelector(".borrador-razon");
+          ((rz.hidden = !p.razon), rz.hidden || (rz.textContent = "💭 " + p.razon));
+          o.querySelector(".borrador-txt").innerHTML = md(p.texto);
         }
+        // La barrita dice qué está haciendo ahora (papel + estado); al terminar, vuelve al título con el total.
+        const act = t.find((e) => e.turno);
+        barra.textContent = act ? `${act.nom} · ${act.estado}` : `${titulo} (${t.length})`;
         bajar();
       }));
   };

@@ -924,6 +924,40 @@ prueba("la vista «Ver» de una app se cierra con Escape aunque el foco esté fu
   await ctx.close();
 });
 
+prueba("Cece Pro: barrita plegable que dice en directo qué está haciendo", async (nav) => {
+  // Mientras trabaja, el resumen del panel nombra el papel en curso; al terminar queda plegado (flecha) y se despliega
+  // al pulsarlo, como el «pensamiento» de otros chats.
+  let primera = !0;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.moonshot.ai/v1/chat/completions": async ({ cuerpo }) => {
+        primera && ((primera = !1), await new Promise((ok) => setTimeout(ok, 1500)));
+        return { cuerpo: respuestaOpenAI(/Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "SIN ERRORES" : "Hecho.") };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "hola");
+  await pagina.waitForFunction(
+    () => /Base/.test((document.querySelector(".bot-msg:last-of-type .bor-barra") || {}).textContent || ""),
+    null,
+    { timeout: 8000 },
+  );
+  await ultimaRespuesta(pagina, 45000);
+  const fin = await pagina.evaluate(() => {
+    const d = document.querySelector(".bot-msg:last-of-type details.borradores");
+    return { existe: !!d, abierto: !!(d && d.open) };
+  });
+  cierto(fin.existe && !fin.abierto, "la barrita debería quedar plegada al terminar");
+  await pagina.click(".bot-msg:last-of-type .bor-barra");
+  cierto(
+    await pagina.evaluate(() => document.querySelector(".bot-msg:last-of-type details.borradores").open),
+    "al pulsar la flecha no se despliega el detalle",
+  );
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("modo de esfuerzo: bajo/medio/alto/extra/max junto a UltraCode, se elige y se recuerda", async (nav) => {
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
   await pagina.click("#settingsBtn");
