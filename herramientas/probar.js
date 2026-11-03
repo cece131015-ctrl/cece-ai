@@ -813,13 +813,33 @@ prueba("Cece Sol es una parte de Cece Pro (reparto de 5 y motor propio)", async 
     repE: !!document.getElementById("repE"),
     sol: /Sol/.test(document.getElementById("repartoManual").textContent),
   }));
-  igual(rep.filas, 5, "el reparto de Cece Pro no tiene 5 partes");
+  igual(rep.filas, 6, "el reparto de Cece Pro no tiene 6 partes");
   cierto(rep.repE && rep.sol, "falta la fila de reparto de Sol");
   await escribirYEnviar(pagina, "hola equipo");
   const r = await ultimaRespuesta(pagina, 30000);
   cierto(/relevo/.test(r.pie), r.pie);
   cierto(/Motor Sol/.test(r.pie), "Sol no aparece en Cece Pro: " + r.pie);
   cierto(/Motor Astra/.test(r.pie), "Astra debería seguir estando: " + r.pie);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Muse Wonder es un motor solo de Cece Pro (no en el menú, sí en el relevo)", async (nav) => {
+  // Con solo la clave «muse», la única parte viva de Cece Pro es Muse Wonder (proveedor nuevo). No es un modelo
+  // elegible por su cuenta: no sale en el menú de modelos ni tiene comando propio, pero sí trabaja dentro de Cece Pro.
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ muse: "sk-muse" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: { "api.meta.ai": () => ({ cuerpo: respuestaOpenAI("Hola desde Muse Wonder.") }) },
+  });
+  igual(
+    await pagina.evaluate(() => !!document.querySelector('#modelDropdown [data-model="cece-muse"]')),
+    false,
+    "Muse Wonder no debería aparecer en el menú de modelos",
+  );
+  cierto(await pagina.evaluate(() => !!document.getElementById("repF")), "falta la barra de reparto de Muse");
+  await escribirYEnviar(pagina, "hola equipo");
+  const r = await ultimaRespuesta(pagina, 30000);
+  cierto(/relevo/.test(r.pie) && /Motor Muse Wonder/.test(r.pie), "Muse Wonder no participó en Cece Pro: " + r.pie);
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -854,16 +874,18 @@ prueba("Cece Pro por relevo: pasa los archivos y ordena según la petición", as
   await ctx.close();
 });
 
-prueba("reparto de Cece Pro: la versión antigua de 4 partes migra a 5 parejas (Sol no se queda corto)", async (nav) => {
-  // Antes, unos ajustes de la versión de 4 partes (repA..D=25, sin repE) normalizaban a 21/21/21/21/16: Sol salía
-  // perjudicado. Ahora se detecta ese reparto por defecto antiguo y se reparte parejo entre los cinco.
+prueba("reparto de Cece Pro: un reparto por defecto antiguo migra parejo (nadie se queda corto)", async (nav) => {
+  // Unos ajustes de la versión de 4 partes (repA..D=25, sin repE/repF) antes normalizaban dejando a la última parte
+  // corta. Ahora ese reparto por defecto antiguo se detecta y se reparte parejo entre todas las partes actuales.
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({}), {
     almacen: { cece_ajustes: { modelo: "cece-pro", repA: 25, repB: 25, repC: 25, repD: 25 } },
   });
   const rep = await pagina.evaluate(() =>
-    ["repA", "repB", "repC", "repD", "repE"].map((e) => +document.getElementById(e).value),
+    ["repA", "repB", "repC", "repD", "repE", "repF"].map((e) => (document.getElementById(e) ? +document.getElementById(e).value : null)).filter((v) => v !== null),
   );
-  igual(rep.join(","), "20,20,20,20,20", "el reparto de 4 partes no migró parejo a cinco");
+  const suma = rep.reduce((a, b) => a + b, 0);
+  igual(suma, 100, "el reparto no suma 100: " + rep.join(","));
+  cierto(Math.max(...rep) - Math.min(...rep) <= 1, "el reparto no quedó parejo: " + rep.join(","));
   await ctx.close();
 });
 

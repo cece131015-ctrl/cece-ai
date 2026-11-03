@@ -1,5 +1,18 @@
 # Informe de depuración
 
+## 3 de noviembre de 2026 — nuevo motor Muse Wonder (solo Cece Pro)
+
+- **Muse Wonder** se añade como un motor más **dentro de Cece Pro** (sexta parte del relevo/borradores), con su propia
+  barra de reparto en Configuración → Cece Pro. **No** aparece como modelo suelto en el menú ni tiene comando propio:
+  solo trabaja como parte de Cece Pro.
+- Usa un proveedor nuevo (`musewonder`, API compatible con OpenAI en `https://api.meta.ai/v1`, modelo
+  `muse-wonder-1.0`). Su clave va en el campo nuevo **`muse`** del bloque de configuración del principio del archivo.
+  Mientras esté vacío, Muse Wonder simplemente no participa.
+- El **precio está sin fijar** (`PRECIOS_MODELO["muse-wonder-1.0"] = [0, 0]`): hasta que pongas la tarifa real, Cece
+  contará ese motor como 0 $. Ajústalo cuando sepas el coste.
+- El reparto de Cece Pro pasa a repartir entre **seis** partes; los repartos por defecto antiguos (3, 4 y 5 partes) se
+  migran a un reparto parejo para que ninguna parte nueva se quede corta.
+
 ## 30 de octubre de 2026 — motor de Cece Max y cuatro arreglos
 
 - **Cece Max pasa a usar el modelo `kimi-k3.1-pro`** (antes `kimi-k3`): se renombra en la lista de modelos de Moonshot,

@@ -190,6 +190,13 @@ const PROVEEDORES = {
     esfuerzos: { bajo: "low", medio: "medium", alto: "high", extra: "high", max: "high", ultracode: "high" },
     h: (e) => (/gpt-oss/.test(e) ? ["buscar", "codigo"] : []),
   },
+  musewonder: {
+    nombre: "Motor Muse Wonder",
+    tipo: "chat",
+    fmt: "openai",
+    base: "https://api.meta.ai/v1",
+    modelos: ["muse-wonder-1.0"],
+  },
   local: {
     nombre: "Cece Local",
     tipo: "chat",
@@ -226,6 +233,7 @@ const capacidad = (e, t) => {
     "kimi-k2.7-code-highspeed": "Motor Ultra Code Rápido",
     "gemini-4-argon": "Motor Argon",
     "openai/gpt-oss-120b": "Motor Reserva",
+    "muse-wonder-1.0": "Motor Muse Wonder",
   },
   esHoraPuntaTurbo = (e) => {
     const t = e.getUTCHours(),
@@ -242,6 +250,7 @@ const capacidad = (e, t) => {
     "deepseek-flash": (e) => (esHoraPuntaTurbo(e) ? [0.3, 1.2] : [0.15, 0.6]),
     "gemini-4-argon": [2, 10],
     "openai/gpt-oss-120b": [0.15, 0.6],
+    "muse-wonder-1.0": [0, 0],
   },
   CECE = [
     {
@@ -322,6 +331,16 @@ const capacidad = (e, t) => {
       ],
     },
     {
+      // Solo para Cece Pro: no aparece en el menú de modelos (oculto) ni tiene comando propio. Usa su motor nuevo.
+      id: "cece-muse",
+      label: "CECE MUSE WONDER",
+      nombre: "Muse Wonder",
+      color: "#b388ff",
+      neon: "#7c4dff",
+      oculto: !0,
+      motores: ["musewonder:muse-wonder-1.0"],
+    },
+    {
       id: "cece-max",
       label: "CECE MAX",
       nombre: "Cece Max",
@@ -380,7 +399,7 @@ const capacidad = (e, t) => {
   ],
   CECE_MAP = Object.fromEntries(CECE.map((e) => [e.id, e])),
   colorDe = (e) => (e ? (e.neon && "neon" === temaEfectivo() ? e.neon : e.color) : ""),
-  REPARTO = ["A", "B", "C", "D", "E"];
+  REPARTO = ["A", "B", "C", "D", "E", "F"];
 function repartoEntero(e, t) {
   const o = t.reduce((e, t) => e + Math.max(0, t), 0),
     a = o > 0 ? t.map((e) => Math.max(0, e)) : t.map(() => 1),
@@ -400,11 +419,12 @@ function repartoEntero(e, t) {
 const DEF = {
     modelo: "cece-turbo",
     esf: "medio",
-    repA: 20,
-    repB: 20,
-    repC: 20,
-    repD: 20,
-    repE: 20,
+    repA: 17,
+    repB: 17,
+    repC: 17,
+    repD: 17,
+    repE: 16,
+    repF: 16,
     fusion: !0,
     maxi: !1,
     relevo: !0,
@@ -497,6 +517,7 @@ const DEF = {
     repC: [0, 100],
     repD: [0, 100],
     repE: [0, 100],
+    repF: [0, 100],
     silencio: [400, 2500],
   };
 function leerAjustes(e) {
@@ -526,16 +547,23 @@ function leerAjustes(e) {
     2 !== e.versionTema && "oscuro" === e.tema && (t.tema = "neon"),
     // la migración del tema ya está hecha: si no se apunta, el «Oscuro» que elija después se pierde al recargar
     (t.versionTema = DEF.versionTema),
-    // Reparto por defecto de versiones anteriores (3 y 4 partes): se migra al reparto nuevo en vez de dejarlo
-    // descuadrado. Un usuario de 4 partes (repA..D=25, sin repE) tenía a Sol al ~16% al normalizar
-    // [25,25,25,25,20]; ahora se reparte parejo entre los cinco. Los pesos personalizados no se tocan.
+    // Reparto por defecto de versiones anteriores (3, 4 y 5 partes): se migra al reparto nuevo en vez de dejarlo
+    // descuadrado al normalizar (p. ej. un usuario de 5 partes 20/20/20/20/20 sin repF dejaría a Muse corto). Los
+    // pesos personalizados no se tocan.
     ((!Object.hasOwn(e, "repD") && !Object.hasOwn(e, "repE") && 34 === e.repA && 33 === e.repB && 33 === e.repC) ||
       (Object.hasOwn(e, "repD") &&
         !Object.hasOwn(e, "repE") &&
         25 === e.repA &&
         25 === e.repB &&
         25 === e.repC &&
-        25 === e.repD)) &&
+        25 === e.repD) ||
+      (Object.hasOwn(e, "repE") &&
+        !Object.hasOwn(e, "repF") &&
+        20 === e.repA &&
+        20 === e.repB &&
+        20 === e.repC &&
+        20 === e.repD &&
+        20 === e.repE)) &&
       REPARTO.forEach((e) => {
         t["rep" + e] = DEF["rep" + e];
       }));
@@ -989,6 +1017,7 @@ const Boveda = (() => {
     turbo: "deepseek",
     argon: "gemini",
     reserva: "groq",
+    muse: "musewonder",
     voz: "elevenlabs",
     nube_token: "github",
     nube: "nube",
@@ -3508,6 +3537,7 @@ const PRO_PARTES = [
   { k: "B", id: "cece-astra", nom: "Astra" },
   { k: "C", id: "cece-max", nom: "Max" },
   { k: "E", id: "cece-sol", nom: "Sol" },
+  { k: "F", id: "cece-muse", nom: "Muse" },
 ].map((e) => ({
   ...e,
   get color() {
@@ -6974,7 +7004,7 @@ function montarMenuNiveles() {
   if (!e) return;
   for (const t of e.querySelectorAll("[data-model]")) Object.hasOwn(CECE_MAP, t.dataset.model) || t.remove();
   for (const t of CECE) {
-    if (t.local) continue;
+    if (t.local || t.oculto) continue;
     let o = e.querySelector(`[data-model="${t.id}"]`);
     if (!o) {
       ((o = document.createElement("button")),
