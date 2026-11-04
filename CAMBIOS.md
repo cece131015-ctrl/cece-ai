@@ -1,5 +1,13 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — aviso sin claves
+
+- Si el bloque de configuración no tiene **ninguna** clave, el aviso del chat y el de Cece Live ahora dicen
+  **«Fallo de conexión (HTTP 401).»** en vez de «Falta rellenar el bloque de configuración del principio del
+  archivo.». 401 es el código de «sin autorización», el que devuelve un proveedor cuando no recibe una clave válida.
+  Los demás avisos no cambian: claves bloqueadas con contraseña, falta la clave de un modelo concreto, Cece Local sin
+  IA, etc.
+
 ## 4 de noviembre de 2026 — saludo, idioma de la app, más ajustes y plugins de programación
 
 **Saludo al empezar**

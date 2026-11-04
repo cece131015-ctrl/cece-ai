@@ -2531,7 +2531,8 @@ async function llamarCece(e, t) {
     o = e;
   }
   if (!o.length) {
-    const t = CECE_MAP[e];
+    const t = CECE_MAP[e],
+      ningunaClave = !(t && t.local) && !Boveda.necesitaDesbloqueo() && !hayAlgunaClave();
     throw new ErrorApi(
       t && t.local
         ? "Cece Local necesita una IA en tu ordenador: actívala en Configuración → 📴 Sin conexión (Ollama o LM Studio)."
@@ -2541,8 +2542,8 @@ async function llamarCece(e, t) {
             ? `${t.nombre} usa solo el ${etiquetaMotor(motorDeTabla(t.motores[0]))} (sin respaldo) y falta su clave (${nombreEnBloque(motorDeTabla(t.motores[0]).prov)}) en el bloque de configuración.`
             : hayAlgunaClave()
               ? `${t ? t.nombre : e} no tiene configuración disponible.`
-              : "Falta rellenar el bloque de configuración del principio del archivo.",
-      { sinClave: !0, corto: "sin clave" },
+              : MSG_SIN_CLAVES,
+      { sinClave: !0, corto: ningunaClave ? "HTTP 401" : "sin clave", ...(ningunaClave ? { status: 401 } : {}) },
     );
   }
   const r = [],
@@ -3542,6 +3543,8 @@ const avisoCorte = (e) =>
                 : [],
   avisoSinVer = (e) =>
     e && e.sinVer && e.sinVer.length ? [`📎 ${etiquetaMotor(e.motor)} no pudo abrir: ${e.sinVer.join(", ")}`] : [];
+// Sin ninguna clave en el bloque de configuración: se avisa como un fallo de conexión sin autorización (HTTP 401).
+const MSG_SIN_CLAVES = "Fallo de conexión (HTTP 401).";
 const MSG_SIN_RED_LIVE = "Sin conexión a internet: no se pudo responder. Vuelve a intentarlo cuando vuelva la red.";
 function marcarPendiente() {
   const e = [...historial].reverse().find((e) => "user" === e.role && !e.local);
@@ -11940,7 +11943,7 @@ const ICONOS = {
         return void toast(
           hayAlgunaClave()
             ? `${CECE_MAP[t].nombre} no tiene configuración disponible.`
-            : "Falta rellenar el bloque de configuración del principio del archivo.",
+            : MSG_SIN_CLAVES,
           "mal",
           5e3,
         );

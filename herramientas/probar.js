@@ -152,6 +152,17 @@ prueba("abre sin errores y sin claves", async (nav) => {
   await ctx.close();
 });
 
+prueba("sin ninguna clave avisa «Fallo de conexión (HTTP 401)» (chat y Cece Live)", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  await escribirYEnviar(pagina, "hola");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/Fallo de conexión \(HTTP 401\)/.test(r.texto) && !/Falta rellenar/.test(r.texto), "aviso del chat: " + r.texto);
+  await pagina.click("#liveBtn");
+  await pagina.waitForFunction(() => /HTTP 401/.test(document.getElementById("toast").textContent), null, { timeout: 5000 });
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("responde con Cece Turbo (stream, Markdown y pie)", async (nav) => {
   const md = "# Título\n\nHola **mundo** y `código`.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```js\nconsole.log(1)\n```";
   const { pagina, errores, peticiones, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-prueba" }), {
