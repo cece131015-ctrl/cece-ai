@@ -1,5 +1,57 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — depuración: Cece Pro, Cece Live, comandos y nube
+
+Cuatro revisiones (Cece Pro, voz, comandos/plugins y nube) encontraron 15 fallos reales. Cada uno se reprodujo antes de
+arreglarlo y tiene una prueba que falla con la versión anterior.
+
+**Cece Pro (relevo)**
+- **El paso «Corregir» no veía el trabajo que tenía que corregir.** Solo recibía la lista de errores. En prosa, o en
+  código sin nombre de archivo, se perdía todo lo hecho por Base, Completar y Revisar. Ahora recibe la última entrega
+  y, además, los errores.
+- **Con 4 o 5 modelos, «Calidad máxima» iba al menos adecuado.** Los papeles se repartían con `idx % n` y `5 % 5 = 0`.
+  Ahora se cuentan desde el final, así que el último paso va siempre al modelo que mejor encaja con la petición. Con 6
+  modelos no cambia nada.
+- **El bucle «buscar → corregir» se paraba antes de tiempo.** Bastaba con que la frase «sin errores» apareciera en
+  cualquier parte, por ejemplo «…corrigiendo eso, quedará sin errores». Ahora solo cuenta si toda la respuesta es la
+  marca `SIN ERRORES`.
+- **Muse Wonder ya no entra sin clave.** Con la IA local encendida, el modelo local le hacía de motor. Ahora no tiene
+  respaldo: si falta su clave, no participa.
+
+**Cece Live**
+- **Muse Wonder ya no se puede elegir como modelo de Live.** Salía en la lista, se guardaba y Live hablaba con él.
+- **Sin conexión, un turno de Live ya no queda en la cola del chat.** Antes, al volver la red, el chat lo contestaba por
+  su cuenta y con su propio modelo. Si además lo reintentabas en Live, como pedía la pantalla, se pagaba y se
+  respondía dos veces. Ahora Live dice que no hay conexión y que lo intentes cuando vuelva.
+- **Al perder el micrófono también se para el reconocimiento del navegador.** Antes seguía escuchando, contestaba
+  igualmente y Live se quedaba en «Hablando…».
+- **Tocar el orbe mientras se abre el micrófono** ya no da «Error interno: … MediaRecorder». Live empieza a escuchar
+  solo cuando el micrófono está listo.
+
+**Comandos**
+- **`redondear` / `round` redondeaban mal los x,xx5 a partir de 2.** Por ejemplo, `redondear(4,725; 2)` daba 4,72.
+  Ahora da 4,73, como Excel.
+- **Los enteros de 13 a 15 cifras salían inventados** en `/calc`, en `/convertir` y en el botón 📋. `2^40` daba
+  1.099.511.627.780 en vez de 1.099.511.627.776.
+- **`/temporizador` con una unidad que no conocía la tomaba como minutos.** Por ejemplo, «2 hrs» sonaba a los 2
+  minutos. Ahora entiende `hrs`, `mins`, `segs` y `secs`, y también «1 hora y media». Si después de un número hay una
+  palabra que no es una unidad, avisa de cómo escribir el tiempo.
+- **`/web` crea apps**, como decía la ayuda. Antes hacía una búsqueda, porque `/buscar` también tenía ese alias y se
+  registraba antes. Para buscar en internet siguen `/buscar`, `/search` y `/google`.
+
+**Nube (sincronización entre equipos)**
+- **Los plugins se fusionan uno a uno.** Antes ganaba la lista entera del último equipo que tocó algo. Así, activar o
+  desactivar un plugin en un equipo con la lista vieja borraba en todos los equipos los plugins creados en el otro,
+  sin copia. Ahora gana la versión más reciente de cada plugin, y borrar o renombrar uno deja una marca para que el
+  otro equipo no lo devuelva.
+- **La apariencia también se fusiona ajuste a ajuste.** Antes, cambiar la letra en un equipo devolvía en el otro el
+  tema viejo.
+- **«Ya no disponible» ya no viaja entre equipos.** Al continuar en el equipo B una conversación con una imagen que solo
+  estaba en el equipo A, B guardaba la marca «perdido» y A pasaba a ver sus propias imágenes como no disponibles.
+  Ahora esa marca es solo de cada equipo.
+- **«Desvincular este equipo» se desactiva durante una sincronización.** Antes, la ronda en curso volvía a enlazar el
+  Gist y deshacía el cambio.
+
 ## 4 de noviembre de 2026 — mensajes en cola y citar trozos del chat
 
 - **Ctrl+Enter (o ⌘+Enter) mientras Cece responde pone tu mensaje en cola** en vez de cortar la respuesta. Se ve en

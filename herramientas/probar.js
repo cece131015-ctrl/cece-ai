@@ -58,7 +58,7 @@ function respuestaClaude(texto) {
   ]);
 }
 
-async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null, ancho = 1280 } = {}) {
+async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null, ancho = 1280, init = null } = {}) {
   const ctx = await navegador.newContext({ viewport: { width: ancho, height: 860 }, acceptDownloads: true });
   const pagina = await ctx.newPage();
   const errores = [];
@@ -85,6 +85,7 @@ async function nuevaPagina(navegador, archivo, { ia = {}, almacen = null, ancho 
       body: r.cuerpo,
     });
   });
+  init && (await pagina.addInitScript(init));
   await pagina.goto("file://" + archivo);
   if (almacen) {
     await pagina.evaluate((a) => {
@@ -2126,6 +2127,212 @@ prueba("/crear programa una app y /crear se puede ver en una ventana aislada; lu
   await ultimaRespuesta(pagina);
   const prompt2 = cuerpo.messages[cuerpo.messages.length - 1].content;
   cierto(/Modifica la última aplicaci[oó]n/i.test(prompt2) && /ponla en azul/.test(prompt2), "no se expandió /modificar: " + prompt2.slice(0, 80));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Pro (pipeline): el corrector recibe el trabajo y «sin errores» a media frase no para el bucle", async (nav) => {
+  // Antes «Corregir» solo recibía la lista de errores (en prosa se perdía todo lo hecho) y el bucle se paraba en cuanto
+  // «buscar» decía «…quedará sin errores» aunque acabara de señalar un fallo.
+  let n = 0;
+  const corregir = [];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => {
+        const v = JSON.stringify(cuerpo.messages);
+        if (/Si no encuentras NING/i.test(v))
+          return { cuerpo: respuestaOpenAI("1. El verso 2 no rima. Corrigiendo eso, el poema quedará sin errores.") };
+        /Corrige TODOS los errores/.test(v) && corregir.push(v);
+        return { cuerpo: respuestaOpenAI("Poema versión OBRA_" + ++n + ".") };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "escríbeme un poema corto sobre el mar");
+  const r = await ultimaRespuesta(pagina, 60000);
+  igual(+(r.pie.match(/(\d+) revisiones/) || [0, 0])[1], 4, "el bucle se paró por un «sin errores» a media frase: " + r.pie);
+  cierto(corregir.length >= 2, "faltan pasos de corregir: " + corregir.length);
+  cierto(corregir.every((v) => /OBRA_\d/.test(v)), "el corrector no recibió el trabajo que tenía que corregir");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Pro y Live: «Calidad máxima» va al más adecuado; Muse no se cuela con la IA local ni en Live", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
+    almacen: { cece_ajustes: { liveModelo: "cece-muse" } },
+  });
+  const r = await pagina.evaluate(() => {
+    // ordenarRelevo deja al final la parte más adecuada: ahí tiene que caer el último papel (Calidad máxima)
+    const calidad = (n) => planPro(Array.from({ length: n }, (_, i) => ({ id: "p" + i })))[5].parte.id;
+    const live = { guardado: S.liveModelo, opciones: (pintarAjustesVoz(), [...document.querySelectorAll("#liveModelo option")].map((o) => o.value)) };
+    S.liveModelo = "cece-muse";
+    live.nivel = Voz.nivelLive();
+    Object.assign(S, { localActivo: true, localModelo: "llama3", localRespaldo: true });
+    return { c4: calidad(4), c5: calidad(5), c6: calidad(6), live, partes: partesPro().map((p) => p.id) };
+  });
+  igual([r.c4, r.c5, r.c6].join(","), "p3,p4,p5", "«Calidad máxima» no fue a la parte más adecuada");
+  igual(r.live.guardado, "cece-turbo", "un liveModelo «cece-muse» guardado se aceptó");
+  cierto(!r.live.opciones.includes("cece-muse"), "Muse Wonder sale en la lista de modelos de Live");
+  igual(r.live.nivel, "cece-turbo", "Live habló con Muse Wonder");
+  cierto(!r.partes.includes("cece-muse"), "Muse entró en Cece Pro sin clave, por la IA local: " + r.partes.join(","));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+// Reconocimiento de voz y micrófono falsos para Cece Live: el permiso del micrófono se contesta cuando la prueba quiere.
+const INIT_VOZ = () => {
+  window.__srs = [];
+  class SRFalso {
+    constructor() {
+      window.__srs.push(this);
+    }
+    start() {}
+    stop() {
+      this.parado = true;
+      this.onend && this.onend();
+    }
+    abort() {
+      this.parado = true;
+      this.onend && this.onend();
+    }
+  }
+  window.SpeechRecognition = window.webkitSpeechRecognition = SRFalso;
+  window.__permiso = [];
+  navigator.mediaDevices.getUserMedia = () =>
+    new Promise((res) => {
+      const dar = () => {
+        const ac = new AudioContext(),
+          osc = ac.createOscillator(),
+          d = ac.createMediaStreamDestination();
+        (osc.connect(d), osc.start(), (window.__stream = d.stream), res(d.stream));
+      };
+      window.__permisoYa ? dar() : window.__permiso.push(dar);
+    });
+  "speechSynthesis" in window && (speechSynthesis.speak = (u) => setTimeout(() => u.onend && u.onend(), 50));
+};
+const INIT_VOZ_YA = `window.__permisoYa = true; (${INIT_VOZ})();`; // (el permiso se da al momento)
+const decirLive = (p, t) =>
+  p.evaluate((t) => {
+    const sr = window.__srs[window.__srs.length - 1],
+      res = [{ transcript: t }];
+    ((res.isFinal = true), sr.onresult({ resultIndex: 0, results: [res] }), sr.onend());
+  }, t);
+
+prueba("Cece Live: tocar el orbe mientras se abre el micro, perder el micro y quedarse sin red", async (nav) => {
+  // 1) Tocar el orbe con el permiso del micrófono sin contestar lanzaba un TypeError de MediaRecorder (Oído por Groq,
+  //    que graba con MediaRecorder).
+  let a = await nuevaPagina(nav, conClaves({ turbo: "sk-t", reserva: "gsk-r" }), { init: INIT_VOZ });
+  await a.pagina.click("#liveBtn");
+  await a.pagina.waitForTimeout(200);
+  await a.pagina.click("#liveOrb", { force: true });
+  await a.pagina.waitForTimeout(300);
+  igual(a.errores.length, 0, "tocar el orbe mientras se abre el micro: " + a.errores.join(" | "));
+  await a.ctx.close();
+  // 2) Al perderse el micrófono, el reconocimiento del navegador también se para (antes seguía y contestaba).
+  let llamadas = 0;
+  const ia = { deepseek: () => (llamadas++, { cuerpo: respuestaOpenAI("Respuesta " + llamadas + ".") }) };
+  a = await nuevaPagina(nav, conClaves({ turbo: "sk-t" }), {
+    init: INIT_VOZ_YA,
+    almacen: { cece_ajustes: { stt: "navegador" } },
+    ia,
+  });
+  await a.pagina.click("#liveBtn");
+  await a.pagina.waitForFunction(() => Voz.estado === "listening" && !!Voz.sr, null, { timeout: 5000 });
+  const sr = await a.pagina.evaluate(() => window.__srs.length);
+  await a.pagina.evaluate(() => window.__stream.getAudioTracks()[0].dispatchEvent(new Event("ended")));
+  await a.pagina.waitForTimeout(150);
+  cierto(await a.pagina.evaluate((i) => !Voz.sr && window.__srs[i - 1].parado, sr), "el reconocimiento siguió tras perder el micro");
+  igual(llamadas, 0, "Live contestó sin micrófono");
+  igual(a.errores.length, 0, "errores: " + a.errores.join(" | "));
+  await a.ctx.close();
+  // 3) Sin red, un turno de Live no se queda en la cola del chat (antes el chat lo contestaba otra vez al volver).
+  llamadas = 0;
+  a = await nuevaPagina(nav, conClaves({ turbo: "sk-t" }), {
+    init: INIT_VOZ_YA,
+    almacen: { cece_ajustes: { stt: "navegador", vozChat: true } },
+    ia,
+  });
+  await a.pagina.click("#liveBtn");
+  await a.pagina.waitForFunction(() => Voz.estado === "listening", null, { timeout: 5000 });
+  await a.ctx.setOffline(true);
+  await decirLive(a.pagina, "qué hora es en Tokio");
+  await a.pagina.waitForFunction(() => Voz.estado === "error", null, { timeout: 8000 });
+  const enCola = await a.pagina.evaluate(() => historial.some((m) => m.pendiente));
+  cierto(!enCola, "el turno de Live se quedó en la cola del chat");
+  cierto(!/se enviará solo/.test(await a.pagina.evaluate(() => liveIa.textContent)), "Live promete un reenvío que no hace");
+  await a.ctx.setOffline(false);
+  await a.pagina.evaluate(() => window.dispatchEvent(new Event("online")));
+  await a.pagina.waitForTimeout(1500);
+  igual(llamadas, 0, "al volver la red el chat contestó por su cuenta el turno de Live");
+  await a.ctx.close();
+});
+
+prueba("calculadora y comandos: redondeo x,xx5, enteros de 13-15 cifras, «2 hrs», «hora y media» y /web crea", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  const casos = [
+    ["/calc redondear(4,725; 2)", /= 4,73$/m],
+    ["/calc round(10,075; 2)", /= 10,08$/m],
+    ["/calc redondear(1,005; 2)", /= 1,01$/m],
+    ["/calc 2^40", /= 1\.099\.511\.627\.776$/m],
+    ["/calc 999999999999+2", /= 1\.000\.000\.000\.001$/m],
+    ["/calc 0,1+0,2", /= 0,3$/m],
+    ["/temporizador 2 hrs", /7200 s/],
+    ["/temporizador cancelar", /cancelado/],
+    ["/temporizador 1 hora y media", /5400 s/],
+    ["/temporizador cancelar", /cancelado/],
+    ["/temporizador 30 segs", /de 30 s:/],
+    ["/temporizador cancelar", /cancelado/],
+    ["/temporizador 2 lunas", /escribe el tiempo/],
+  ];
+  for (const [entrada, esperado] of casos) {
+    await escribirYEnviar(pagina, entrada);
+    const r = await ultimaRespuesta(pagina);
+    cierto(esperado.test(r.texto), `${entrada} → ${r.texto}`);
+  }
+  igual(await pagina.evaluate(() => COMANDO.web && COMANDO.web.id), "crear", "/web no es /crear");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("nube: plugins y apariencia se fusionan uno a uno; «perdido» no viaja; no se desvincula a media ronda", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  const r = await pagina.evaluate(() => {
+    // (fechas recientes: las marcas de borrado de más de 180 días se descartan)
+    const T = (s) => new Date(Date.now() - 6e4 + s * 1e3).toISOString();
+    const pl = (id, f) => ({ id, emoji: "🧩", tipo: "plantilla", cuerpo: "x {texto}", nombre: id, desc: "", actualizado: f });
+    // A creó /resumen (T1); B, con la lista vieja, solo desactivó /dado después (T2)
+    const A = { plugins: { lista: [pl("resumen", T(1))], off: [], t: T(1) } };
+    const B = { plugins: { lista: [], off: ["dado"], t: T(2) } };
+    const f1 = fusionarNube(B, A).plugins;
+    // A borró /viejo (marca T3) y B aún lo tiene, sin tocarlo desde T0
+    const C = { plugins: { lista: [], off: [], t: T(3), borrados: { viejo: T(3) } } };
+    const D = { plugins: { lista: [pl("viejo", T(0))], off: [], t: T(4) } };
+    const f2 = fusionarNube(D, C).plugins;
+    // apariencia: A cambió el tema (T1), B la letra después (T2) con el tema viejo
+    const ap = fusionarNube(
+      { apariencia: { tema: "claro", letra: "grande", t: T(2), tk: { letra: T(2) } } },
+      { apariencia: { tema: "oscuro", letra: "normal", t: T(1), tk: { tema: T(1) } } },
+    ).apariencia;
+    const adj = adjuntosParaGuardar([{ id: "a1", nombre: "factura.png", tipo: "imagen", mime: "image/png", tam: 5, idb: true, perdido: true }])[0];
+    Nube.ocupada = true;
+    pintarNube();
+    const desv = document.getElementById("nubeOlvidar").disabled;
+    Nube.ocupada = false;
+    return {
+      resumen: f1.lista.map((p) => p.id),
+      off: f1.off,
+      viejo: f2.lista.map((p) => p.id),
+      ap: [ap.tema, ap.letra],
+      adj: [!!adj.idb, !!adj.perdido],
+      desv,
+    };
+  });
+  igual(r.resumen.join(","), "resumen", "desactivar un plugin en otro equipo borró /resumen");
+  igual(r.off.join(","), "dado", "se perdió lo que desactivó el otro equipo");
+  igual(r.viejo.length, 0, "un plugin borrado volvió desde el otro equipo");
+  igual(r.ap.join(","), "oscuro,grande", "cambiar la letra en un equipo devolvió el tema viejo");
+  igual(r.adj.join(","), "true,false", "«ya no disponible» de este equipo se guarda y viaja a los demás");
+  cierto(r.desv, "«Desvincular» se puede pulsar a mitad de una sincronización");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });

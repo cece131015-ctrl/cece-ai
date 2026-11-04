@@ -338,6 +338,9 @@ const capacidad = (e, t) => {
       color: "#b388ff",
       neon: "#7c4dff",
       oculto: !0,
+      // Sin respaldo: si falta su clave no participa. Antes, con la IA local encendida, motoresDe le ponía el modelo local
+      // como motor y «Muse» se colaba en Cece Pro con la clave vacía.
+      solo: !0,
       motores: ["musewonder:muse-wonder-1.0"],
     },
     {
@@ -576,7 +579,7 @@ function leerAjustes(e) {
       t["rep" + e] = o[a];
     }),
     "igual" === t.liveModelo ||
-      (Object.hasOwn(CECE_MAP, t.liveModelo) && !CECE_MAP[t.liveModelo].pro) ||
+      (Object.hasOwn(CECE_MAP, t.liveModelo) && !CECE_MAP[t.liveModelo].pro && !CECE_MAP[t.liveModelo].oculto) ||
       (t.liveModelo = DEF.liveModelo),
     t
   );
@@ -3518,6 +3521,7 @@ const avisoCorte = (e) =>
                 : [],
   avisoSinVer = (e) =>
     e && e.sinVer && e.sinVer.length ? [`📎 ${etiquetaMotor(e.motor)} no pudo abrir: ${e.sinVer.join(", ")}`] : [];
+const MSG_SIN_RED_LIVE = "Sin conexión a internet: no se pudo responder. Vuelve a intentarlo cuando vuelva la red.";
 function marcarPendiente() {
   const e = [...historial].reverse().find((e) => "user" === e.role && !e.local);
   if (!e || e.pendiente) return;
@@ -3530,13 +3534,17 @@ function marcarPendiente() {
     guardarActual(),
     Red.pintar());
 }
+// a.sinCola: el turno no es del chat (Cece Live) y no debe quedar en la cola de «se enviará al volver internet»: antes
+// se ponía en cola, al volver la red el chat lo contestaba por su cuenta (con el modelo del chat) y, si se reintentaba
+// en Live como pedía la pantalla, se pagaba y se respondía dos veces.
 function finalizarConError(e, t, o, a = {}) {
-  const n = separarThink(e.texto).texto;
+  const n = separarThink(e.texto).texto,
+    cola = t && t.sinRed && !n.trim() && !esAbort(t);
   if (
-    (t && t.sinRed && !n.trim() && !esAbort(t) && marcarPendiente(),
+    (cola && !a.sinCola && marcarPendiente(),
     esAbort(t)
       ? (e.terminarYa(), n || e.error("Detenido."), e.pieDePagina({ avisos: ["detenido"], texto: n }))
-      : (e.error(t.message || String(t)),
+      : (e.error(cola && a.sinCola ? MSG_SIN_RED_LIVE : t.message || String(t)),
         e.pieDePagina({ via: t.motor ? etiquetaMotor(t.motor) : "", avisos: o, texto: n })),
     a.motor && (n || e.razon))
   )
@@ -3717,10 +3725,17 @@ const ROLES_PRO = [
   },
 ];
 const MAX_REV_PRO = 3; // vueltas máximas del bucle buscar→corregir: acota el coste y evita un bucle infinito
+// «Buscar errores» da el visto bueno solo si TODA su respuesta es la marca: antes bastaba la frase «sin errores» en
+// cualquier parte («…corrigiendo eso, quedará sin errores») y el bucle se paraba con el fallo recién señalado.
+function sinErrores(t) {
+  return "SINERRORES" === String(t || "").replace(/[\s*_`.!¡:>#"'«»-]/g, "").toUpperCase();
+}
 function planPro(partes) {
   const n = partes.length,
     idx = (c) => ROLES_PRO.findIndex((r) => r.clave === c),
-    paso = (c) => ({ rol: ROLES_PRO[idx(c)], parte: partes[idx(c) % n] });
+    // Los papeles se cuentan desde el final: «Calidad máxima» (el último) va siempre a la parte más adecuada (la última
+    // tras ordenarRelevo). Antes era idx % n y, con 4 o 5 modelos, el final caía en el menos adecuado (5 % 5 = 0).
+    paso = (c) => ({ rol: ROLES_PRO[idx(c)], parte: partes[(((idx(c) - ROLES_PRO.length) % n) + n) % n] });
   const plan = ["base", "completar", "revisar", "buscar", "corregir", "calidad"].map(paso);
   for (let v = 0; v < MAX_REV_PRO; v++) plan.push(paso("buscar"), paso("corregir"));
   return plan;
@@ -3741,16 +3756,19 @@ function mesaArchivos(o) {
     (fuera.length ? `\n\n(No caben aquí, pero existen y pasan tal cual: ${fuera.join(", ")}.)` : "")
   );
 }
-function contextoRelevo(o, a, instr) {
+function contextoRelevo(o, a, instr, obra) {
   const n = ["🤝 Relevo de Cece Pro — trabajo en equipo."],
     mesa = mesaArchivos(o);
   mesa && n.push(mesa);
-  const i = a ? notasDe(a.texto) : "";
+  // Si el paso anterior solo señaló errores, el trabajo a corregir es el de la última entrega: antes el corrector recibía
+  // la lista de errores pero no el texto, y en prosa (o código sin nombre de archivo) se perdía todo lo hecho.
+  const critica = !(!a || !a.rol || !a.rol.critic),
+    base = critica ? obra : a,
+    t = base ? notasDe(base.texto) : "",
+    i = critica ? notasDe(a.texto) : "";
   return (
-    i &&
-      n.push(
-        `${a.rol && a.rol.critic ? "Errores que te han señalado" : `Lo que hay hasta ahora (${a.rol ? a.rol.nom : "paso anterior"})`}:\n${i}`,
-      ),
+    t && n.push(`Lo que hay hasta ahora (${base.rol ? base.rol.nom : "paso anterior"}):\n${t}`),
+    i && n.push(`Errores que te han señalado:\n${i}`),
     n.push(instr),
     n.join("\n\n")
   );
@@ -3907,7 +3925,7 @@ async function ejecutarRelevo(e, t = {}) {
       c());
     try {
       const res = await llamarCece(s.id, {
-        mensajes: conContexto(r, contextoRelevo(l, m, s.rol.instr)),
+        mensajes: conContexto(r, contextoRelevo(l, m, s.rol.instr, entrega)),
         sistema: sistemaPara(s.id, INSTR_RELEVO, o),
         maxTok: Math.max(maxTokens(o), 8192),
         esf: o,
@@ -3926,7 +3944,7 @@ async function ejecutarRelevo(e, t = {}) {
       });
       ((s.r = res), (s.texto = res.texto), (m = s), d.push(s));
       if (s.critic) {
-        ((limpio = /\bSIN\s+ERRORES\b/i.test(separarThink(res.texto).texto)),
+        ((limpio = sinErrores(separarThink(res.texto).texto)),
           (s.estado = limpio ? "✓ sin errores" : "⚠️ encontró errores"));
       } else {
         const arch = archivosDe(res.texto);
@@ -4861,7 +4879,9 @@ function adjuntosParaGuardar(e) {
         ((t.texto = o.slice(0, MAX_TXT_GUARDADO)),
           (e.recortado || o.length > MAX_TXT_GUARDADO) && (t.recortado = !0),
           "string" == typeof e.origen && (t.origen = e.origen.slice(0, 10)));
-      } else e.perdido || (!e.datos && !e.idb) ? (t.perdido = !0) : (t.idb = !0);
+      // «perdido» es de este equipo (aquí no están los bytes) y no se guarda si siguen en IndexedDB: se sincroniza y, al
+      // continuar la conversación en otro equipo, el original marcaba sus propias imágenes como «ya no disponible».
+      } else !e.datos && !e.idb ? (t.perdido = !0) : (t.idb = !0);
       return t;
     });
 }
@@ -5298,7 +5318,8 @@ function conectarAdjuntos() {
 const COMANDOS = [
     {
       id: "buscar",
-      alias: ["search", "web", "google"],
+      // («web» es de /crear, como dice la ayuda: aquí ganaba por registrarse antes y «/web …» buscaba en vez de crear)
+      alias: ["search", "google"],
       emoji: "🔎",
       h: "buscar",
       arg: "qué buscar",
@@ -5797,8 +5818,11 @@ const Calc = (() => {
     // Los .5 se alejan del cero también en negativo, como en Excel (Math.round(-2.5) daba -2); «+ 0» quita el -0.
     if (void 0 === t) return Math.sign(e) * Math.round(Math.abs(e)) + 0;
     if (!Number.isInteger(t) || t < 0 || t > 15) throw new Error("los decimales de redondear van de 0 a 15");
-    const o = 10 ** t;
-    return (Math.sign(e) * Math.round((Math.abs(e) + Number.EPSILON) * o)) / o + 0;
+    // Se quita el ruido binario con toPrecision(15) antes de redondear: «+ Number.EPSILON» no servía a partir de 2
+    // (4,725 · 100 = 472,49999999999994 y redondear(4,725; 2) daba 4,72 en vez de 4,73 como Excel).
+    const o = 10 ** t,
+      x = Math.abs(e) * o;
+    return (Math.sign(e) * Math.round(x < 1e15 ? +x.toPrecision(15) : x)) / o + 0;
   }
   const redondeoTrig = (e) => (Math.abs(e) < 1e-12 ? 0 : Math.abs(e - Math.round(e)) < 1e-12 ? Math.round(e) : e);
   function factorial(e) {
@@ -6002,11 +6026,12 @@ function numBonito(e, t = 10) {
   // (lo que con t decimales se vería como 0 sin serlo, también en notación científica: «1 ms = 0 h» era falso)
   if (0 !== e && (Math.abs(e) >= 1e15 || Math.abs(e) < Math.max(1e-9, 0.5 * 10 ** -t)))
     return e.toExponential(8).replace(/\.?0+e/, "e");
-  const o = parseFloat(e.toPrecision(12));
+  // 15 cifras y no 12: los enteros de 13 a 15 cifras salían inventados (2^40 = 1.099.511.627.780 en vez de …776).
+  const o = parseFloat(e.toPrecision(15));
   return o.toLocaleString("es-ES", { maximumFractionDigits: t, useGrouping: Math.abs(o) >= 1e4 });
 }
 const numPlano = (e) => {
-    const t = parseFloat(e.toPrecision(12));
+    const t = parseFloat(e.toPrecision(15));
     return Math.abs(t) >= 1e15 || (0 !== t && Math.abs(t) < 1e-9)
       ? t.toExponential(8).replace(/\.?0+e/, "e")
       : String(t);
@@ -6413,11 +6438,19 @@ const Temporizadores = {
       let a = 0,
         n = !1;
       // (sin \b detrás de la unidad: en «1h30m» la «h» va pegada a un número y solo se contaban los 30 min)
-      const r = /(\d+(?:\.\d+)?)\s*(horas?|h|minutos?|min|m|segundos?|seg|s)?(?![a-z])/g;
+      // Unidades abreviadas «hrs», «mins», «segs», «secs»: antes no se reconocían, el número se quedaba sin unidad y
+      // contaba como minutos («2 hrs» sonaba a los 2 minutos). Una palabra que no es unidad tras un número sin unidad
+      // es un error (sale el aviso de cómo escribir el tiempo) en vez de un temporizador equivocado.
+      const r = /(\d+(?:\.\d+)?)\s*(horas?|hrs?|h|minutos?|mins?|m|segundos?|segs?|secs?|s)?(?![a-z])/g;
       for (; (o = r.exec(t));) {
         n = !0;
-        const e = o[2] || "min";
-        a += +o[1] * ("h" === e[0] ? 36e5 : e.startsWith("s") ? 1e3 : 6e4);
+        const e = o[2] || "min",
+          u = "h" === e[0] ? 36e5 : e.startsWith("s") ? 1e3 : 6e4,
+          resto = t.slice(r.lastIndex);
+        if (!o[2] && /^\s*(?!(?:y|e|and)\b)[a-z]/.test(resto)) return null;
+        a += +o[1] * u;
+        // «1 hora y media», «5 minutos y medio»
+        o[2] && /^\s*(?:y|e)\s+medi[ao]\b/.test(resto) && (a += u / 2);
       }
       return n ? Math.round(a) : null;
     },
@@ -7223,6 +7256,7 @@ function conectarPlugins() {
       const o = Plugins.propios.findIndex((e) => e.id === _plgEditando);
       if (o >= 0) {
         if (_plgEditando !== t.plugin.id) {
+          Nube.borrarPlugin(_plgEditando);
           const e = S.pluginsOff.includes("propio:" + _plgEditando);
           ((S.pluginsOff = S.pluginsOff.filter((e) => e !== "propio:" + _plgEditando)),
             e && S.pluginsOff.push("propio:" + t.plugin.id));
@@ -7240,7 +7274,8 @@ function conectarPlugins() {
       const e = Plugins.propios.find((e) => e.id === _plgEditando);
       e &&
         confirm(`¿Borrar el plugin /${e.id}?`) &&
-        ((Plugins.propios = Plugins.propios.filter((t) => t !== e)),
+        (Nube.borrarPlugin(e.id),
+        (Plugins.propios = Plugins.propios.filter((t) => t !== e)),
         (S.pluginsOff = S.pluginsOff.filter((t) => t !== "propio:" + e.id)),
         guardarAjustes(),
         Plugins.guardar(),
@@ -8499,7 +8534,7 @@ function pintarApariencia() {
     ($("swAnim").checked = S.animaciones));
 }
 function cambiarApariencia(e, t) {
-  ((S[e] = t), guardarAjustes(), aplicarApariencia(), pintarApariencia(), void 0 !== Nube && Nube.marcar("apariencia"));
+  ((S[e] = t), guardarAjustes(), aplicarApariencia(), pintarApariencia(), void 0 !== Nube && Nube.marcar("apariencia", e));
 }
 function conectarApariencia() {
   const e = $("temasGrid");
@@ -8550,7 +8585,49 @@ const AJUSTES_APARIENCIA = ["tema", "acento", "letra", "densidad", "ancho", "ani
     for (let o = 0; o < e.length; o++) ((t ^= e.charCodeAt(o)), (t = Math.imul(t, 16777619)));
     return (t >>> 0).toString(36);
   },
-  masReciente = (e, t) => (e ? (t && (Date.parse(t.t) || 0) > (Date.parse(e.t) || 0) ? t : e) : t || null);
+  masReciente = (e, t) => (e ? (t && (Date.parse(t.t) || 0) > (Date.parse(e.t) || 0) ? t : e) : t || null),
+  fechaNube = (e) => Date.parse(e) || 0;
+// Plugins: se fusionan uno a uno (gana el «actualizado» más reciente de cada plugin) y los borrados dejan una marca
+// con fecha. Antes ganaba la lista entera del equipo que tocó algo último: activar o desactivar un plugin en un equipo
+// con la lista vieja borraba en todos los equipos los plugins creados en el otro, sin dejar copia.
+function fusionarPlugins(e, t, ahora = Date.now()) {
+  if (!e || !t) return e || t || null;
+  const [viejo, nuevo] = fechaNube(t.t) > fechaNube(e.t) ? [e, t] : [t, e],
+    borrados = {};
+  for (const b of [viejo.borrados, nuevo.borrados])
+    if (b && "object" == typeof b && !Array.isArray(b))
+      for (const [id, f] of Object.entries(b))
+        "string" == typeof f && fechaNube(f) && !(borrados[id] && fechaNube(borrados[id]) >= fechaNube(f)) && (borrados[id] = f);
+  for (const id of Object.keys(borrados)) ahora - fechaNube(borrados[id]) > 15552e6 && delete borrados[id];
+  const porId = new Map();
+  for (const p of [...(Array.isArray(nuevo.lista) ? nuevo.lista : []), ...(Array.isArray(viejo.lista) ? viejo.lista : [])]) {
+    if (!p || "string" != typeof p.id) continue;
+    const ya = porId.get(p.id);
+    (!ya || fechaNube(p.actualizado) > fechaNube(ya.actualizado)) && porId.set(p.id, p);
+  }
+  return {
+    lista: [...porId.values()].filter((p) => !(borrados[p.id] && fechaNube(borrados[p.id]) >= fechaNube(p.actualizado))),
+    off: Array.isArray(nuevo.off) ? nuevo.off : [],
+    t: nuevo.t,
+    borrados: borrados,
+  };
+}
+// Apariencia: cada ajuste lleva su propia fecha (tk) y gana el cambio más reciente de ese ajuste. Antes cambiar la letra
+// en un equipo devolvía en el otro el tema viejo de este. Sin fechas por ajuste (datos antiguos) gana el más reciente.
+function fusionarApariencia(e, t) {
+  if (!e || !t) return e || t || null;
+  const g = masReciente(e, t),
+    r = { ...g, tk: {} };
+  for (const k of AJUSTES_APARIENCIA) {
+    const fe = fechaNube(e.tk && e.tk[k]),
+      ft = fechaNube(t.tk && t.tk[k]),
+      de = fe || ft ? (ft > fe ? t : e) : g;
+    Object.hasOwn(de, k) && (r[k] = de[k]);
+    const f = Math.max(fe, ft);
+    f && (r.tk[k] = new Date(f).toISOString());
+  }
+  return r;
+}
 function fusionarNube(e, t, o = Date.now()) {
   ((e = e || {}), (t = t || {}));
   const a = {};
@@ -8594,8 +8671,8 @@ function fusionarNube(e, t, o = Date.now()) {
       .filter((e) => !(a[e.id] && Date.parse(a[e.id]) >= tiempoConv(e)))
       .sort((e, t) => tiempoConv(t) - tiempoConv(e)),
     borradas: a,
-    plugins: masReciente(e.plugins, t.plugins),
-    apariencia: masReciente(e.apariencia, t.apariencia),
+    plugins: fusionarPlugins(e.plugins, t.plugins, o),
+    apariencia: fusionarApariencia(e.apariencia, t.apariencia),
   };
 }
 const firmaConv = (e) =>
@@ -8620,8 +8697,19 @@ const firmaConv = (e) =>
     ponerMeta(e) {
       almacen.set("cece_nube_meta", { ...this.meta(), ...e });
     },
-    marcar(e) {
-      (("plugins" !== e && "apariencia" !== e) || this.ponerMeta({ [e]: new Date().toISOString() }), this.programar());
+    marcar(e, clave) {
+      const t = new Date().toISOString();
+      (("plugins" !== e && "apariencia" !== e) ||
+        this.ponerMeta({
+          [e]: t,
+          ...("apariencia" === e && clave ? { aparienciaT: { ...(this.meta().aparienciaT || {}), [clave]: t } } : {}),
+        }),
+        this.programar());
+    },
+    // Marca de borrado de un plugin propio (también al renombrarlo): sin ella, el otro equipo lo devolvería al fusionar.
+    borrarPlugin(id) {
+      const e = this.meta().pluginsBorrados;
+      this.ponerMeta({ pluginsBorrados: { ...(e && "object" == typeof e ? e : {}), [id]: new Date().toISOString() } });
     },
     programar(e = 2e4) {
       S.nubeAuto &&
@@ -8790,8 +8878,17 @@ const firmaConv = (e) =>
       return {
         convs: convs.map((e) => ({ ...e, mensajes: e.mensajes.map(mensajeParaGuardar) })),
         borradas: convsBorradas(),
-        plugins: { lista: Plugins.propios, off: S.pluginsOff, t: e.plugins || "1970-01-01T00:00:00.000Z" },
-        apariencia: { ...t, t: e.apariencia || "1970-01-01T00:00:00.000Z" },
+        plugins: {
+          lista: Plugins.propios,
+          off: S.pluginsOff,
+          t: e.plugins || "1970-01-01T00:00:00.000Z",
+          borrados: e.pluginsBorrados && "object" == typeof e.pluginsBorrados ? e.pluginsBorrados : {},
+        },
+        apariencia: {
+          ...t,
+          t: e.apariencia || "1970-01-01T00:00:00.000Z",
+          tk: e.aparienciaT && "object" == typeof e.aparienciaT ? e.aparienciaT : {},
+        },
       };
     },
     aplicar(e) {
@@ -8813,9 +8910,18 @@ const firmaConv = (e) =>
         pintarHistorial(),
         guardarActual(),
         toast("☁️ Esta conversación se actualizó desde otro equipo.", "", 4e3));
+      // Se aplica lo fusionado en cuanto difiere de lo local (no solo si su fecha es más nueva): con la fusión por
+      // elemento, la lista puede traer plugins del otro equipo aunque el último cambio fuera de este.
       const n = e.plugins && Date.parse(e.plugins.t),
-        r = e.apariencia && Date.parse(e.apariencia.t);
-      if (n && n > (Date.parse(t.plugins) || 0)) {
+        r = e.apariencia && Date.parse(e.apariencia.t),
+        difPl =
+          e.plugins &&
+          (JSON.stringify(Array.isArray(e.plugins.lista) ? e.plugins.lista : []) !== JSON.stringify(Plugins.propios) ||
+            JSON.stringify(Array.isArray(e.plugins.off) ? e.plugins.off : []) !== JSON.stringify(S.pluginsOff)),
+        difAp = e.apariencia && AJUSTES_APARIENCIA.some((k) => Object.hasOwn(e.apariencia, k) && e.apariencia[k] !== S[k]);
+      e.plugins && e.plugins.borrados && (t.pluginsBorrados = e.plugins.borrados);
+      e.apariencia && e.apariencia.tk && (t.aparienciaT = e.apariencia.tk);
+      if (n && (difPl || n > (Date.parse(t.plugins) || 0))) {
         const o = new Set(),
           a = (Array.isArray(e.plugins.lista) ? e.plugins.lista : [])
             .map((e) => validarPluginGuardado(e, !0))
@@ -8831,7 +8937,7 @@ const firmaConv = (e) =>
           pintarPlugins(),
           (t.plugins = e.plugins.t));
       }
-      if (r && r > (Date.parse(t.apariencia) || 0)) {
+      if (r && (difAp || r > (Date.parse(t.apariencia) || 0))) {
         const o = leerAjustes({
           ...S,
           ...Object.fromEntries(
@@ -8841,7 +8947,12 @@ const firmaConv = (e) =>
         for (const e of AJUSTES_APARIENCIA) S[e] = o[e];
         (guardarAjustes(), aplicarApariencia(), pintarApariencia(), (t.apariencia = e.apariencia.t));
       }
-      this.ponerMeta({ plugins: t.plugins, apariencia: t.apariencia });
+      this.ponerMeta({
+        plugins: t.plugins,
+        apariencia: t.apariencia,
+        pluginsBorrados: t.pluginsBorrados || {},
+        aparienciaT: t.aparienciaT || {},
+      });
     },
     async ronda(e) {
       const t = await this.buscarGist(),
@@ -8935,6 +9046,8 @@ function pintarNube() {
     (e.className = "aviso" + (a ? " aviso-" + a : "")),
     (e.textContent = o),
     ($("nubeAhora").disabled = Nube.ocupada),
+    // Desvincular a mitad de una sincronización se deshacía: la ronda en curso volvía a enlazar el Gist y a subir.
+    ($("nubeOlvidar").disabled = Nube.ocupada),
     ($("nubeOlvidar").style.display = S.nubeGist ? "" : "none"));
 }
 function conectarNube() {
@@ -8946,6 +9059,7 @@ function conectarNube() {
   }),
     $("nubeAhora").addEventListener("click", () => Nube.sincronizar()),
     $("nubeOlvidar").addEventListener("click", () => {
+      if (Nube.ocupada) return;
       // Desvincular también apaga la sincronización automática: si no, el siguiente cambio volvía a encontrar el mismo
       // Gist y seguía sincronizando.
       ((S.nubeGist = ""),
@@ -10492,7 +10606,7 @@ class Microfono {
     }
   }
   _grabar() {
-    if ((this._parar(), !window.MediaRecorder)) return;
+    if ((this._parar(), !window.MediaRecorder || !this.stream)) return;
     const e = new MediaRecorder(this.stream, this.mime ? { mimeType: this.mime } : void 0);
     ((e._trozos = []),
       (e.ondataavailable = (t) => {
@@ -10993,10 +11107,10 @@ const ICONOS = {
     },
     nivelLive: () =>
       "igual" === S.liveModelo
-        ? CECE_MAP[S.modelo] && !CECE_MAP[S.modelo].pro
+        ? CECE_MAP[S.modelo] && !CECE_MAP[S.modelo].pro && !CECE_MAP[S.modelo].oculto
           ? S.modelo
           : "cece-turbo"
-        : CECE_MAP[S.liveModelo] && !CECE_MAP[S.liveModelo].pro
+        : CECE_MAP[S.liveModelo] && !CECE_MAP[S.liveModelo].pro && !CECE_MAP[S.liveModelo].oculto
           ? S.liveModelo
           : "cece-turbo",
     refrescarEtiquetas() {
@@ -11104,6 +11218,9 @@ const ICONOS = {
               this.activo &&
               (o.cerrar(),
               (this.mic = null),
+              // También el reconocimiento del navegador: si seguía oyendo, al acabar la frase contestaba igualmente y
+              // Live se quedaba en «Hablando…» sin micrófono.
+              this._pararSR(),
               this.turno++,
               this.ctrl && (this.ctrl.abort(), (this.ctrl = null)),
               "mic" === this.modo && generando && detener(),
@@ -11153,7 +11270,9 @@ const ICONOS = {
         (this.modo = null));
     },
     escuchar() {
-      if (this.activo && this.mic) {
+      // Hasta que abrir() termina, this.mic existe pero no tiene stream: tocar el orbe mientras se abre lanzaba un
+      // TypeError de MediaRecorder. Ya se escuchará solo cuando el micrófono esté listo.
+      if (this.activo && this.mic && this.mic.stream) {
         if ((this.altavoz && (this.altavoz.parar(), (this.altavoz = null)), this.mute))
           return (this.mic.pausar(), void this.ponerEstado("mute"));
         (this.ponerEstado("listening"),
@@ -11338,10 +11457,10 @@ const ICONOS = {
             Codigo.procesar(e.texto, r.bubble))
           : (this.liveHist.push({ role: "assistant", content: e.texto }), codigoLiveAlChat(e.texto, d));
       } catch (e) {
-        if ((r && finalizarConError(r, e, []), esAbort(e) || t !== this.turno)) return;
+        if ((r && finalizarConError(r, e, [], { sinCola: !0 }), esAbort(e) || t !== this.turno)) return;
         (o.parar(),
           (this.altavoz = null),
-          ($("liveIa").textContent = "❌ " + e.message),
+          ($("liveIa").textContent = "❌ " + (e.sinRed ? MSG_SIN_RED_LIVE : e.message)),
           this.ponerEstado("error", e.corto ? "Error: " + e.corto + " — toca para reintentar" : void 0),
           this.mic && this.mic.pausar());
       }
@@ -11425,7 +11544,7 @@ function pintarAjustesVoz() {
     ($("silencioVal").textContent = S.silencio),
     ($("liveModelo").innerHTML =
       '<option value="igual">Igual que el chat (Pro → Turbo)</option>' +
-      CECE.filter((e) => !e.pro)
+      CECE.filter((e) => !e.pro && !e.oculto)
         .map((e) => `<option value="${e.id}">${esc(e.nombre)}${"cece-turbo" === e.id ? " (rápido)" : ""}</option>`)
         .join("")),
     ($("liveModelo").value = S.liveModelo),
