@@ -2565,6 +2565,50 @@ prueba("plugins de programación: /html, /2d-game, /3d-game, /backend, /api, /de
   await ctx.close();
 });
 
+prueba("idioma de la app: se traduce todo el panel de ajustes, Cece Live, la barra de estado y los distintivos", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
+  await pagina.click("#settingsBtn");
+  await pagina.selectOption("#appIdioma", "en");
+  await pagina.waitForTimeout(200);
+  const r = await pagina.evaluate(() => {
+    const txt = (sel) => [...document.querySelectorAll(sel)].map((e) => e.textContent.replace(/\s+/g, " ").trim());
+    // ¿queda algún texto SOLO-texto del panel sin traducir? (comparando con su original español cacheado)
+    const sinTraducir = [];
+    for (const e of document.querySelectorAll("#settingsOverlay h3, #settingsOverlay .etq, #settingsOverlay label, #settingsOverlay .settings-hint, #settingsOverlay option, #liveSettingsModal h3, #liveSettingsModal label"))
+      if (e.dataset.es && TEXTOS_APP.en[e.dataset.es] && e.textContent.replace(/\s+/g, " ").trim() === e.dataset.es.replace(/\s+/g, " ").trim())
+        sinTraducir.push(e.dataset.es);
+    return {
+      h3: txt("#settingsOverlay h3").join(" | "),
+      largo: txt("#optLargo option"),
+      tono: txt("#optTono option"),
+      buscar: document.getElementById("buscarConv").placeholder,
+      sinTraducir,
+    };
+  });
+  cierto(/Connections/.test(r.h3) && /Screen/.test(r.h3) && /Appearance/.test(r.h3) && /Cece Pro — split/.test(r.h3), "los títulos no se tradujeron: " + r.h3);
+  cierto(r.largo.includes("Short: the essentials") && r.tono.includes("Professional"), "las opciones no se tradujeron: " + r.largo + " / " + r.tono);
+  cierto(/Search saved/.test(r.buscar), "el placeholder de buscar no se tradujo: " + r.buscar);
+  igual(r.sinTraducir.length, 0, "quedan textos con traducción sin aplicar: " + r.sinTraducir.join(" | "));
+  // barra de estado y distintivos
+  const st = await pagina.evaluate(() => ({
+    last: [...document.querySelectorAll(".stat-strip .stat-item")].map((e) => e.textContent.replace(/\s+/g, " ").trim()),
+    pill: document.getElementById("pillBadge").textContent.trim(),
+  }));
+  cierto(st.last.some((x) => /Last:/.test(x)) && st.last.some((x) => /Session:/.test(x)), "la barra de estado sigue en español: " + st.last.join(" · "));
+  cierto(/Fast/.test(st.pill), "el distintivo del modelo no se tradujo: " + st.pill);
+  // vuelta a español
+  await pagina.selectOption("#appIdioma", "es");
+  await pagina.waitForTimeout(150);
+  cierto(await pagina.evaluate(() => /Conexiones/.test(document.querySelector('#ajustesNav [data-ir="secConexiones"]').textContent) && /Última:/.test(document.querySelector(".stat-strip").textContent)), "no vuelve al español");
+  // francés: un título y una opción
+  await pagina.selectOption("#appIdioma", "fr");
+  await pagina.waitForTimeout(150);
+  cierto(await pagina.evaluate(() => [...document.querySelectorAll("#settingsOverlay h3")].some((e) => /Écran/.test(e.textContent))), "no traduce al francés");
+  igual(await pagina.evaluate(() => document.documentElement.lang), "fr", "el atributo lang");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

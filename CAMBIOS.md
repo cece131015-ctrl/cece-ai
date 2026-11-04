@@ -1,5 +1,23 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — toda la app traducida al idioma elegido
+
+Al cambiar el **idioma de la app** (Configuración → 🌍 General) ahora se traduce toda la interfaz, no solo el saludo y
+los títulos: las siete lenguas siguen siendo español, English, français, Deutsch, italiano, português y català.
+
+- **Panel de configuración entero:** todos los títulos, etiquetas, textos de ayuda, opciones de los desplegables y
+  botones (General, Cece Live, Internet, Conexiones, Imágenes, Modo de esfuerzo, Cece Pro, Conversaciones, velocidad,
+  Emojis, Pantalla, Código, Respuesta, Cómo responde Cece, Apariencia, Plugins, Sin conexión, Nube y Seguridad).
+- **Ajustes de Cece Live:** cómo te habla, cómo te escucha, idioma y modelo, comportamiento y la pausa.
+- **Barra de estado** de abajo («Última», «Sesión», «tokens») y los **distintivos** del menú de modelos (Rápido,
+  Imbatible, Nuevo, Insignia, Creativo…).
+- **Cuadros de texto** (placeholders) del chat y de los ajustes.
+
+Lo que no se traduce a propósito: los nombres propios (Cece Pro, Cece Company, los nombres de los modelos y de las
+voces, Nord, Sepia…) y los textos de dentro de los mensajes, que son cosa de la IA. Si un texto todavía no tiene
+traducción, se queda en español en vez de romperse. La traducción recorre sola el panel, así que los textos nuevos solo
+necesitan añadirse al diccionario.
+
 ## 4 de noviembre de 2026 — aviso sin claves
 
 - Si el bloque de configuración no tiene **ninguna** clave, el aviso del chat y el de Cece Live ahora dicen
