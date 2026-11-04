@@ -13,6 +13,12 @@
   conserva la ruta completa.
 - Flujo: pídele a Cece que programe algo (o usa `/crear`) → `/github` → conecta con tu token → crea o elige un
   repositorio → «Subir el código del chat». Cada archivo va en su propio commit.
+- **Editar un repositorio que ya tienes:** «📥 Traer esta carpeta al chat» adjunta al próximo mensaje los archivos de
+  texto de la carpeta que estés viendo (y subcarpetas), cada uno con su ruta, en un solo adjunto. Se saltan
+  dependencias (`node_modules`…), archivos generados, binarios e imágenes, y hay un tope (80 archivos, ~250 000
+  caracteres; lo que no cabe se nombra). Luego le pides a Cece el cambio, reescribe los archivos con su ruta completa y
+  los subes con «Subir el código del chat», que respeta las carpetas (edita `src/app.js`, no crea un `app.js` suelto).
+  Ojo: mientras el repo siga en la conversación, cada mensaje lo vuelve a enviar y gasta tokens.
 - El token sigue viviendo **solo en la memoria de la pestaña** (no se guarda en el archivo ni en el navegador). Para
   crear repositorios, el token necesita permiso de administración además de contenidos.
 

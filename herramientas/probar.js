@@ -1839,6 +1839,50 @@ prueba("GitHub: «Subir el código del chat» sube todos los archivos de Cece al
   await ctx.close();
 });
 
+prueba("GitHub: traer el repo al chat, que Cece lo edite y subirlo respeta las carpetas", async (nav) => {
+  // El ciclo completo: «Traer esta carpeta al chat» adjunta los archivos de texto con su ruta (sin node_modules ni
+  // imágenes), Cece los lee y reescribe src/app.js, y «Subir el código del chat» actualiza src/app.js (no crea app.js).
+  const g = githubSimulado();
+  g.poner("cece/repo0", "src/app.js", "console.log('original');\n");
+  g.poner("cece/repo0", "README.md", "# Mi proyecto LEEME_7731\n");
+  g.poner("cece/repo0", "node_modules/lib/x.js", "modulo-interno-NO_DEBE_IR\n");
+  g.poner("cece/repo0", "logo.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]));
+  let pedido = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        (pedido = JSON.stringify(cuerpo.messages)),
+        {
+          cuerpo: respuestaOpenAI(
+            "Arreglado:\n\n```js src/app.js\nconsole.log('arreglado');\nconst a = 1;\nconst b = 2;\nconst c = 3;\n```",
+          ),
+        }
+      ),
+      "api.github.com": g.manejar,
+    },
+  });
+  await abrirGitHub(pagina);
+  await pagina.click("#cece-gh-pull-chat");
+  await pagina.waitForFunction(() => document.querySelectorAll("#adjBandeja .adj-item:not(.adj-cargando)").length === 1, null, {
+    timeout: 10000,
+  });
+  cierto(await pagina.evaluate(() => getComputedStyle(document.getElementById("cece-github-modal")).display === "none"), "el panel no se cerró");
+  await escribirYEnviar(pagina, "arregla el app.js");
+  await ultimaRespuesta(pagina);
+  cierto(/===== src\/app\.js =====/.test(pedido) && /original/.test(pedido), "a Cece no le llegó src/app.js con su ruta");
+  cierto(/LEEME_7731/.test(pedido), "a Cece no le llegó el README");
+  cierto(!/NO_DEBE_IR/.test(pedido), "se coló node_modules");
+  cierto(!/logo\.png/.test(pedido), "se coló una imagen");
+  await pagina.click("#cece-github-open");
+  await esperarGitHub(pagina, /./);
+  await pagina.click("#cece-gh-push-chat");
+  await esperarGitHub(pagina, /Subidos|No se pudo/);
+  cierto(/arreglado/.test(g.leer("cece/repo0", "src/app.js") || ""), "no actualizó src/app.js: " + g.puts.map((p) => p.ruta).join(", "));
+  igual(g.leer("cece/repo0", "app.js"), undefined, "creó un app.js suelto en la raíz en vez de editar src/app.js");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("voz y CeceHub: frases de verdad no se tiran, código de Live al chat, rótulos y enlaces http", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
   const r = await pagina.evaluate(() => {

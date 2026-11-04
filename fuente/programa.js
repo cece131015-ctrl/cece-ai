@@ -5338,10 +5338,26 @@ function abrirPanelGitHub() {
   // usable el chat de debajo)
   e ? setTimeout(() => e.click()) : toast("🐙 Este archivo no trae el panel de GitHub.", "mal");
 }
-// Puente de solo lectura para el panel de GitHub (que va aparte, fuera del programa): los archivos de código que Cece ha
-// escrito en el chat, en su última versión, con la ruta con la que los guarda (carpeta-del-lenguaje/nombre). Es una
-// copia: el panel no puede cambiar nada del programa por aquí.
-window.ceceArchivosChat = () => Codigo.archivos.map((e) => ({ ruta: e.ruta, contenido: e.contenido }));
+// Puentes para el panel de GitHub (que va aparte, fuera del programa).
+// · ceceArchivosChat: copia de los archivos de código que Cece ha escrito en el chat (última versión de cada uno). «ruta»
+//   es como los guarda Cece (carpeta-del-lenguaje/nombre); «repo» es la ruta para el repositorio, sin esa carpeta
+//   (se quita la carpeta de verdad según los ajustes, aunque tenga varios tramos), p. ej. javascript/src/app.js → src/app.js.
+// · ceceAdjuntarTexto: añade un texto como archivo adjunto del próximo mensaje (p. ej. un repositorio traído de GitHub).
+window.ceceArchivosChat = () => {
+  const carpetas = [...new Set(Object.values(S.carpetas || {}).filter((e) => "string" == typeof e && e))].sort(
+    (e, t) => t.length - e.length,
+  );
+  return Codigo.archivos.map((e) => {
+    const c = carpetas.find((t) => e.ruta.startsWith(t + "/"));
+    return {
+      ruta: e.ruta,
+      repo: c ? e.ruta.slice(c.length + 1) : e.ruta.split("/").slice(1).join("/") || e.ruta,
+      contenido: e.contenido,
+    };
+  });
+};
+window.ceceAdjuntarTexto = (e, t) =>
+  Adjuntos.agregar([new File([String(t)], String(e).replace(/[\\/:*?"<>|]+/g, "_") || "archivo.txt", { type: "text/plain" })]);
 // Acciones que solo abren una ventana: no tocan la conversación, así que no hace falta cortar la respuesta en curso.
 const soloVentana = (e) => "github" === e.accion || "ajustes" === e.accion;
 function aplicarComandos(e, t) {
