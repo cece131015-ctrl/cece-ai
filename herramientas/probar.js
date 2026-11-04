@@ -2451,7 +2451,7 @@ prueba("GitHub: traer una carpeta con más de 80 archivos avisa de que hay más;
   await ctx.close();
 });
 
-prueba("saludo al empezar (hora del día, nombre e idioma), ideas para empezar y ajustes nuevos", async (nav) => {
+prueba("saludo al empezar (hora del día, nombre e idioma) y ajustes nuevos", async (nav) => {
   let sistema = "";
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
     ia: {
@@ -2466,15 +2466,11 @@ prueba("saludo al empezar (hora del día, nombre e idioma), ideas para empezar y
     tarde: textoSaludo(16),
     manana: textoSaludo(9),
     noche: textoSaludo(23),
-    ideas: [...document.querySelectorAll(".sugerencia")].map((e) => e.dataset.cmd.trim()),
   }));
   igual(r.tarde, "**Hola, buenas tardes, soy Cece AI** 👋 ¿En qué te puedo ayudar hoy?", "saludo de la tarde");
   cierto(/buenos días/.test(r.manana) && /buenas noches/.test(r.noche), "saludo de mañana o noche: " + r.manana + " / " + r.noche);
   cierto(/Hola, buen[oa]s \w+, soy Cece AI/.test(r.burbuja) && /¿En qué te puedo ayudar hoy\?/.test(r.burbuja), "el chat no saluda: " + r.burbuja);
-  cierto(["/html", "/2d-game", "/3d-game", "/backend"].every((c) => r.ideas.includes(c)), "faltan ideas para empezar: " + r.ideas.join(" "));
-  await pagina.click('.sugerencia[data-cmd="/3d-game "]');
-  igual(await pagina.inputValue("#userInput"), "/3d-game ", "la idea no rellenó el cuadro");
-  await pagina.fill("#userInput", "");
+  igual(await pagina.evaluate(() => document.querySelectorAll(".sugerencia").length), 0, "siguen saliendo ideas para empezar");
   // ajustes: idioma de la app, nombre, nivel, emojis, hora, detalles, corrector y confirmar al limpiar
   await pagina.click("#settingsBtn");
   await pagina.selectOption("#appIdioma", "en");
