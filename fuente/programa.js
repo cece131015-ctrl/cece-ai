@@ -3614,14 +3614,18 @@ function montarBorradores(e, t, o, a) {
           ((o.querySelector(".est").textContent = e.estado), o.classList.toggle("turno", !!e.turno));
           const i = o.querySelector(".borrador-archivos");
           ((i.hidden = !(e.archivos && e.archivos.length)), i.hidden || (i.textContent = "📄 " + e.archivos.join(", ")));
+          // (el razonamiento llega aparte por onRazon en Kimi, Claude, OpenAI o Gemini; o dentro del texto con <think>)
           const p = separarThink(e.texto),
-            rz = o.querySelector(".borrador-razon");
-          ((rz.hidden = !p.razon), rz.hidden || (rz.textContent = "💭 " + p.razon));
+            rz = o.querySelector(".borrador-razon"),
+            razon = ((e.razon || "") + (p.razon ? (e.razon ? "\n" : "") + p.razon : "")).trim();
+          ((rz.hidden = !razon), rz.hidden || (rz.textContent = "💭 " + (razon.length > 2e3 ? "…" + razon.slice(-2e3) : razon)));
           o.querySelector(".borrador-txt").innerHTML = md(p.texto);
         }
         // La barrita dice qué está haciendo ahora (papel + estado); al terminar, vuelve al título con el total.
         const act = t.find((e) => e.turno);
-        barra.textContent = act ? `${act.nom} · ${act.estado}` : `${titulo} (${t.length})`;
+        // (al terminar cuenta los pasos que de verdad se hicieron, no los planeados: antes decía 12 aunque se hicieran 7)
+        const hechos = t.filter((e) => e.r || e.error).length;
+        barra.textContent = act ? `${act.nom} · ${act.estado}` : `${titulo} (${hechos || t.length})`;
         bajar();
       }));
   };
@@ -3932,14 +3936,18 @@ async function ejecutarRelevo(e, t = {}) {
         signal: e,
         ...extrasDe(t),
         mantenerOrden: !0,
+        // (cuando vuelve a llegar texto, el estado deja de decir «🔎 Buscando…» o «X falló, probando otro…»)
         onTexto: (e) => {
-          ((s.texto += e), c());
+          ((s.texto += e), (s.estado = `✍️ ${s.rol.nom}…`), c());
+        },
+        onRazon: (e) => {
+          ((s.razon = (s.razon || "") + e), c());
         },
         onActividad: (e) => {
           ((s.estado = e), c());
         },
         onSalto: (e) => {
-          ((s.texto = ""), (s.estado = `${etiquetaMotor(e)} falló, probando otro…`), c());
+          ((s.texto = ""), (s.razon = ""), (s.estado = `${etiquetaMotor(e)} falló, probando otro…`), c());
         },
       });
       ((s.r = res), (s.texto = res.texto), (m = s), d.push(s));
@@ -4022,13 +4030,17 @@ async function ejecutarPro(e, t = {}) {
           ...extrasDe(t),
           mantenerOrden: !0,
           onTexto: (e) => {
-            ((a.texto += e), c());
+            ((a.texto += e), (a.estado = "✍️ escribiendo…"), c());
+          },
+          onRazon: (e) => {
+            ((a.razon = (a.razon || "") + e), c());
           },
           onActividad: (e) => {
             ((a.estado = e), c());
           },
+          // (lo que escribió el motor que falló no se mezcla con el siguiente ni se cobra al parar)
           onSalto: (e) => {
-            ((a.estado = `${etiquetaMotor(e)} falló, probando otro…`), c());
+            ((a.texto = ""), (a.razon = ""), (a.estado = `${etiquetaMotor(e)} falló, probando otro…`), c());
           },
         }).then(
           (e) => ((a.r = e), (a.texto = e.texto), (a.estado = `✓ ${etiquetaMotor(e.motor)}`), c(), e),
@@ -4878,6 +4890,8 @@ function adjuntosParaGuardar(e) {
         const o = "string" == typeof e.texto ? e.texto : "";
         ((t.texto = o.slice(0, MAX_TXT_GUARDADO)),
           (e.recortado || o.length > MAX_TXT_GUARDADO) && (t.recortado = !0),
+          // («idb»: el texto entero está en IndexedDB; al cargar, lo guardado ya viene recortado y con «recortado»)
+          e.idb && (o.length > MAX_TXT_GUARDADO || e.recortado) && (t.idb = !0),
           "string" == typeof e.origen && (t.origen = e.origen.slice(0, 10)));
       // «perdido» es de este equipo (aquí no están los bytes) y no se guarda si siguen en IndexedDB: se sincroniza y, al
       // continuar la conversación en otro equipo, el original marcaba sus propias imágenes como «ya no disponible».
@@ -4955,19 +4969,36 @@ const Adjuntos = {
   },
   guardar(e) {
     for (const t of e || [])
-      !t.datos ||
-        ("imagen" !== t.tipo && "pdf" !== t.tipo) ||
-        idb("set", "adj:" + t.id, { datos: t.datos, mime: t.mime }).then(
-          () => {
-            t.idb = !0;
-          },
-          () => {},
-        );
+      "texto" === t.tipo && "string" == typeof t.texto && t.texto.length > MAX_TXT_GUARDADO
+        ? // Un texto largo (p. ej. un repositorio traído de GitHub) se guardaba recortado a 20.000 caracteres: al recargar
+          // o volver a la conversación, Cece solo veía el principio. Entero va a IndexedDB, como las imágenes.
+          idb("set", "adj:" + t.id, { texto: t.texto, recortado: !!t.recortado }).then(
+            () => {
+              ((t.idb = !0), (t.completo = !0));
+            },
+            () => {},
+          )
+        : !t.datos ||
+          ("imagen" !== t.tipo && "pdf" !== t.tipo) ||
+          idb("set", "adj:" + t.id, { datos: t.datos, mime: t.mime }).then(
+            () => {
+              t.idb = !0;
+            },
+            () => {},
+          );
   },
   async hidratar(e) {
     for (const t of e || [])
       for (const e of t.adjuntos || [])
-        if (!e.datos && e.idb && !e.perdido)
+        if ("texto" === e.tipo) {
+          // (si no está en este equipo, se queda el principio guardado, avisado como recortado)
+          if (!e.idb || e.completo) continue;
+          try {
+            const t = await idb("get", "adj:" + e.id);
+            t && "string" == typeof t.texto && ((e.texto = t.texto), (e.recortado = !!t.recortado));
+          } catch (t) {}
+          e.completo = !0;
+        } else if (!e.datos && e.idb && !e.perdido)
           try {
             const t = await idb("get", "adj:" + e.id);
             t && "string" == typeof t.datos ? (e.datos = t.datos) : (e.perdido = !0);
@@ -7186,7 +7217,8 @@ function importarPlugins(e) {
     let a = 0;
     const n = [];
     for (const t of e) {
-      const e = Plugins.propios.find((e) => t && e.id === norm(String(t.id || ""))),
+      // (mismo arreglo del id que validarPlugin: « traducir» o «/traducir» actualizan /traducir en vez de crear traducir2)
+      const e = Plugins.propios.find((e) => t && e.id === norm(String(t.id || "").trim()).replace(/^\//, "")),
         o = validarPluginGuardado(t, e ? e.id : void 0);
       o.ok
         ? (e ? Object.assign(e, o.plugin) : Plugins.propios.push(o.plugin), a++)
@@ -7422,17 +7454,16 @@ function pintarPro() {
     ($("hintFusion").textContent =
       `Los ${e} modelos trabajan a la vez y después uno de ellos funde los borradores en una sola respuesta, quedándose con lo mejor de cada uno. Si hay código, lo unifica en una sola versión. Cuesta una llamada más por mensaje.`),
     ($("avisoMaxi").style.display = S.maxi ? "" : "none"),
-    ($("avisoMaxi").textContent =
-      (S.relevo
-        ? `Los ${e} modelos trabajan todos, por relevo, y termina el más potente.`
-        : `Los ${e} modelos van al 100% y cuentan por igual.`) +
-      ` Es el modo más potente y también el más caro: cada mensaje se paga ${e} veces.`),
+    // (en relevo no se paga una vez por modelo: son los 6 papeles y hasta 3 vueltas de buscar→corregir)
+    ($("avisoMaxi").textContent = S.relevo
+      ? `Los ${e} modelos trabajan todos, por relevo, y termina el más adecuado. Es el modo más potente y también el más caro: cada mensaje hace de 6 a 12 llamadas.`
+      : `Los ${e} modelos van al 100% y cuentan por igual. Es el modo más potente y también el más caro: cada mensaje se paga ${e} veces.`),
     ($("repartoManual").style.display = S.maxi ? "none" : ""),
     ($("tituloPro").textContent = S.maxi ? "Cece Pro — MaxFull" : "Cece Pro — reparto"),
     ($("hintPro").textContent = S.relevo
       ? S.maxi
         ? `Los ${e} modelos trabajan por relevo al 100%, y termina el más potente.`
-        : `Los ${e} modelos trabajan por relevo y se van pasando los archivos que crean. El orden se adapta a lo que pidas (quien mejor encaja con tu petición termina y da la respuesta); si no pides nada especial, van del de menos peso al de más.`
+        : `Los ${e} modelos trabajan por relevo con papeles fijos: base, completar, revisar, buscar errores, corregir y calidad máxima; después repiten buscar→corregir hasta que no quedan errores (como mucho 3 vueltas). Se pasan los archivos que crean y el orden se adapta a lo que pidas: quien mejor encaja con tu petición termina. Cada mensaje hace de 6 a 12 llamadas.`
       : S.maxi
         ? `Los ${e} modelos van al 100% y cuentan por igual.`
         : `Los ${e} modelos responden a la vez. El de mayor peso marca la respuesta principal, la que se usa como contexto.`));
@@ -7899,7 +7930,9 @@ function tituloConv(e) {
   const t =
     e.find((e) => "user" === e.role && !e.local && (e.mostrar || e.content)) || e.find((e) => "user" === e.role);
   if (!t) return "Conversación";
-
+  // (un mensaje que solo lleva citas: el título es la cita, no la instrucción que se le añade para la IA)
+  if ("string" == typeof t.mostrar && !t.mostrar.trim() && t.citas && t.citas[0])
+    return ("💬 " + String(t.citas[0].texto).replace(/\s+/g, " ").trim()).slice(0, 60);
   return (
     String(t.mostrar || t.content || "")
       .replace(/\s+/g, " ")
@@ -8037,12 +8070,17 @@ function exportarMd() {
   const e = historial.filter(tieneAlgo);
   if (!e.length) return void estadoConv("La conversación está vacía.", !0);
   const adj = (e) => ((e.adjuntos || []).length ? "\n\n" + e.adjuntos.map((e) => `📎 _${e.nombre}_`).join(" · ") : ""),
+    // (las citas van como cita de Markdown delante de lo que escribió el usuario: antes no salían en el .md)
+    cit = (e) =>
+      (e.citas || []).length
+        ? e.citas.map((e) => String(e.texto).split("\n").map((e) => "> " + e).join("\n")).join("\n\n") + "\n\n"
+        : "",
     t =
       `# ${tituloConv(e)}\n\n_Cece AI · ${new Date().toLocaleString("es-ES")}_\n\n` +
       e
         .map(
           (e) =>
-            `## ${"user" === e.role ? "🧑 Tú" : "🤖 Cece AI" + (e.via ? ` (${e.via})` : "")}\n\n${"user" === e.role && "string" == typeof e.mostrar ? e.mostrar : e.content}${adj(e)}`,
+            `## ${"user" === e.role ? "🧑 Tú" : "🤖 Cece AI" + (e.via ? ` (${e.via})` : "")}\n\n${"user" === e.role ? cit(e) : ""}${"user" === e.role && "string" == typeof e.mostrar ? e.mostrar : e.content}${adj(e)}`,
         )
         .join("\n\n");
   descargar(`cece-conversacion-${sello()}.md`, t, "text/markdown");
@@ -9099,6 +9137,7 @@ const PRUEBA_CONEXION = (() => {
         headers: { "x-goog-api-key": claveDe("gemini") },
       }),
       groq: bearer("groq"),
+      musewonder: bearer("musewonder"),
       elevenlabs: () => ({ url: baseDe("elevenlabs") + "/models", headers: { "xi-api-key": claveDe("elevenlabs") } }),
       github: () => ({
         url: baseDe("github") + "/user",
@@ -9113,6 +9152,7 @@ const PRUEBA_CONEXION = (() => {
     deepseek: "Motor Turbo",
     gemini: "Motor Argon",
     groq: "Motor Reserva",
+    musewonder: "Motor Muse Wonder (Cece Pro)",
     elevenlabs: "Voz Cece Natural",
     github: "☁️ Nube",
   };
@@ -11682,6 +11722,15 @@ function mensajeValido(e) {
     !0 === e.pendiente && "user" === e.role && (t.pendiente = !0),
     "string" == typeof e.mostrar && (t.mostrar = e.mostrar),
     Array.isArray(e.cmds) && (t.cmds = e.cmds.filter((e) => "string" == typeof e)));
+  // Las citas («Mencionar en el chat») se perdían al recargar o al volver a la conversación: la burbuja se quedaba sin
+  // el recuadro citado (y vacía si solo se había mandado la cita).
+  if ("user" === e.role && Array.isArray(e.citas)) {
+    const c = e.citas
+      .filter((e) => e && "string" == typeof e.texto && e.texto)
+      .slice(0, 5)
+      .map((e) => ({ id: String(e.id || uid()).slice(0, 40), texto: e.texto.slice(0, 4001), rol: "user" === e.rol ? "user" : "assistant" }));
+    c.length && (t.citas = c);
+  }
   const o = adjuntosValidos(e.adjuntos);
   return (o && (t.adjuntos = o), t.content || t.adjuntos || (t.cmds && t.cmds.length) ? t : null);
 }

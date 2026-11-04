@@ -2337,6 +2337,109 @@ prueba("nube: plugins y apariencia se fusionan uno a uno; «perdido» no viaja; 
   await ctx.close();
 });
 
+prueba("citas y textos largos sobreviven al recargar (p. ej. un repositorio traído de GitHub, entero)", async (nav) => {
+  // Antes, al recargar o volver a la conversación, las citas desaparecían de la burbuja y un adjunto de texto largo
+  // se quedaba en sus primeros 20.000 caracteres: Cece ya no veía el final.
+  let pedido = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": ({ cuerpo }) => ((pedido = JSON.stringify(cuerpo.messages)), { cuerpo: respuestaOpenAI("Visto.") }) },
+  });
+  await pagina.evaluate(async () => {
+    Citas.agregar("frase citada CITA_551", "assistant");
+    await window.ceceAdjuntarTexto("largo.txt", "INICIO_LARGO " + "x".repeat(60000) + " FIN_LARGO_993");
+  });
+  await pagina.waitForFunction(() => document.querySelectorAll("#adjBandeja .adj-item:not(.adj-cargando)").length === 1, null, { timeout: 10000 });
+  await escribirYEnviar(pagina, "mira esto");
+  await ultimaRespuesta(pagina);
+  cierto(/FIN_LARGO_993/.test(pedido), "el primer envío ya no llevaba el texto entero");
+  await pagina.waitForTimeout(500); // (el texto entero se guarda en IndexedDB sin esperar)
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.evaluate(() => document.getElementById("cece-startup")?.remove());
+  await pagina.waitForTimeout(300);
+  cierto(
+    await pagina.evaluate(() => [...document.querySelectorAll(".user-msg .cita-msg")].some((e) => /CITA_551/.test(e.textContent))),
+    "tras recargar, la cita desapareció de la burbuja",
+  );
+  pedido = "";
+  await escribirYEnviar(pagina, "¿y el final del archivo?");
+  await ultimaRespuesta(pagina);
+  cierto(/FIN_LARGO_993/.test(pedido), "tras recargar, el adjunto largo llegó recortado a Cece");
+  const r = await pagina.evaluate(() => {
+    let md = "";
+    const antes = descargar;
+    descargar = (n, t) => (md = t);
+    try {
+      exportarMd();
+    } finally {
+      descargar = antes;
+    }
+    return { md, titulo: tituloConv([{ role: "user", content: textoCitas([{ texto: "hola cita", rol: "user" }]), mostrar: "", citas: [{ texto: "hola cita", rol: "user" }] }]) };
+  });
+  cierto(/> frase citada CITA_551/.test(r.md), "la cita no sale en la conversación exportada");
+  igual(r.titulo, "💬 hola cita", "el título de una conversación que empieza con una cita");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Pro: la barrita enseña el razonamiento y cuenta los pasos hechos; avisos de coste y Muse en conexiones", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => ({
+        cuerpo: respuestaOpenAI(/Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "SIN ERRORES" : "Hecho.", { razon: "PIENSO_4471" }),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "hola");
+  await ultimaRespuesta(pagina, 45000);
+  const r = await pagina.evaluate(() => {
+    const m = [...document.querySelectorAll(".bot-msg")].pop();
+    S.maxi = true;
+    pintarPro();
+    const aviso = document.getElementById("avisoMaxi").textContent;
+    S.maxi = false;
+    pintarPro();
+    return {
+      razon: [...m.querySelectorAll(".borrador-razon")].some((e) => !e.hidden && /PIENSO_4471/.test(e.textContent)),
+      barra: m.querySelector(".bor-barra").textContent,
+      aviso,
+      hint: document.getElementById("hintPro").textContent,
+      muse: typeof PRUEBA_CONEXION.musewonder === "function" && /Muse/.test(NOMBRE_CONEXION.musewonder || ""),
+    };
+  });
+  cierto(r.razon, "la barrita no enseña el razonamiento del modelo");
+  cierto(/\(7\)$/.test(r.barra), "la barrita no cuenta los pasos hechos (6 papeles + 1 revisión sin errores): " + r.barra);
+  cierto(/6 a 12 llamadas/.test(r.aviso) && /6 a 12 llamadas/.test(r.hint), "el coste del relevo no es el real: " + r.aviso);
+  cierto(r.muse, "Muse Wonder no está en «Probar conexiones»");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("GitHub: traer una carpeta con más de 80 archivos avisa de que hay más; importar « /id» actualiza el plugin", async (nav) => {
+  const g = githubSimulado();
+  for (let i = 0; i < 100; i++) g.poner("cece/repo0", `src/f${String(i).padStart(3, "0")}.txt`, "archivo " + i + "\n");
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), { ia: { "api.github.com": g.manejar } });
+  await abrirGitHub(pagina);
+  await pagina.click("#cece-gh-pull-chat");
+  await pagina.waitForFunction(() => document.querySelectorAll("#adjBandeja .adj-item:not(.adj-cargando)").length === 1, null, { timeout: 20000 });
+  const estado = await pagina.evaluate(() => document.getElementById("cece-github-status").textContent);
+  cierto(/hay más de 80/.test(estado), "no avisa de que quedan archivos sin traer: " + estado);
+  // importar un plugin cuyo id viene con espacio o «/» actualiza el que ya hay (antes creaba «resumir2»)
+  const ids = await pagina.evaluate(async () => {
+    const v = validarPlugin({ id: "resumir", tipo: "plantilla", cuerpo: "VIEJO {texto}", nombre: "resumir" });
+    Plugins.propios.push(v.plugin);
+    Plugins.registrar();
+    importarPlugins(new File([JSON.stringify([{ id: " /resumir", tipo: "plantilla", cuerpo: "NUEVO {texto}", nombre: "resumir" }])], "p.json"));
+    await new Promise((r) => setTimeout(r, 400));
+    return Plugins.propios.filter((p) => p.id.startsWith("resumir")).map((p) => p.id + ":" + (p.plantilla || p.cuerpo));
+  });
+  igual(ids.length, 1, "importar duplicó el plugin: " + ids.join(", "));
+  cierto(/NUEVO/.test(ids[0]), "importar no actualizó el plugin: " + ids[0]);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

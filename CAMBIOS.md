@@ -1,5 +1,30 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — depuración, segunda ronda: lo más nuevo
+
+Se revisó el código añadido estos días: cola y citas, el panel de GitHub y la barrita de Cece Pro. Salieron 8 fallos
+más. Cada uno se reprodujo antes de arreglarlo y tiene una prueba que falla con la versión anterior.
+
+- **Las citas («Mencionar en el chat») desaparecían al recargar** o al volver a la conversación. La burbuja se quedaba
+  sin el recuadro citado, y vacía si solo habías mandado la cita. Ahora se conservan. También salen como cita en el
+  `.md` exportado, y una conversación que empieza con una cita se titula con ella, no con la instrucción interna.
+- **Un adjunto de texto largo se cortaba a 20.000 caracteres al recargar.** Le pasaba, por ejemplo, a un repositorio
+  traído con «📥 Traer esta carpeta al chat»: tras recargar o volver a la conversación, Cece solo veía los primeros
+  archivos y podía reescribir los demás sin verlos. Ahora el texto entero se guarda en el navegador (IndexedDB),
+  como las imágenes. Si en otro equipo no está, se usa el principio, avisando de que está recortado.
+- **Traer una carpeta con más de 80 archivos** decía «no cabían 1» aunque quedaran cientos sin mirar. Ahora avisa de
+  que hay más y de que abras una subcarpeta para traer el resto.
+- **La barrita de Cece Pro no enseñaba el razonamiento** de Kimi, Claude, OpenAI ni Gemini: solo el que venía dentro del
+  texto. Ahora lo enseña en directo en cada paso (relevo y borradores a la vez).
+- **La barrita contaba los pasos planeados, no los hechos.** Decía «(12)» aunque solo se hubieran hecho 7. Además, el
+  estado («🔎 Buscando…», «X falló, probando otro…») se quedaba puesto mientras ya estaba escribiendo. En el modo de
+  borradores, lo que escribió un motor que falló ya no se mezcla con el siguiente.
+- **El aviso de coste del relevo no era el real.** Decía «cada mensaje se paga 6 veces», pero el relevo hace de 6 a 12
+  llamadas: 6 papeles y hasta 3 vueltas de buscar→corregir. La explicación de Cece Pro ahora describe los papeles.
+- **«Probar conexiones» no comprobaba la clave de Muse Wonder.** Ahora sí.
+- **Importar un plugin cuyo id venía con un espacio o una «/»** (« traducir», «/traducir») creaba un duplicado
+  `traducir2` en vez de actualizar `/traducir`.
+
 ## 4 de noviembre de 2026 — depuración: Cece Pro, Cece Live, comandos y nube
 
 Cuatro revisiones (Cece Pro, voz, comandos/plugins y nube) encontraron 15 fallos reales. Cada uno se reprodujo antes de
