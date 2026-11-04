@@ -1,5 +1,15 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — acceso directo en Windows (Ctrl+Alt+C)
+
+- **`windows/abrir-cece.bat`:** abre `cece-ai.html` (que debe estar en la misma carpeta) en **pantalla completa**, con
+  Chrome o Edge (`--start-fullscreen`). Si no encuentra ninguno, abre el navegador predeterminado sin pantalla completa.
+- **`windows/crear-acceso-directo.bat`:** se ejecuta una vez y crea **«Cece AI»** en el escritorio, con el atajo
+  **Ctrl+Alt+C**. Ese atajo abre `abrir-cece.bat`. Un `.bat` no puede tener atajo de teclado por sí solo, por eso se
+  usa el acceso directo.
+- Uso: pon `cece-ai.html`, `abrir-cece.bat` y `crear-acceso-directo.bat` en la misma carpeta, ejecuta
+  `crear-acceso-directo.bat` y pulsa Ctrl+Alt+C. Para salir de la pantalla completa, pulsa F11 (o Esc en Edge/Chrome).
+
 ## 4 de noviembre de 2026 — toda la app traducida al idioma elegido
 
 Al cambiar el **idioma de la app** (Configuración → 🌍 General) ahora se traduce toda la interfaz, no solo el saludo y
