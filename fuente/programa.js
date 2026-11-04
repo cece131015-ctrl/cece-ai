@@ -4252,37 +4252,30 @@ const TEXTOS_APP = {"en":{"Limpiar":"Clear","Limpiar chat":"Clear chat","Configu
     es: {
       hola: (f, n) => `Hola${n}, ${{ manana: "buenos días", tarde: "buenas tardes", noche: "buenas noches" }[f]}, soy Cece AI`,
       pregunta: "¿En qué te puedo ayudar hoy?",
-      live: "Pulsa **LIVE** para hablar conmigo.",
     },
     en: {
       hola: (f, n) => `Hi${n}, ${{ manana: "good morning", tarde: "good afternoon", noche: "good evening" }[f]}, I'm Cece AI`,
       pregunta: "How can I help you today?",
-      live: "Press **LIVE** to talk to me.",
     },
     fr: {
       hola: (f, n) => `${{ manana: "Bonjour", tarde: "Bonjour", noche: "Bonsoir" }[f]}${n}, je suis Cece AI`,
       pregunta: "Comment puis-je t'aider aujourd'hui ?",
-      live: "Appuie sur **LIVE** pour me parler.",
     },
     de: {
       hola: (f, n) => `${{ manana: "Guten Morgen", tarde: "Guten Tag", noche: "Guten Abend" }[f]}${n}, ich bin Cece AI`,
       pregunta: "Wie kann ich dir heute helfen?",
-      live: "Tippe auf **LIVE**, um mit mir zu sprechen.",
     },
     it: {
       hola: (f, n) => `${{ manana: "Buongiorno", tarde: "Buon pomeriggio", noche: "Buonasera" }[f]}${n}, sono Cece AI`,
       pregunta: "Come posso aiutarti oggi?",
-      live: "Premi **LIVE** per parlare con me.",
     },
     pt: {
       hola: (f, n) => `Olá${n}, ${{ manana: "bom dia", tarde: "boa tarde", noche: "boa noite" }[f]}, eu sou a Cece AI`,
       pregunta: "Como posso te ajudar hoje?",
-      live: "Toque em **LIVE** para falar comigo.",
     },
     ca: {
       hola: (f, n) => `Hola${n}, ${{ manana: "bon dia", tarde: "bona tarda", noche: "bona nit" }[f]}, sóc la Cece AI`,
       pregunta: "En què et puc ajudar avui?",
-      live: "Prem **LIVE** per parlar amb mi.",
     },
   },
   tr = (e) => (TEXTOS_APP[S.appIdioma] && TEXTOS_APP[S.appIdioma][e]) || e;
@@ -4339,9 +4332,8 @@ function textoSaludo(h) {
 }
 function bienvenida() {
   if (!S.saludo) return;
-  const e = crearMensaje("assistant"),
-    l = Object.hasOwn(SALUDOS, S.appIdioma) ? S.appIdioma : "es";
-  (e.wrap.classList.add("bienvenida"), (e.bubble.innerHTML = md(textoSaludo() + "\n\n" + SALUDOS[l].live)));
+  const e = crearMensaje("assistant");
+  (e.wrap.classList.add("bienvenida"), (e.bubble.innerHTML = md(textoSaludo())));
   ((e.meta.innerHTML = `<span>${horaCorta()}</span>`), aplicarEmojis(e.wrap));
 }
 function pintarHistorial() {

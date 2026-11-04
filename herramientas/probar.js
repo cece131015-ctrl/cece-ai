@@ -2470,6 +2470,7 @@ prueba("saludo al empezar (hora del día, nombre e idioma) y ajustes nuevos", as
   igual(r.tarde, "**Hola, buenas tardes, soy Cece AI** 👋 ¿En qué te puedo ayudar hoy?", "saludo de la tarde");
   cierto(/buenos días/.test(r.manana) && /buenas noches/.test(r.noche), "saludo de mañana o noche: " + r.manana + " / " + r.noche);
   cierto(/Hola, buen[oa]s \w+, soy Cece AI/.test(r.burbuja) && /¿En qué te puedo ayudar hoy\?/.test(r.burbuja), "el chat no saluda: " + r.burbuja);
+  cierto(/^Hola, (buenos días|buenas tardes|buenas noches), soy Cece AI 👋 ¿En qué te puedo ayudar hoy\?$/.test(r.burbuja.trim()), "el saludo debe ser solo esa frase: " + r.burbuja);
   igual(await pagina.evaluate(() => document.querySelectorAll(".sugerencia").length), 0, "siguen saliendo ideas para empezar");
   // ajustes: idioma de la app, nombre, nivel, emojis, hora, detalles, corrector y confirmar al limpiar
   await pagina.click("#settingsBtn");
