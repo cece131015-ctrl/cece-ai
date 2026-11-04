@@ -457,6 +457,16 @@ const DEF = {
     enviarCon: "enter",
     razon: "plegado",
     sonido: !1,
+    appIdioma: "es",
+    nombre: "",
+    saludo: !0,
+    sugerencias: !0,
+    hora: "24",
+    confirmarLimpiar: !1,
+    detalles: !0,
+    corrector: !0,
+    nivelTec: "auto",
+    emojisResp: "normal",
     imgMotor: "auto",
     imgModeloOpenai: "gpt-image-2.5-flare",
     carpetas: {},
@@ -505,6 +515,10 @@ const DEF = {
     idiomaResp: ["auto", "es", "en", "fr", "de", "it", "pt", "ca"],
     enviarCon: ["enter", "ctrl"],
     razon: ["plegado", "abierto", "oculto"],
+    appIdioma: ["es", "en", "fr", "de", "it", "pt", "ca"],
+    hora: ["24", "12"],
+    nivelTec: ["auto", "principiante", "intermedio", "experto"],
+    emojisResp: ["normal", "pocos", "ninguno", "muchos"],
   },
   FORMAS = {
     acento: /^(#[0-9a-f]{6})?$/i,
@@ -512,6 +526,7 @@ const DEF = {
     localModelo: /^[\w.:\/@+\-]{0,120}$/,
     nubeGist: /^([0-9a-f]{20,40})?$/i,
     instrucciones: /^[\s\S]{0,1500}$/,
+    nombre: /^[^<>\r\n]{0,40}$/,
   },
   RANGOS = {
     vel: [5, 500],
@@ -2937,7 +2952,13 @@ function bajar(e) {
   const t = $("chatArea");
   (e || cercaDelFinal()) && (t.scrollTop = t.scrollHeight);
 }
-const horaCorta = () => new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+const LOCALES_APP = { es: "es-ES", en: "en-GB", fr: "fr-FR", de: "de-DE", it: "it-IT", pt: "pt-PT", ca: "ca-ES" },
+  horaCorta = () =>
+    new Date().toLocaleTimeString(LOCALES_APP[S.appIdioma] || "es-ES", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: "12" === S.hora,
+    });
 function emo(e) {
   return `<span class="emo-w" data-e="${esc(e)}">${esc(e)}</span>`;
 }
@@ -3174,9 +3195,9 @@ class Burbuja {
   }
   pieDePagina({ via: e, tokens: t, tps: o, avisos: a, texto: n }) {
     const r = [`<span>${horaCorta()}</span>`];
-    (e && r.push(`<span class="via">vía ${esc(e)}</span>`),
-      t && r.push(`<span>${t} tokens</span>`),
-      o && r.push(`<span>${o} t/s</span>`));
+    (e && r.push(`<span class="via det">vía ${esc(e)}</span>`),
+      t && r.push(`<span class="det">${t} tokens</span>`),
+      o && r.push(`<span class="det">${o} t/s</span>`));
     for (const e of a || [])
       r.push(`<span class="aviso-msg" title="${esc(e)}">⚠️ ${esc(e.length > 110 ? e.slice(0, 110) + "…" : e)}</span>`);
     if (
@@ -3256,7 +3277,7 @@ function contar(e, t, o, a) {
 function sistemaPara(e, t, o = S.esf) {
   const a = CECE_MAP[e] || CECE_MAP["cece-turbo"],
     n = new Date().toLocaleString("es-ES", { dateStyle: "full", timeStyle: "short" });
-  let r = `Eres Cece AI (${a.nombre}), la inteligencia artificial de Cece Company. Eres cercana, clara y muy útil. No digas qué modelo, empresa o proveedor hay detrás de ti: si te lo preguntan, eres Cece AI, creada por Cece Company. Responde en el idioma del usuario (normalmente español). Usa Markdown cuando ayude: títulos cortos, listas, tablas y bloques de código con su lenguaje.\nFecha y hora actuales: ${n}.`;
+  let r = `Eres Cece AI (${a.nombre}), la inteligencia artificial de Cece Company. Eres cercana, clara y muy útil. No digas qué modelo, empresa o proveedor hay detrás de ti: si te lo preguntan, eres Cece AI, creada por Cece Company. Responde en el idioma del usuario (normalmente ${IDIOMAS_RESP[S.appIdioma] || "español"}). Usa Markdown cuando ayude: títulos cortos, listas, tablas y bloques de código con su lenguaje.\nFecha y hora actuales: ${n}.`;
   ("bajo" === o
     ? (r += "\nSé breve y ve al grano.")
     : "alto" === o
@@ -3306,8 +3327,8 @@ function modoParar(e) {
   const t = $("sendBtn");
   (t.classList.toggle("parar", e),
     (t.innerHTML = e ? "⏹" : "➤"),
-    t.setAttribute("aria-label", e ? "Parar" : "Enviar"),
-    (t.title = e ? "Parar la respuesta" : "Enviar"));
+    t.setAttribute("aria-label", tr(e ? "Parar" : "Enviar")),
+    (t.title = tr(e ? "Parar la respuesta" : "Enviar")));
 }
 function detener() {
   generando && ((parado = !0), generando.abort(), burbujaActiva && burbujaActiva.terminarYa());
@@ -4222,11 +4243,447 @@ async function descargarImagen(e) {
     (clearTimeout(a), delete t.dataset.bajando);
   }
 }
+// Idioma de la app: el saludo y los textos principales (cabecera, índice y títulos de la configuración, cuadro de
+// texto…). La clave es el texto en español tal como está en la página; lo que no está traducido sale en español.
+const TEXTOS_APP = {
+  "en": {
+    "Describe la imagen que quieres...": "Describe the image you want...",
+    "Escribe… (/ comandos)": "Type… (/ commands)",
+    "Escribe tu mensaje... (/ para comandos)": "Type your message... (/ for commands)",
+    "Limpiar": "Clear",
+    "Limpiar chat": "Clear chat",
+    "Configuración": "Settings",
+    "🔌 Conexiones": "🔌 Connections",
+    "💬 Conversaciones": "💬 Conversations",
+    "✍️ Respuestas": "✍️ Replies",
+    "🎨 Apariencia": "🎨 Appearance",
+    "📴 Sin conexión": "📴 Offline",
+    "☁️ Nube": "☁️ Cloud",
+    "🔐 Seguridad": "🔐 Security",
+    "🎨 Imágenes": "🎨 Images",
+    "Modo de esfuerzo": "Effort mode",
+    "Límite de velocidad": "Speed limit",
+    "Pantalla": "Screen",
+    "Código generado": "Generated code",
+    "Respuesta": "Reply",
+    "✍️ Cómo responde Cece": "✍️ How Cece replies",
+    "Conversaciones": "Conversations",
+    "Idioma de la app": "App language",
+    "Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.": "Changes the greeting and the main texts of Cece AI. The language Cece replies in is set in “How Cece replies”, and the voice language in Cece Live.",
+    "Cómo te llamas (opcional)": "Your name (optional)",
+    "Tu nombre": "Your name",
+    "Saludar al empezar una conversación": "Greet me when a conversation starts",
+    "Ideas para empezar (webs, juegos, backend…)": "Ideas to get started (websites, games, backend…)",
+    "Formato de la hora": "Time format",
+    "24 horas (17:30)": "24-hour (17:30)",
+    "12 horas (5:30 p. m.)": "12-hour (5:30 pm)",
+    "Preguntar antes de limpiar el chat": "Ask before clearing the chat",
+    "Detalles bajo cada respuesta (modelo, tokens y velocidad)": "Details under each reply (model, tokens and speed)",
+    "Corrector ortográfico al escribir": "Spell check while typing",
+    "Longitud de las respuestas": "Reply length",
+    "Tono": "Tone",
+    "Nivel de las explicaciones": "Explanation level",
+    "Automático: según lo que preguntes": "Automatic: depends on what you ask",
+    "Principiante: sin tecnicismos, paso a paso": "Beginner: no jargon, step by step",
+    "Intermedio": "Intermediate",
+    "Experto: técnico y al grano": "Expert: technical and to the point",
+    "Emojis en las respuestas": "Emojis in replies",
+    "Los de siempre": "The usual",
+    "Pocos": "Few",
+    "Ninguno": "None",
+    "Muchos": "Lots",
+    "Idioma de las respuestas": "Reply language",
+    "Crear una app": "Build an app",
+    "Una página web": "A web page",
+    "Un juego 2D": "A 2D game",
+    "Un juego 3D": "A 3D game",
+    "Un backend": "A backend",
+    "Depurar código": "Debug code",
+    "Enviar": "Send",
+    "Parar": "Stop",
+    "Parar la respuesta": "Stop the reply",
+    "¿Limpiar el chat y empezar una conversación nueva?": "Clear the chat and start a new conversation?"
+  },
+  "fr": {
+    "Describe la imagen que quieres...": "Décris l'image que tu veux...",
+    "Escribe… (/ comandos)": "Écris… (/ commandes)",
+    "Escribe tu mensaje... (/ para comandos)": "Écris ton message... (/ pour les commandes)",
+    "Limpiar": "Effacer",
+    "Limpiar chat": "Effacer le chat",
+    "Configuración": "Paramètres",
+    "🌍 General": "🌍 Général",
+    "🔌 Conexiones": "🔌 Connexions",
+    "💬 Conversaciones": "💬 Conversations",
+    "✍️ Respuestas": "✍️ Réponses",
+    "🎨 Apariencia": "🎨 Apparence",
+    "📴 Sin conexión": "📴 Hors ligne",
+    "☁️ Nube": "☁️ Cloud",
+    "🔐 Seguridad": "🔐 Sécurité",
+    "🎨 Imágenes": "🎨 Images",
+    "Modo de esfuerzo": "Niveau d'effort",
+    "Límite de velocidad": "Limite de vitesse",
+    "Emojis": "Émojis",
+    "Pantalla": "Écran",
+    "Código generado": "Code généré",
+    "Respuesta": "Réponse",
+    "✍️ Cómo responde Cece": "✍️ Comment Cece répond",
+    "Conversaciones": "Conversations",
+    "Idioma de la app": "Langue de l'app",
+    "Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.": "Change l'accueil et les principaux textes de Cece AI. La langue des réponses se choisit dans « Comment Cece répond », et celle de la voix dans Cece Live.",
+    "Cómo te llamas (opcional)": "Ton prénom (facultatif)",
+    "Tu nombre": "Ton prénom",
+    "Saludar al empezar una conversación": "Me saluer au début d'une conversation",
+    "Ideas para empezar (webs, juegos, backend…)": "Idées pour commencer (sites, jeux, backend…)",
+    "Formato de la hora": "Format de l'heure",
+    "24 horas (17:30)": "24 heures (17:30)",
+    "12 horas (5:30 p. m.)": "12 heures (5:30 PM)",
+    "Preguntar antes de limpiar el chat": "Demander avant d'effacer le chat",
+    "Detalles bajo cada respuesta (modelo, tokens y velocidad)": "Détails sous chaque réponse (modèle, jetons et vitesse)",
+    "Corrector ortográfico al escribir": "Correcteur orthographique",
+    "Longitud de las respuestas": "Longueur des réponses",
+    "Tono": "Ton",
+    "Nivel de las explicaciones": "Niveau des explications",
+    "Automático: según lo que preguntes": "Automatique : selon ta question",
+    "Principiante: sin tecnicismos, paso a paso": "Débutant : sans jargon, pas à pas",
+    "Intermedio": "Intermédiaire",
+    "Experto: técnico y al grano": "Expert : technique et direct",
+    "Emojis en las respuestas": "Émojis dans les réponses",
+    "Los de siempre": "Comme d'habitude",
+    "Pocos": "Peu",
+    "Ninguno": "Aucun",
+    "Muchos": "Beaucoup",
+    "Idioma de las respuestas": "Langue des réponses",
+    "Crear una app": "Créer une app",
+    "Una página web": "Une page web",
+    "Un juego 2D": "Un jeu 2D",
+    "Un juego 3D": "Un jeu 3D",
+    "Depurar código": "Déboguer du code",
+    "Enviar": "Envoyer",
+    "Parar": "Arrêter",
+    "Parar la respuesta": "Arrêter la réponse",
+    "¿Limpiar el chat y empezar una conversación nueva?": "Effacer le chat et commencer une nouvelle conversation ?"
+  },
+  "de": {
+    "Describe la imagen que quieres...": "Beschreib das Bild, das du willst...",
+    "Escribe… (/ comandos)": "Schreib… (/ Befehle)",
+    "Escribe tu mensaje... (/ para comandos)": "Schreib deine Nachricht... (/ für Befehle)",
+    "Limpiar": "Leeren",
+    "Limpiar chat": "Chat leeren",
+    "Configuración": "Einstellungen",
+    "🌍 General": "🌍 Allgemein",
+    "🔌 Conexiones": "🔌 Verbindungen",
+    "💬 Conversaciones": "💬 Unterhaltungen",
+    "✍️ Respuestas": "✍️ Antworten",
+    "🎨 Apariencia": "🎨 Darstellung",
+    "📴 Sin conexión": "📴 Offline",
+    "☁️ Nube": "☁️ Cloud",
+    "🔐 Seguridad": "🔐 Sicherheit",
+    "🎨 Imágenes": "🎨 Bilder",
+    "Modo de esfuerzo": "Aufwand",
+    "Límite de velocidad": "Geschwindigkeitslimit",
+    "Pantalla": "Bildschirm",
+    "Código generado": "Erzeugter Code",
+    "Respuesta": "Antwort",
+    "✍️ Cómo responde Cece": "✍️ Wie Cece antwortet",
+    "Conversaciones": "Unterhaltungen",
+    "Idioma de la app": "Sprache der App",
+    "Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.": "Ändert die Begrüßung und die wichtigsten Texte von Cece AI. Die Sprache der Antworten stellst du unter „Wie Cece antwortet“ ein, die der Stimme in Cece Live.",
+    "Cómo te llamas (opcional)": "Wie heißt du? (optional)",
+    "Tu nombre": "Dein Name",
+    "Saludar al empezar una conversación": "Zu Beginn einer Unterhaltung begrüßen",
+    "Ideas para empezar (webs, juegos, backend…)": "Ideen für den Anfang (Websites, Spiele, Backend…)",
+    "Formato de la hora": "Uhrzeitformat",
+    "24 horas (17:30)": "24 Stunden (17:30)",
+    "12 horas (5:30 p. m.)": "12 Stunden (5:30 PM)",
+    "Preguntar antes de limpiar el chat": "Vor dem Leeren des Chats fragen",
+    "Detalles bajo cada respuesta (modelo, tokens y velocidad)": "Details unter jeder Antwort (Modell, Tokens und Tempo)",
+    "Corrector ortográfico al escribir": "Rechtschreibprüfung beim Schreiben",
+    "Longitud de las respuestas": "Länge der Antworten",
+    "Tono": "Ton",
+    "Nivel de las explicaciones": "Niveau der Erklärungen",
+    "Automático: según lo que preguntes": "Automatisch: je nach Frage",
+    "Principiante: sin tecnicismos, paso a paso": "Anfänger: ohne Fachjargon, Schritt für Schritt",
+    "Intermedio": "Mittel",
+    "Experto: técnico y al grano": "Experte: technisch und auf den Punkt",
+    "Emojis en las respuestas": "Emojis in Antworten",
+    "Los de siempre": "Wie immer",
+    "Pocos": "Wenige",
+    "Ninguno": "Keine",
+    "Muchos": "Viele",
+    "Idioma de las respuestas": "Sprache der Antworten",
+    "Crear una app": "Eine App bauen",
+    "Una página web": "Eine Webseite",
+    "Un juego 2D": "Ein 2D-Spiel",
+    "Un juego 3D": "Ein 3D-Spiel",
+    "Un backend": "Ein Backend",
+    "Depurar código": "Code debuggen",
+    "Enviar": "Senden",
+    "Parar": "Stopp",
+    "Parar la respuesta": "Antwort stoppen",
+    "¿Limpiar el chat y empezar una conversación nueva?": "Chat leeren und eine neue Unterhaltung beginnen?"
+  },
+  "it": {
+    "Describe la imagen que quieres...": "Descrivi l'immagine che vuoi...",
+    "Escribe… (/ comandos)": "Scrivi… (/ comandi)",
+    "Escribe tu mensaje... (/ para comandos)": "Scrivi il tuo messaggio... (/ per i comandi)",
+    "Limpiar": "Pulisci",
+    "Limpiar chat": "Pulisci la chat",
+    "Configuración": "Impostazioni",
+    "🌍 General": "🌍 Generale",
+    "🔌 Conexiones": "🔌 Connessioni",
+    "💬 Conversaciones": "💬 Conversazioni",
+    "✍️ Respuestas": "✍️ Risposte",
+    "🎨 Apariencia": "🎨 Aspetto",
+    "📴 Sin conexión": "📴 Offline",
+    "☁️ Nube": "☁️ Cloud",
+    "🔐 Seguridad": "🔐 Sicurezza",
+    "🎨 Imágenes": "🎨 Immagini",
+    "Modo de esfuerzo": "Livello di impegno",
+    "Límite de velocidad": "Limite di velocità",
+    "Emojis": "Emoji",
+    "Pantalla": "Schermo",
+    "Código generado": "Codice generato",
+    "Respuesta": "Risposta",
+    "✍️ Cómo responde Cece": "✍️ Come risponde Cece",
+    "Conversaciones": "Conversazioni",
+    "Idioma de la app": "Lingua dell'app",
+    "Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.": "Cambia il saluto e i testi principali di Cece AI. La lingua delle risposte si sceglie in «Come risponde Cece» e quella della voce in Cece Live.",
+    "Cómo te llamas (opcional)": "Come ti chiami (facoltativo)",
+    "Tu nombre": "Il tuo nome",
+    "Saludar al empezar una conversación": "Salutare all'inizio di una conversazione",
+    "Ideas para empezar (webs, juegos, backend…)": "Idee per iniziare (siti, giochi, backend…)",
+    "Formato de la hora": "Formato dell'ora",
+    "24 horas (17:30)": "24 ore (17:30)",
+    "12 horas (5:30 p. m.)": "12 ore (5:30 PM)",
+    "Preguntar antes de limpiar el chat": "Chiedere prima di pulire la chat",
+    "Detalles bajo cada respuesta (modelo, tokens y velocidad)": "Dettagli sotto ogni risposta (modello, token e velocità)",
+    "Corrector ortográfico al escribir": "Correttore ortografico",
+    "Longitud de las respuestas": "Lunghezza delle risposte",
+    "Nivel de las explicaciones": "Livello delle spiegazioni",
+    "Automático: según lo que preguntes": "Automatico: in base a cosa chiedi",
+    "Principiante: sin tecnicismos, paso a paso": "Principiante: senza tecnicismi, passo passo",
+    "Experto: técnico y al grano": "Esperto: tecnico e diretto",
+    "Emojis en las respuestas": "Emoji nelle risposte",
+    "Los de siempre": "I soliti",
+    "Pocos": "Pochi",
+    "Ninguno": "Nessuno",
+    "Muchos": "Tanti",
+    "Idioma de las respuestas": "Lingua delle risposte",
+    "Crear una app": "Creare un'app",
+    "Una página web": "Una pagina web",
+    "Un juego 2D": "Un gioco 2D",
+    "Un juego 3D": "Un gioco 3D",
+    "Depurar código": "Fare il debug del codice",
+    "Enviar": "Invia",
+    "Parar": "Ferma",
+    "Parar la respuesta": "Ferma la risposta",
+    "¿Limpiar el chat y empezar una conversación nueva?": "Pulire la chat e iniziare una nuova conversazione?"
+  },
+  "pt": {
+    "Describe la imagen que quieres...": "Descreva a imagem que você quer...",
+    "Escribe… (/ comandos)": "Escreva… (/ comandos)",
+    "Escribe tu mensaje... (/ para comandos)": "Escreva sua mensagem... (/ para comandos)",
+    "Limpiar": "Limpar",
+    "Limpiar chat": "Limpar o chat",
+    "Configuración": "Configurações",
+    "🌍 General": "🌍 Geral",
+    "🔌 Conexiones": "🔌 Conexões",
+    "💬 Conversaciones": "💬 Conversas",
+    "✍️ Respuestas": "✍️ Respostas",
+    "🎨 Apariencia": "🎨 Aparência",
+    "📴 Sin conexión": "📴 Offline",
+    "☁️ Nube": "☁️ Nuvem",
+    "🔐 Seguridad": "🔐 Segurança",
+    "🎨 Imágenes": "🎨 Imagens",
+    "Modo de esfuerzo": "Nível de esforço",
+    "Límite de velocidad": "Limite de velocidade",
+    "Pantalla": "Tela",
+    "Código generado": "Código gerado",
+    "Respuesta": "Resposta",
+    "✍️ Cómo responde Cece": "✍️ Como a Cece responde",
+    "Conversaciones": "Conversas",
+    "Idioma de la app": "Idioma do app",
+    "Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.": "Muda a saudação e os principais textos da Cece AI. O idioma das respostas é escolhido em “Como a Cece responde”, e o da voz, no Cece Live.",
+    "Cómo te llamas (opcional)": "Como você se chama (opcional)",
+    "Tu nombre": "Seu nome",
+    "Saludar al empezar una conversación": "Cumprimentar ao começar uma conversa",
+    "Ideas para empezar (webs, juegos, backend…)": "Ideias para começar (sites, jogos, backend…)",
+    "Formato de la hora": "Formato da hora",
+    "12 horas (5:30 p. m.)": "12 horas (5:30 PM)",
+    "Preguntar antes de limpiar el chat": "Perguntar antes de limpar o chat",
+    "Detalles bajo cada respuesta (modelo, tokens y velocidad)": "Detalhes abaixo de cada resposta (modelo, tokens e velocidade)",
+    "Corrector ortográfico al escribir": "Corretor ortográfico ao escrever",
+    "Longitud de las respuestas": "Tamanho das respostas",
+    "Tono": "Tom",
+    "Nivel de las explicaciones": "Nível das explicações",
+    "Automático: según lo que preguntes": "Automático: conforme o que você pergunta",
+    "Principiante: sin tecnicismos, paso a paso": "Iniciante: sem termos técnicos, passo a passo",
+    "Intermedio": "Intermediário",
+    "Experto: técnico y al grano": "Especialista: técnico e direto",
+    "Emojis en las respuestas": "Emojis nas respostas",
+    "Los de siempre": "Os de sempre",
+    "Pocos": "Poucos",
+    "Ninguno": "Nenhum",
+    "Muchos": "Muitos",
+    "Idioma de las respuestas": "Idioma das respostas",
+    "Crear una app": "Criar um app",
+    "Una página web": "Uma página web",
+    "Un juego 2D": "Um jogo 2D",
+    "Un juego 3D": "Um jogo 3D",
+    "Un backend": "Um backend",
+    "Parar la respuesta": "Parar a resposta",
+    "¿Limpiar el chat y empezar una conversación nueva?": "Limpar o chat e começar uma nova conversa?"
+  },
+  "ca": {
+    "Describe la imagen que quieres...": "Descriu la imatge que vols...",
+    "Escribe… (/ comandos)": "Escriu… (/ ordres)",
+    "Escribe tu mensaje... (/ para comandos)": "Escriu el teu missatge... (/ per a ordres)",
+    "Limpiar": "Netejar",
+    "Limpiar chat": "Netejar el xat",
+    "Configuración": "Configuració",
+    "🔌 Conexiones": "🔌 Connexions",
+    "💬 Conversaciones": "💬 Converses",
+    "✍️ Respuestas": "✍️ Respostes",
+    "🎨 Apariencia": "🎨 Aparença",
+    "📴 Sin conexión": "📴 Sense connexió",
+    "☁️ Nube": "☁️ Núvol",
+    "🔐 Seguridad": "🔐 Seguretat",
+    "🎨 Imágenes": "🎨 Imatges",
+    "Modo de esfuerzo": "Mode d'esforç",
+    "Límite de velocidad": "Límit de velocitat",
+    "Código generado": "Codi generat",
+    "Respuesta": "Resposta",
+    "✍️ Cómo responde Cece": "✍️ Com respon la Cece",
+    "Conversaciones": "Converses",
+    "Idioma de la app": "Idioma de l'app",
+    "Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.": "Canvia la salutació i els textos principals de Cece AI. L'idioma de les respostes es tria a «Com respon la Cece», i el de la veu, a Cece Live.",
+    "Cómo te llamas (opcional)": "Com et dius (opcional)",
+    "Tu nombre": "El teu nom",
+    "Saludar al empezar una conversación": "Saludar en començar una conversa",
+    "Ideas para empezar (webs, juegos, backend…)": "Idees per començar (webs, jocs, backend…)",
+    "Formato de la hora": "Format de l'hora",
+    "24 horas (17:30)": "24 hores (17:30)",
+    "12 horas (5:30 p. m.)": "12 hores (5:30 p. m.)",
+    "Preguntar antes de limpiar el chat": "Preguntar abans de netejar el xat",
+    "Detalles bajo cada respuesta (modelo, tokens y velocidad)": "Detalls sota cada resposta (model, tokens i velocitat)",
+    "Corrector ortográfico al escribir": "Corrector ortogràfic en escriure",
+    "Longitud de las respuestas": "Llargada de les respostes",
+    "Tono": "To",
+    "Nivel de las explicaciones": "Nivell de les explicacions",
+    "Automático: según lo que preguntes": "Automàtic: segons el que preguntis",
+    "Principiante: sin tecnicismos, paso a paso": "Principiant: sense tecnicismes, pas a pas",
+    "Intermedio": "Intermedi",
+    "Experto: técnico y al grano": "Expert: tècnic i directe",
+    "Emojis en las respuestas": "Emojis a les respostes",
+    "Los de siempre": "Els de sempre",
+    "Pocos": "Pocs",
+    "Ninguno": "Cap",
+    "Muchos": "Molts",
+    "Idioma de las respuestas": "Idioma de les respostes",
+    "Una página web": "Una pàgina web",
+    "Un juego 2D": "Un joc 2D",
+    "Un juego 3D": "Un joc 3D",
+    "Depurar código": "Depurar codi",
+    "Parar": "Aturar",
+    "Parar la respuesta": "Aturar la resposta",
+    "¿Limpiar el chat y empezar una conversación nueva?": "Netejar el xat i començar una conversa nova?"
+  }
+},
+  SALUDOS = {
+    es: {
+      hola: (f, n) => `Hola${n}, ${{ manana: "buenos días", tarde: "buenas tardes", noche: "buenas noches" }[f]}, soy Cece AI`,
+      pregunta: "¿En qué te puedo ayudar hoy?",
+      live: "Pulsa **LIVE** para hablar conmigo.",
+    },
+    en: {
+      hola: (f, n) => `Hi${n}, ${{ manana: "good morning", tarde: "good afternoon", noche: "good evening" }[f]}, I'm Cece AI`,
+      pregunta: "How can I help you today?",
+      live: "Press **LIVE** to talk to me.",
+    },
+    fr: {
+      hola: (f, n) => `${{ manana: "Bonjour", tarde: "Bonjour", noche: "Bonsoir" }[f]}${n}, je suis Cece AI`,
+      pregunta: "Comment puis-je t'aider aujourd'hui ?",
+      live: "Appuie sur **LIVE** pour me parler.",
+    },
+    de: {
+      hola: (f, n) => `${{ manana: "Guten Morgen", tarde: "Guten Tag", noche: "Guten Abend" }[f]}${n}, ich bin Cece AI`,
+      pregunta: "Wie kann ich dir heute helfen?",
+      live: "Tippe auf **LIVE**, um mit mir zu sprechen.",
+    },
+    it: {
+      hola: (f, n) => `${{ manana: "Buongiorno", tarde: "Buon pomeriggio", noche: "Buonasera" }[f]}${n}, sono Cece AI`,
+      pregunta: "Come posso aiutarti oggi?",
+      live: "Premi **LIVE** per parlare con me.",
+    },
+    pt: {
+      hola: (f, n) => `Olá${n}, ${{ manana: "bom dia", tarde: "boa tarde", noche: "boa noite" }[f]}, eu sou a Cece AI`,
+      pregunta: "Como posso te ajudar hoje?",
+      live: "Toque em **LIVE** para falar comigo.",
+    },
+    ca: {
+      hola: (f, n) => `Hola${n}, ${{ manana: "bon dia", tarde: "bona tarda", noche: "bona nit" }[f]}, sóc la Cece AI`,
+      pregunta: "En què et puc ajudar avui?",
+      live: "Prem **LIVE** per parlar amb mi.",
+    },
+  },
+  tr = (e) => (TEXTOS_APP[S.appIdioma] && TEXTOS_APP[S.appIdioma][e]) || e;
+// Texto en español de un elemento: los emojis envueltos (o cambiados por imágenes) cuentan como su carácter.
+function textoOriginal(e) {
+  const t = e.cloneNode(!0);
+  for (const e of t.querySelectorAll(".emo-w")) e.replaceWith(document.createTextNode(e.dataset.e || ""));
+  return t.textContent.replace(/\s+/g, " ").trim();
+}
+function traducirApp() {
+  document.documentElement.lang = S.appIdioma;
+  for (const e of document.querySelectorAll("[data-i18n]")) {
+    null == e.dataset.es && (e.dataset.es = textoOriginal(e));
+    const t = tr(e.dataset.es);
+    textoOriginal(e) !== t && ((e.textContent = t), aplicarEmojis(e));
+  }
+  for (const [o, a] of [
+    ["i18nPh", "placeholder"],
+    ["i18nTitle", "title"],
+    ["i18nAria", "aria-label"],
+  ])
+    for (const e of document.querySelectorAll(`[data-${o.replace(/[A-Z]/g, (e) => "-" + e.toLowerCase())}]`)) {
+      const t = "es" + o.slice(4);
+      (null == e.dataset[t] && (e.dataset[t] = e.getAttribute(a) || ""), e.setAttribute(a, tr(e.dataset[t])));
+    }
+  (modoParar(!!generando), ($("userInput").placeholder = textoEntrada()));
+}
+// Saludo al empezar: «Hola, buenas tardes, soy Cece AI 👋 ¿En qué te puedo ayudar hoy?», con la parte del día, el
+// nombre si lo has puesto y en el idioma de la app. Debajo, ideas para empezar que rellenan el cuadro con su comando.
+const SUGERENCIAS_INICIO = [
+  ["🪄", "Crear una app", "/crear "],
+  ["🌐", "Una página web", "/html "],
+  ["🎮", "Un juego 2D", "/2d-game "],
+  ["🧊", "Un juego 3D", "/3d-game "],
+  ["⚙️", "Un backend", "/backend "],
+  ["🐞", "Depurar código", "/depurar "],
+];
+function franjaDelDia(h = new Date().getHours()) {
+  return h >= 6 && h < 13 ? "manana" : h >= 13 && h < 21 ? "tarde" : "noche";
+}
+function textoSaludo(h) {
+  const l = Object.hasOwn(SALUDOS, S.appIdioma) ? S.appIdioma : "es",
+    n = nombreUsuario();
+  return `**${SALUDOS[l].hola(franjaDelDia(h), n ? ", " + n : "")}** 👋 ${SALUDOS[l].pregunta}`;
+}
 function bienvenida() {
+  if (!S.saludo) return;
   const e = crearMensaje("assistant"),
-    t = new Date().getHours(),
-    a = `**${t < 7 ? "Buenas noches" : t < 13 ? "Buenos días" : t < 21 ? "Buenas tardes" : "Buenas noches"}, soy Cece AI** 👋 ¿En qué te ayudo? Pulsa **LIVE** para hablar conmigo.`;
-  ((e.bubble.innerHTML = md(a)), (e.meta.innerHTML = `<span>${horaCorta()}</span>`), aplicarEmojis(e.wrap));
+    l = Object.hasOwn(SALUDOS, S.appIdioma) ? S.appIdioma : "es";
+  (e.wrap.classList.add("bienvenida"), (e.bubble.innerHTML = md(textoSaludo() + "\n\n" + SALUDOS[l].live)));
+  S.sugerencias &&
+    e.bubble.insertAdjacentHTML(
+      "beforeend",
+      '<div class="sugerencias">' +
+        SUGERENCIAS_INICIO.map(
+          ([e, t, o]) => `<button type="button" class="sugerencia" data-cmd="${esc(o)}">${e} ${esc(tr(t))}</button>`,
+        ).join("") +
+        "</div>",
+    );
+  ((e.meta.innerHTML = `<span>${horaCorta()}</span>`), aplicarEmojis(e.wrap));
 }
 function pintarHistorial() {
   if (((mensajesEl().innerHTML = ""), !historial.length)) return bienvenida();
@@ -6536,6 +6993,182 @@ const Temporizadores = {
       plantilla:
         "Modifica la última aplicación o el último código que has creado en esta conversación según esto:\n\n{texto}\n\nDevuelve el archivo COMPLETO otra vez, entero, dentro de un único bloque de código (no solo el trozo que cambia). Debajo, resume en una frase qué has cambiado.",
     },
+    // Plugins de programación: plantillas para que Cece cree webs, juegos, backends, APIs, bases de datos, etc.
+    {
+      id: "html",
+      alias: ["pagina", "landing"],
+      emoji: "🌐",
+      arg: "qué página quieres",
+      nombre: "Página web (HTML)",
+      desc: "Una página web completa, moderna y adaptada al móvil, en un solo archivo HTML",
+      plantilla:
+        "Crea una página web COMPLETA en un solo archivo HTML (HTML, CSS y JavaScript dentro del mismo archivo), moderna, responsive (que se vea bien en el móvil y en el ordenador) y accesible (etiquetas semánticas, textos alternativos y buen contraste). Sin librerías externas salvo que sean imprescindibles (y en ese caso por CDN). Contenido y diseño originales: no copies webs ni marcas existentes. Esto es lo que quiero:\n\n{texto}\n\nDevuelve el archivo entero en un único bloque ```html. Debajo, en una o dos frases, resume qué has hecho y qué puedo pedirte para cambiarla.",
+    },
+    {
+      id: "2d-game",
+      alias: ["juego2d", "juego-2d", "game-2d"],
+      emoji: "🎮",
+      arg: "idea del juego",
+      nombre: "Juego 2D",
+      desc: "Un juego 2D original con canvas: controles de teclado y táctiles, puntos, pausa y «otra vez»",
+      plantilla:
+        "Programa un juego 2D ORIGINAL y completo en un solo archivo HTML con <canvas> y JavaScript, sin librerías externas: bucle de juego con requestAnimationFrame y tiempo delta, controles de teclado y también táctiles para el móvil, puntuación, dificultad que sube poco a poco, pantalla de inicio, pausa (tecla P) y pantalla final con «Jugar otra vez». Gráficos dibujados con código (formas, colores y pequeños efectos), sin imágenes externas. Tiene que ser un juego propio: no copies juegos existentes, ni sus personajes, niveles o aspecto. La idea del juego:\n\n{texto}\n\nDevuelve el archivo entero en un único bloque ```html. Debajo, explica en pocas líneas cómo se juega y cuáles son los controles.",
+    },
+    {
+      id: "3d-game",
+      alias: ["juego3d", "juego-3d", "game-3d"],
+      emoji: "🧊",
+      arg: "idea del juego",
+      nombre: "Juego 3D",
+      desc: "Un juego 3D original con Three.js: luces, cámara que te sigue, controles y objetivo",
+      plantilla:
+        "Programa un juego 3D ORIGINAL y completo en un solo archivo HTML con Three.js desde CDN mediante un import map (\"three\": \"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js\"). Incluye: escena con luces y sombras, cámara que sigue al jugador, controles de teclado (WASD o flechas) y táctiles en el móvil, colisiones sencillas, puntuación u objetivo claro, pantalla de inicio y pantalla final con «Jugar otra vez», y que se adapte al tamaño de la ventana. Los modelos se hacen con geometrías de Three.js, sin archivos externos. Tiene que ser un juego propio: no copies juegos existentes, ni sus personajes o aspecto. La idea del juego:\n\n{texto}\n\nDevuelve el archivo entero en un único bloque ```html. Debajo, explica cómo se juega, los controles y que necesita internet para cargar Three.js.",
+    },
+    {
+      id: "backend",
+      alias: ["servidor", "server"],
+      emoji: "⚙️",
+      arg: "qué tiene que hacer",
+      nombre: "Backend",
+      desc: "El servidor de tu app: rutas, validación, base de datos, seguridad básica y README",
+      plantilla:
+        "Crea el backend completo de esto:\n\n{texto}\n\nSi no te digo otra cosa, usa Node.js con Express (o Python con FastAPI si lo pido). Incluye: estructura de carpetas clara, rutas de la API con validación de los datos de entrada y errores con su código HTTP correcto, configuración por variables de entorno (con un .env.example, sin claves reales), CORS y, si hace falta guardar datos, una base de datos sencilla (SQLite) con su esquema. Seguridad básica: contraseñas con hash (nunca en texto plano), consultas parametrizadas y límites a lo que se recibe. Escribe cada archivo COMPLETO en su propio bloque de código con su lenguaje y su ruta (por ejemplo ```js src/server.js), incluidos package.json (o requirements.txt) y un README.md con cómo instalarlo, arrancarlo y probar cada ruta con curl.",
+    },
+    {
+      id: "api",
+      alias: ["rest", "endpoints"],
+      emoji: "🔗",
+      arg: "para qué es la API",
+      nombre: "API REST",
+      desc: "Diseña la API (tabla de endpoints y OpenAPI) y el servidor que la implementa",
+      plantilla:
+        "Diseña e implementa una API REST para esto:\n\n{texto}\n\nPrimero, una tabla con cada endpoint (método, ruta, qué hace, cuerpo y respuestas con sus códigos). Después, la especificación OpenAPI 3 en un bloque ```yaml openapi.yaml y el servidor que la implementa (Node.js con Express si no digo otra cosa), con validación de las entradas y errores claros. Escribe cada archivo COMPLETO en su propio bloque de código con su lenguaje y su ruta (por ejemplo ```js src/server.js). Termina con ejemplos de uso con curl.",
+    },
+    {
+      id: "bd",
+      alias: ["basedatos", "database", "db"],
+      emoji: "🗄️",
+      arg: "qué datos hay que guardar",
+      nombre: "Base de datos",
+      desc: "Tablas, claves, índices, script SQL, datos de ejemplo y consultas útiles",
+      plantilla:
+        "Diseña la base de datos para esto:\n\n{texto}\n\nDame: las tablas con sus columnas, tipos, claves primarias y foráneas, restricciones (NOT NULL, UNIQUE, CHECK) e índices, explicado en una tabla corta; cómo se relacionan las tablas; el script SQL completo de creación en un bloque ```sql schema.sql (SQL estándar, que valga para PostgreSQL y SQLite si se puede); datos de ejemplo en un bloque ```sql datos.sql; y 5 consultas útiles de ejemplo, explicadas.",
+    },
+    {
+      id: "sql",
+      alias: ["consulta", "query"],
+      emoji: "🧾",
+      arg: "qué quieres consultar",
+      nombre: "Consulta SQL",
+      desc: "La consulta SQL que necesitas, explicada paso a paso",
+      plantilla:
+        "Escribe la consulta SQL para esto:\n\n{texto}\n\nSi no te digo el motor, usa SQL estándar (y avisa si algo cambia en PostgreSQL, MySQL o SQLite). Devuelve la consulta en un bloque ```sql, explícala paso a paso en pocas líneas y di qué índice la haría más rápida si hiciera falta. Si no sabes cómo son las tablas, supón un esquema razonable y dímelo.",
+    },
+    {
+      id: "react",
+      alias: ["componente", "jsx"],
+      emoji: "⚛️",
+      arg: "qué quieres crear",
+      nombre: "App con React",
+      desc: "Una interfaz con React que se abre con doble clic (y cómo pasarla a Vite)",
+      plantilla:
+        "Crea esto con React:\n\n{texto}\n\nHazlo en un solo archivo HTML que funcione abriéndolo en el navegador: React y ReactDOM 18 desde CDN (https://unpkg.com/react@18.3.1/umd/react.production.min.js y https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js) y JSX con Babel standalone (https://unpkg.com/@babel/standalone@7.24.7/babel.min.js), componentes funcionales con hooks, estilos dentro del archivo y diseño responsive. Devuelve el archivo entero en un único bloque ```html. Debajo, explica en pocas líneas cómo pasarlo a un proyecto con Vite (qué archivos crear).",
+    },
+    {
+      id: "extension",
+      alias: ["addon", "chrome"],
+      emoji: "🧩",
+      arg: "qué tiene que hacer",
+      nombre: "Extensión del navegador",
+      desc: "Una extensión para Chrome/Edge (Manifest V3) con solo los permisos necesarios",
+      plantilla:
+        "Crea una extensión de navegador para Chrome y Edge (Manifest V3) que haga esto:\n\n{texto}\n\nIncluye manifest.json con SOLO los permisos imprescindibles y los archivos que hagan falta (popup.html, popup.js, content.js, background.js, styles.css…). Escribe cada archivo COMPLETO en su propio bloque de código con su lenguaje y su nombre (por ejemplo ```json manifest.json). Termina explicando cómo cargarla en chrome://extensions con «Cargar descomprimida».",
+    },
+    {
+      id: "bot",
+      alias: ["discord", "telegram"],
+      emoji: "🤖",
+      arg: "qué tiene que hacer el bot",
+      nombre: "Bot",
+      desc: "Un bot para Discord (o Telegram): comandos, token en .env y README",
+      plantilla:
+        "Crea un bot que haga esto:\n\n{texto}\n\nSi no te digo la plataforma, hazlo para Discord con discord.js v14 (o para Telegram con grammY si lo pido). El token va en una variable de entorno (con un .env.example, nunca en el código). Incluye comandos claros, manejo de errores y un README.md con cómo crear el bot en la plataforma, instalarlo y arrancarlo. Escribe cada archivo COMPLETO en su propio bloque de código con su lenguaje y su ruta (por ejemplo ```js src/server.js).",
+    },
+    {
+      id: "cli",
+      alias: ["terminal", "consola"],
+      emoji: "⌨️",
+      arg: "qué tiene que hacer",
+      nombre: "Programa de terminal",
+      desc: "Una herramienta de línea de comandos con --help, errores claros y ejemplos",
+      plantilla:
+        "Crea una herramienta de línea de comandos que haga esto:\n\n{texto}\n\nSi no te digo el lenguaje, usa Python 3 solo con la biblioteca estándar (argparse). Incluye un --help claro, mensajes de error útiles, códigos de salida correctos y ejemplos de uso. Escribe cada archivo COMPLETO en su propio bloque de código con su lenguaje y su ruta (por ejemplo ```js src/server.js), y un README.md corto con cómo usarla.",
+    },
+    {
+      id: "tests",
+      alias: ["test", "pruebas", "testing"],
+      emoji: "🧪",
+      arg: "código (o nada: el último)",
+      opcional: !0,
+      nombre: "Pruebas automáticas",
+      desc: "Pruebas para tu código (o el último de la conversación): casos normales, límite y errores",
+      plantilla:
+        "Escribe pruebas automáticas completas para este código (si aquí no hay código, usa el último código de esta conversación):\n\n{texto}\n\nUsa el framework más habitual de su lenguaje (Jest o Vitest para JavaScript/TypeScript, pytest para Python…). Cubre el caso normal, los casos límite y los errores. Escribe cada archivo de pruebas COMPLETO en su propio bloque de código con su ruta y di cómo ejecutarlas. Si al escribirlas encuentras un fallo en el código, dilo.",
+    },
+    {
+      id: "docs",
+      alias: ["documentar", "readme", "documentacion"],
+      emoji: "📘",
+      arg: "código (o nada: el último)",
+      opcional: !0,
+      nombre: "Documentar",
+      desc: "README completo y comentarios de documentación para tu código (o el último)",
+      plantilla:
+        "Documenta este código (si aquí no hay código, usa el último código de esta conversación):\n\n{texto}\n\nEscribe un README.md completo en un bloque ```markdown README.md: qué hace, requisitos, instalación, cómo usarlo con ejemplos, configuración y estructura de archivos. Después, si ayuda, el código con comentarios de documentación (JSDoc, docstrings…) en sus funciones principales, cada archivo COMPLETO en su propio bloque de código con su nombre.",
+    },
+    {
+      id: "depurar",
+      alias: ["debug", "arreglar", "fix", "bugs"],
+      emoji: "🐞",
+      arg: "código (o nada: el último)",
+      opcional: !0,
+      nombre: "Depurar código",
+      desc: "Busca y arregla errores en tu código (o el último): explica cada fallo y lo corrige",
+      plantilla:
+        "Depura este código (si aquí no hay código, usa el último código de esta conversación):\n\n{texto}\n\nBusca errores, fallos de lógica, casos límite sin cubrir y problemas de seguridad o rendimiento. Primero haz una lista corta con cada problema (dónde está, por qué falla y cómo se arregla). Después devuelve cada archivo corregido COMPLETO en su propio bloque de código con su nombre. Si no encuentras ningún error, dilo y no cambies nada.",
+    },
+    {
+      id: "docker",
+      alias: ["contenedor", "dockerfile", "compose"],
+      emoji: "🐳",
+      arg: "el proyecto (o nada: el de la conversación)",
+      opcional: !0,
+      nombre: "Docker",
+      desc: "Dockerfile, .dockerignore y docker-compose para tu proyecto",
+      plantilla:
+        "Prepara Docker para este proyecto (si aquí no te lo describo, usa el código de esta conversación):\n\n{texto}\n\nIncluye un Dockerfile optimizado (imagen pequeña, por etapas si hay que compilar, usuario sin privilegios), un .dockerignore y, si hay varios servicios (por ejemplo la app y la base de datos), un docker-compose.yml con volúmenes y variables de entorno. Escribe cada archivo COMPLETO en su propio bloque de código con su nombre y termina con los comandos para construir y arrancar.",
+    },
+    {
+      id: "regex",
+      alias: ["regexp", "expresion"],
+      emoji: "🔤",
+      arg: "qué tiene que encontrar",
+      nombre: "Expresión regular",
+      desc: "La expresión regular que necesitas, explicada y con ejemplos",
+      plantilla:
+        "Escribe una expresión regular para esto:\n\n{texto}\n\nDevuélvela en un bloque de código, explica cada parte en una tabla corta, pon ejemplos de textos que SÍ coinciden y que NO, y un ejemplo de uso en JavaScript y en Python.",
+    },
+    {
+      id: "explicar",
+      alias: ["explica", "explain"],
+      emoji: "💡",
+      arg: "código (o nada: el último)",
+      opcional: !0,
+      nombre: "Explicar código",
+      desc: "Te explica paso a paso tu código (o el último de la conversación)",
+      plantilla:
+        "Explica este código paso a paso, de forma clara (si aquí no hay código, usa el último código de esta conversación):\n\n{texto}\n\nPrimero, qué hace en general en 2 o 3 frases; después, cada parte importante; y al final, posibles mejoras o riesgos.",
+    },
     {
       id: "calc",
       alias: ["calculadora", "cuenta", "cuentas"],
@@ -7338,7 +7971,11 @@ function pintarMarca() {
 function reloj() {
   const e = new Date(),
     p = (e) => String(e).padStart(2, "0");
-  $("clock").textContent = `${p(e.getHours())}:${p(e.getMinutes())}:${p(e.getSeconds())}`;
+  const h = e.getHours();
+  $("clock").textContent =
+    "12" === S.hora
+      ? `${h % 12 || 12}:${p(e.getMinutes())}:${p(e.getSeconds())} ${h < 12 ? "AM" : "PM"}`
+      : `${p(h)}:${p(e.getMinutes())}:${p(e.getSeconds())}`;
 }
 function ondas() {
   const e = ".icon-btn,.mode-btn,.send-btn,.esf-btn,.preset-btn,.btn-secondary,.dropdown-item,.btn-live";
@@ -8172,6 +8809,7 @@ function conectarAjustes() {
       (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) || abrirMenu(!1);
     }),
     $("clearBtn").addEventListener("click", () => {
+      if (S.confirmarLimpiar && historial.length && !confirm(tr("¿Limpiar el chat y empezar una conversación nueva?"))) return;
       (detener(),
         Voz.detener(),
         (Voz.liveHist = []),
@@ -8376,11 +9014,13 @@ function pintarModoImagen() {
 }
 // Lo que se lee en el cuadro de texto cuando está vacío (también al salir del modo micrófono)
 const textoEntrada = () =>
-  S.imgMode
-    ? "Describe la imagen que quieres..."
-    : matchMedia("(max-width: 400px)").matches
-      ? "Escribe… (/ comandos)"
-      : "Escribe tu mensaje... (/ para comandos)";
+  tr(
+    S.imgMode
+      ? "Describe la imagen que quieres..."
+      : matchMedia("(max-width: 400px)").matches
+        ? "Escribe… (/ comandos)"
+        : "Escribe tu mensaje... (/ para comandos)",
+  );
 const TONOS = {
     profesional: "Usa un tono profesional y formal.",
     directo: "Ve al grano: sin rodeos, sin frases de cortesía ni resúmenes al final.",
@@ -8395,8 +9035,29 @@ const TONOS = {
     pt: "portugués",
     ca: "catalán",
   };
+const NIVELES_TEC = {
+    principiante:
+      "El usuario está empezando: explica sin tecnicismos (o explícalos al usarlos), paso a paso y con ejemplos sencillos.",
+    intermedio: "El usuario tiene un nivel intermedio: puedes usar términos técnicos comunes sin explicarlos todos.",
+    experto: "El usuario es experto: sé técnico, preciso y ve al grano, sin explicar lo básico.",
+  },
+  EMOJIS_RESP = {
+    pocos: "Usa muy pocos emojis (como mucho uno de vez en cuando).",
+    ninguno: "No uses emojis.",
+    muchos: "Usa bastantes emojis para dar color a las respuestas, sin que estorben.",
+  },
+  // (el nombre lo escribe el usuario: sin saltos de línea ni marcas de Markdown que cambien el formato)
+  nombreUsuario = () =>
+    String(S.nombre || "")
+      .replace(/[*_`~#[\]<>|\\]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 40);
 function ajustesDeRespuesta() {
   const e = [];
+  (Object.hasOwn(NIVELES_TEC, S.nivelTec) && e.push(NIVELES_TEC[S.nivelTec]),
+    Object.hasOwn(EMOJIS_RESP, S.emojisResp) && e.push(EMOJIS_RESP[S.emojisResp]),
+    nombreUsuario() && e.push(`El usuario se llama ${nombreUsuario()}: puedes llamarle por su nombre de vez en cuando, sin abusar.`));
   ("corta" === S.largo
     ? e.push("Responde de forma breve: lo esencial en pocas frases, salvo que te pidan más detalle.")
     : "detallada" === S.largo &&
@@ -8439,9 +9100,10 @@ function sonidoFin(e) {
     } catch (e) {}
 }
 function ordenarAjustes() {
-  const e = [...document.querySelectorAll(".settings-body h3")].find((e) =>
-      /^Conversaciones/.test(e.textContent.trim()),
-    ),
+  // (por id y no por su texto: con la app en otro idioma el título ya no dice «Conversaciones»)
+  const e =
+      $("secConvs") ||
+      [...document.querySelectorAll(".settings-body h3")].find((e) => /^Conversaciones/.test(e.textContent.trim())),
     t = $("convStatus"),
     o = $("bloquePro");
   if (!e || !t || !o || e.parentNode !== t.parentNode || o.parentNode !== e.parentNode) return;
@@ -8459,6 +9121,58 @@ function ordenarAjustes() {
   }
   o.after(n);
 }
+function pintarGeneral() {
+  if (!$("appIdioma")) return;
+  (($("appIdioma").value = S.appIdioma),
+    document.activeElement !== $("optNombre") && ($("optNombre").value = S.nombre),
+    ($("swSaludo").checked = S.saludo),
+    ($("swSugerencias").checked = S.sugerencias),
+    ($("swSugerencias").disabled = !S.saludo),
+    ($("optHora").value = S.hora),
+    ($("swConfirmarLimpiar").checked = S.confirmarLimpiar),
+    ($("swDetalles").checked = S.detalles),
+    ($("swCorrector").checked = S.corrector),
+    document.body.classList.toggle("sin-detalles", !S.detalles),
+    ($("userInput").spellcheck = S.corrector));
+}
+// El saludo se vuelve a pintar si el chat sigue vacío (al cambiar idioma, nombre, saludo, ideas u hora).
+const repintarSaludo = () => historial.length || pintarHistorial();
+function conectarGeneral() {
+  if (!$("appIdioma")) return;
+  const guardar = () => (guardarAjustes(), pintarGeneral());
+  $("appIdioma").addEventListener("change", (e) => {
+    VALIDOS.appIdioma.includes(e.target.value) &&
+      ((S.appIdioma = e.target.value), guardar(), traducirApp(), repintarSaludo(), reloj());
+  });
+  let t = null;
+  const o = $("optNombre");
+  (o.addEventListener("input", () => {
+    ((S.nombre = o.value.replace(/[<>\r\n]/g, "").slice(0, 40)),
+      clearTimeout(t),
+      (t = setTimeout(() => (guardarAjustes(), repintarSaludo()), 400)));
+  }),
+    o.addEventListener("change", () => (clearTimeout(t), guardar(), repintarSaludo())),
+    $("optHora").addEventListener("change", (e) => {
+      VALIDOS.hora.includes(e.target.value) && ((S.hora = e.target.value), guardar(), reloj(), repintarSaludo());
+    }));
+  for (const [e, a, n] of [
+    ["swSaludo", "saludo", !0],
+    ["swSugerencias", "sugerencias", !0],
+    ["swConfirmarLimpiar", "confirmarLimpiar", !1],
+    ["swDetalles", "detalles", !1],
+    ["swCorrector", "corrector", !1],
+  ])
+    $(e).addEventListener("change", (e) => {
+      ((S[a] = e.target.checked), guardar(), n && repintarSaludo());
+    });
+  // Las ideas para empezar rellenan el cuadro con su comando (no envían nada todavía)
+  mensajesEl().addEventListener("click", (e) => {
+    const t = e.target.closest(".sugerencia");
+    if (!t) return;
+    const o = $("userInput");
+    ((o.value = t.dataset.cmd), autoAlto(), o.focus(), o.setSelectionRange(o.value.length, o.value.length));
+  });
+}
 function pintarRespuestas() {
   $("optLargo") &&
     (($("optLargo").value = S.largo),
@@ -8467,12 +9181,21 @@ function pintarRespuestas() {
     ($("optInstrucciones").value = S.instrucciones),
     ($("optEnviar").value = S.enviarCon),
     ($("optRazon").value = S.razon),
+    $("optNivelTec") && (($("optNivelTec").value = S.nivelTec), ($("optEmojis").value = S.emojisResp)),
     ($("swSonido").checked = S.sonido),
     $("userInput").setAttribute("aria-keyshortcuts", "ctrl" === S.enviarCon ? "Control+Enter" : "Enter"));
 }
 function conectarRespuestas() {
   if (!$("optLargo")) return;
-  const e = { optLargo: "largo", optTono: "tono", optIdioma: "idiomaResp", optEnviar: "enviarCon", optRazon: "razon" };
+  const e = {
+    optLargo: "largo",
+    optTono: "tono",
+    optIdioma: "idiomaResp",
+    optEnviar: "enviarCon",
+    optRazon: "razon",
+    optNivelTec: "nivelTec",
+    optEmojis: "emojisResp",
+  };
   for (const [t, o] of Object.entries(e))
     $(t).addEventListener("change", (e) => {
       (VALIDOS[o].includes(e.target.value) && ((S[o] = e.target.value), guardarAjustes()), pintarRespuestas());
@@ -11752,6 +12475,7 @@ function iniciarCece() {
     paso(conectarConexiones),
     paso(ordenarAjustes),
     paso(conectarRespuestas),
+    paso(conectarGeneral),
     paso(conectarNavAjustes),
     paso(prepararHojasEmoji),
     paso(pintarMarca),
@@ -11782,6 +12506,8 @@ function iniciarCece() {
     paso(pintarNube),
     paso(pintarSeguridad),
     paso(pintarRespuestas),
+    paso(pintarGeneral),
+    paso(traducirApp),
     paso(() => {
       almacen.ok || ($("avisoAlmacen").style.display = "");
     }),

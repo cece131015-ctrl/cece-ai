@@ -46,36 +46,80 @@
     </div>
   </div>
 
-  <button class="icon-btn" id="clearBtn" title="Limpiar chat"><span class="ico-trash">&#128465;&#65039;</span> Limpiar</button>
-  <button class="icon-btn" id="settingsBtn" title="Configuraci&oacute;n" aria-label="Configuraci&oacute;n"><span class="ico-gear">&#9881;&#65039;</span></button>
+  <button class="icon-btn" id="clearBtn" title="Limpiar chat" data-i18n-title><span class="ico-trash">&#128465;&#65039;</span> <span data-i18n>Limpiar</span></button>
+  <button class="icon-btn" id="settingsBtn" title="Configuraci&oacute;n" aria-label="Configuraci&oacute;n" data-i18n-title data-i18n-aria><span class="ico-gear">&#9881;&#65039;</span></button>
 </header>
 
 <div class="settings-overlay" id="settingsOverlay">
   <div class="settings-panel" role="dialog" aria-label="Configuraci&oacute;n">
     <div class="settings-header">
-      <h2>Configuraci&oacute;n</h2>
+      <h2 data-i18n>Configuraci&oacute;n</h2>
       <button class="close-settings" id="closeSettings" aria-label="Cerrar">&#10005;</button>
     </div>
     <div class="settings-body">
 
       <!-- ===== Añadido: índice, Cece Live, Internet e imágenes ===== -->
       <nav class="ajustes-nav" id="ajustesNav" aria-label="Secciones de la configuración">
-        <button type="button" data-ir="secConexiones">🔌 Conexiones</button>
-        <button type="button" data-ir="secConvs">💬 Conversaciones</button>
-        <button type="button" data-ir="secRespuestas">✍️ Respuestas</button>
-        <button type="button" data-ir="secApariencia">🎨 Apariencia</button>
-        <button type="button" data-ir="secPlugins">🧩 Plugins</button>
-        <button type="button" data-ir="secOffline">📴 Sin conexión</button>
-        <button type="button" data-ir="secNube">☁️ Nube</button>
-        <button type="button" data-ir="secSeguridad">🔐 Seguridad</button>
+        <button type="button" data-ir="secGeneral" data-i18n>🌍 General</button>
+        <button type="button" data-ir="secConexiones" data-i18n>🔌 Conexiones</button>
+        <button type="button" data-ir="secConvs" data-i18n>💬 Conversaciones</button>
+        <button type="button" data-ir="secRespuestas" data-i18n>✍️ Respuestas</button>
+        <button type="button" data-ir="secApariencia" data-i18n>🎨 Apariencia</button>
+        <button type="button" data-ir="secPlugins" data-i18n>🧩 Plugins</button>
+        <button type="button" data-ir="secOffline" data-i18n>📴 Sin conexión</button>
+        <button type="button" data-ir="secNube" data-i18n>☁️ Nube</button>
+        <button type="button" data-ir="secSeguridad" data-i18n>🔐 Seguridad</button>
       </nav>
 
-      <h3>🎙️ Cece Live</h3>
+      <!-- General: idioma de la app, tu nombre, saludo y detalles de la pantalla -->
+      <h3 id="secGeneral" data-i18n>🌍 General</h3>
+      <label class="etq" for="appIdioma" data-i18n>Idioma de la app</label>
+      <select class="sel-in" id="appIdioma">
+        <option value="es">Español</option>
+        <option value="en">English</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="it">Italiano</option>
+        <option value="pt">Português</option>
+        <option value="ca">Català</option>
+      </select>
+      <p class="settings-hint" data-i18n>Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.</p>
+      <label class="etq" for="optNombre" data-i18n>Cómo te llamas (opcional)</label>
+      <input type="text" class="campo" id="optNombre" maxlength="40" autocomplete="given-name" placeholder="Tu nombre" data-i18n-ph>
+      <div class="switch-fila">
+        <label for="swSaludo" data-i18n>Saludar al empezar una conversación</label>
+        <span class="sw"><input type="checkbox" id="swSaludo" checked><span class="sw-pista"></span></span>
+      </div>
+      <div class="switch-fila">
+        <label for="swSugerencias" data-i18n>Ideas para empezar (webs, juegos, backend…)</label>
+        <span class="sw"><input type="checkbox" id="swSugerencias" checked><span class="sw-pista"></span></span>
+      </div>
+      <label class="etq" for="optHora" data-i18n>Formato de la hora</label>
+      <select class="sel-in" id="optHora">
+        <option value="24" data-i18n>24 horas (17:30)</option>
+        <option value="12" data-i18n>12 horas (5:30 p. m.)</option>
+      </select>
+      <div class="switch-fila" style="margin-top:10px">
+        <label for="swConfirmarLimpiar" data-i18n>Preguntar antes de limpiar el chat</label>
+        <span class="sw"><input type="checkbox" id="swConfirmarLimpiar"><span class="sw-pista"></span></span>
+      </div>
+      <div class="switch-fila">
+        <label for="swDetalles" data-i18n>Detalles bajo cada respuesta (modelo, tokens y velocidad)</label>
+        <span class="sw"><input type="checkbox" id="swDetalles" checked><span class="sw-pista"></span></span>
+      </div>
+      <div class="switch-fila">
+        <label for="swCorrector" data-i18n>Corrector ortográfico al escribir</label>
+        <span class="sw"><input type="checkbox" id="swCorrector" checked><span class="sw-pista"></span></span>
+      </div>
+
+      <hr class="divider">
+
+      <h3 data-i18n>🎙️ Cece Live</h3>
       <button class="btn-settings-open" id="liveSettingsBtn">⚙️ Configurar Cece Live</button>
 
       <hr class="divider">
 
-      <h3>🌐 Internet</h3>
+      <h3 data-i18n>🌐 Internet</h3>
       <div class="switch-fila">
         <label for="swWeb">Buscar en internet y leer páginas</label>
         <span class="sw"><input type="checkbox" id="swWeb" checked><span class="sw-pista"></span></span>
@@ -83,14 +127,14 @@
 
       <hr class="divider">
 
-      <h3 id="secConexiones">🔌 Conexiones</h3>
+      <h3 id="secConexiones" data-i18n>🔌 Conexiones</h3>
       <p class="settings-hint">Comprueba cada clave del bloque de configuración: si conecta, si vale y si tu cuenta tiene el modelo de cada motor. No gasta tokens.</p>
       <button type="button" class="btn-secondary" id="probarConexiones">🔌 Comprobar conexiones</button>
       <div class="conex-lista" id="conexLista" role="status" aria-live="polite"></div>
 
       <hr class="divider">
 
-      <h3>🎨 Imágenes</h3>
+      <h3 data-i18n>🎨 Imágenes</h3>
       <select class="sel-in" id="imgMotor" aria-label="Motor de imagen">
         <option value="auto">Automático</option>
         <option value="openai">Cece Imagen</option>
@@ -100,7 +144,7 @@
       <hr class="divider">
       <!-- ===== Fin del añadido ===== -->
 
-      <h3>Modo de esfuerzo</h3>
+      <h3 data-i18n>Modo de esfuerzo</h3>
       <p class="settings-hint">Cu&aacute;nto piensa el modelo antes de responder. M&aacute;s esfuerzo da mejores respuestas pero tarda m&aacute;s y gasta m&aacute;s tokens.</p>
       <div class="esfuerzo-row" id="esfuerzoRow">
         <button class="esf-btn" data-esf="bajo">Bajo</button>
@@ -173,7 +217,7 @@
 
       <hr class="divider">
 
-      <h3>L&iacute;mite de velocidad</h3>
+      <h3 data-i18n>L&iacute;mite de velocidad</h3>
       <p class="settings-hint">Tokens por segundo m&aacute;ximos que la IA puede gastar generando la respuesta.</p>
       <div class="preset-row" id="presetVel">
         <button class="preset-btn" data-vel="20">&#128034; Lento<span>20</span></button>
@@ -188,7 +232,7 @@
 
       <hr class="divider">
 
-      <h3>Emojis</h3>
+      <h3 data-i18n>Emojis</h3>
       <p class="settings-hint">C&oacute;mo se ven los emojis de la interfaz. Los de dentro de los mensajes siguen siendo los de tu dispositivo.</p>
       <div class="emoji-estilos" role="group" aria-label="Estilo de los emojis">
         <button class="emo-opt" data-estilo="sistema" aria-pressed="true">
@@ -207,7 +251,7 @@
 
       <hr class="divider">
 
-      <h3>Pantalla</h3>
+      <h3 data-i18n>Pantalla</h3>
       <div class="switch-fila">
         <label for="swPantalla">Abrir en pantalla completa</label>
         <span class="sw"><input type="checkbox" id="swPantalla"><span class="sw-pista"></span></span>
@@ -216,7 +260,7 @@
 
       <hr class="divider">
 
-      <h3>C&oacute;digo generado</h3>
+      <h3 data-i18n>C&oacute;digo generado</h3>
       <p class="settings-hint">Cada lenguaje tiene su carpeta. Si pides uno nuevo se crea su carpeta y se recuerda, para que la pr&oacute;xima vez vaya siempre a la misma.</p>
       <div class="aviso" id="estadoCarpeta" style="display:none"></div>
       <button class="btn-secondary" id="reconectarCarpeta" style="display:none">&#128279; Reconectar carpeta guardada</button>
@@ -231,7 +275,7 @@
 
       <hr class="divider">
 
-      <h3>Respuesta</h3>
+      <h3 data-i18n>Respuesta</h3>
       <div class="switch-fila">
         <label for="swStream">Ver el texto seg&uacute;n se escribe</label>
         <span class="sw"><input type="checkbox" id="swStream" checked><span class="sw-pista"></span></span>
@@ -240,22 +284,36 @@
 
       <hr class="divider">
 
-      <h3 id="secRespuestas">✍️ Cómo responde Cece</h3>
+      <h3 id="secRespuestas" data-i18n>✍️ Cómo responde Cece</h3>
       <p class="settings-hint">Valen para todos los niveles y también para Cece Live.</p>
-      <label class="etq" for="optLargo">Longitud de las respuestas</label>
+      <label class="etq" for="optLargo" data-i18n>Longitud de las respuestas</label>
       <select class="sel-in" id="optLargo">
         <option value="corta">Corta: lo esencial</option>
         <option value="normal">Normal</option>
         <option value="detallada">Detallada: con explicaciones y ejemplos</option>
       </select>
-      <label class="etq" for="optTono">Tono</label>
+      <label class="etq" for="optTono" data-i18n>Tono</label>
       <select class="sel-in" id="optTono">
         <option value="cercano">Cercano (el de siempre)</option>
         <option value="profesional">Profesional</option>
         <option value="directo">Directo, sin rodeos</option>
         <option value="divertido">Divertido</option>
       </select>
-      <label class="etq" for="optIdioma">Idioma de las respuestas</label>
+      <label class="etq" for="optNivelTec" data-i18n>Nivel de las explicaciones</label>
+      <select class="sel-in" id="optNivelTec">
+        <option value="auto" data-i18n>Automático: según lo que preguntes</option>
+        <option value="principiante" data-i18n>Principiante: sin tecnicismos, paso a paso</option>
+        <option value="intermedio" data-i18n>Intermedio</option>
+        <option value="experto" data-i18n>Experto: técnico y al grano</option>
+      </select>
+      <label class="etq" for="optEmojis" data-i18n>Emojis en las respuestas</label>
+      <select class="sel-in" id="optEmojis">
+        <option value="normal" data-i18n>Los de siempre</option>
+        <option value="pocos" data-i18n>Pocos</option>
+        <option value="ninguno" data-i18n>Ninguno</option>
+        <option value="muchos" data-i18n>Muchos</option>
+      </select>
+      <label class="etq" for="optIdioma" data-i18n>Idioma de las respuestas</label>
       <select class="sel-in" id="optIdioma">
         <option value="auto">El mismo en que escribas</option>
         <option value="es">Español</option>
@@ -286,7 +344,7 @@
 
       <hr class="divider">
 
-      <h3>Conversaciones</h3>
+      <h3 id="secConvs" data-i18n>Conversaciones</h3>
       <p class="settings-hint">Se guardan en este navegador. Para llev&aacute;rtelas a otro ordenador, exp&oacute;rtalas a un archivo.</p>
       <button class="btn-secondary" id="saveConvBtn">&#128190; Guardar conversaci&oacute;n actual</button>
       <div class="aviso aviso-naranja" id="avisoAlmacen" style="display:none">
@@ -304,7 +362,7 @@
       <!-- ===== Añadido: apariencia, plugins, sin conexión, nube y seguridad ===== -->
       <hr class="divider">
 
-      <h3 id="secApariencia">🎨 Apariencia</h3>
+      <h3 id="secApariencia" data-i18n>🎨 Apariencia</h3>
       <p class="settings-hint">Tema, color y tamaño. Se guarda en este navegador (y en la nube, si la usas).</p>
       <div class="temas-grid" id="temasGrid" role="radiogroup" aria-label="Tema"></div>
       <div class="fila-ajuste">
@@ -336,8 +394,8 @@
 
       <hr class="divider">
 
-      <h3 id="secPlugins">🧩 Plugins</h3>
-      <p class="settings-hint">Comandos extra: escríbelos con <code>/</code> al principio del mensaje. Los integrados se hacen aquí mismo, sin IA, sin gastar tokens y sin internet.</p>
+      <h3 id="secPlugins" data-i18n>🧩 Plugins</h3>
+      <p class="settings-hint">Comandos extra: escríbelos con <code>/</code> al principio del mensaje. Los de utilidades (<code>/calc</code>, <code>/hora</code>…) se hacen aquí mismo, sin IA, sin gastar tokens y sin internet; los de programación (<code>/html</code>, <code>/2d-game</code>, <code>/3d-game</code>, <code>/backend</code>, <code>/api</code>…) le piden a Cece el trabajo con instrucciones ya preparadas.</p>
       <div class="plugin-lista" id="pluginLista"></div>
       <button class="btn-secondary" id="pluginNuevo">➕ Crear un plugin</button>
       <button class="btn-secondary" id="pluginExportar">⬇️ Exportar mis plugins</button>
@@ -346,7 +404,7 @@
 
       <hr class="divider">
 
-      <h3 id="secOffline">📴 Sin conexión</h3>
+      <h3 id="secOffline" data-i18n>📴 Sin conexión</h3>
       <p class="settings-hint">Sin internet, Cece sigue funcionando: tus conversaciones, los plugins y la voz del navegador. Lo que pidas a la IA espera y se envía solo al volver la conexión. Y si tienes una IA en tu ordenador (Ollama, LM Studio…), responde también sin internet.</p>
       <div class="switch-fila">
         <label for="swLocal">Usar una IA de mi ordenador</label>
@@ -409,7 +467,7 @@
 
       <hr class="divider">
 
-      <h3 id="secNube">☁️ Nube</h3>
+      <h3 id="secNube" data-i18n>☁️ Nube</h3>
       <p class="settings-hint">Tus conversaciones guardadas, tus plugins y la apariencia, en un Gist privado de tu cuenta de GitHub, para tenerlos en todos tus equipos. Van cifrados de extremo a extremo con tu frase secreta: ni GitHub ni nadie más puede leerlos.</p>
       <div class="aviso" id="nubeEstado" role="status"></div>
       <div class="switch-fila">
@@ -429,7 +487,7 @@
 
       <hr class="divider">
 
-      <h3 id="secSeguridad">🔐 Seguridad</h3>
+      <h3 id="secSeguridad" data-i18n>🔐 Seguridad</h3>
       <div class="aviso" id="segEstado" role="status"></div>
       <button class="btn-secondary" id="segCifrar">🔐 Cifrar mis claves con contraseña</button>
       <button class="btn-secondary" id="segDesbloquear" style="display:none">🔓 Desbloquear las claves</button>

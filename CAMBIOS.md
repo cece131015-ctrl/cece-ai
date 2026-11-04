@@ -1,5 +1,60 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — saludo, idioma de la app, más ajustes y plugins de programación
+
+**Saludo al empezar**
+- El chat vacío saluda: **«Hola, buenas tardes, soy Cece AI 👋 ¿En qué te puedo ayudar hoy?»**. Dice «buenos días»
+  de 6 a 13 h, «buenas tardes» de 13 a 21 h y «buenas noches» el resto. Si pones tu nombre en Configuración, lo
+  incluye: «Hola, Ana, buenas tardes…».
+- Debajo salen **ideas para empezar**: crear una app, una página web, un juego 2D, un juego 3D, un backend y depurar
+  código. Al pulsar una, el cuadro de texto se rellena con su comando (`/html `, `/2d-game `…) para que escribas qué
+  quieres.
+
+**Configuración → 🌍 General (nueva sección, la primera)**
+- **Idioma de la app:** español, English, français, Deutsch, italiano, português y català. Traduce el saludo y las
+  ideas, la cabecera (Limpiar, Configuración), el cuadro de texto, el botón de enviar y parar, el índice y los títulos
+  de la configuración, y la sección General entera. El resto de textos (avisos y explicaciones más largas) sigue en
+  español por ahora. El idioma de las respuestas se elige en «Cómo responde Cece», y el de la voz, en Cece Live.
+- **Cómo te llamas:** Cece te saluda por tu nombre y lo usa de vez en cuando al responder.
+- **Saludar al empezar** y **ideas para empezar:** se pueden apagar.
+- **Formato de la hora:** 24 o 12 horas, en el reloj y en los mensajes.
+- **Preguntar antes de limpiar el chat.**
+- **Detalles bajo cada respuesta** (modelo, tokens y velocidad): se pueden ocultar.
+- **Corrector ortográfico al escribir:** se puede apagar.
+
+**Configuración → ✍️ Cómo responde Cece (dos ajustes más)**
+- **Nivel de las explicaciones:** automático, principiante (sin tecnicismos, paso a paso), intermedio o experto
+  (técnico y al grano).
+- **Emojis en las respuestas:** los de siempre, pocos, ninguno o muchos.
+
+**17 plugins de programación nuevos.** Se escriben al principio del mensaje y le mandan a Cece unas instrucciones ya
+preparadas para que el trabajo salga completo. En tu burbuja se ve solo lo que escribiste.
+
+| Comando | Qué hace |
+| --- | --- |
+| `/html` (`/pagina`, `/landing`) | Página web completa, moderna y adaptada al móvil, en un solo HTML |
+| `/2d-game` (`/juego2d`) | Juego 2D original con canvas: teclado y táctil, puntos, pausa y «Jugar otra vez» |
+| `/3d-game` (`/juego3d`) | Juego 3D original con Three.js: luces, sombras, cámara que te sigue y objetivo |
+| `/backend` (`/servidor`) | Servidor con rutas, validación, base de datos, `.env.example`, seguridad básica y README |
+| `/api` (`/rest`) | Tabla de endpoints, OpenAPI 3 y el servidor que la implementa, con ejemplos `curl` |
+| `/bd` (`/basedatos`) | Tablas, claves, índices, `schema.sql`, datos de ejemplo y consultas |
+| `/sql` (`/consulta`) | La consulta SQL que necesitas, explicada |
+| `/react` (`/componente`) | Interfaz con React que se abre con doble clic (y cómo pasarla a Vite) |
+| `/extension` (`/addon`) | Extensión para Chrome/Edge (Manifest V3) con los permisos justos |
+| `/bot` (`/discord`, `/telegram`) | Bot con comandos, token en `.env` y README |
+| `/cli` (`/terminal`) | Programa de terminal con `--help` y errores claros |
+| `/tests` (`/test`, `/pruebas`) | Pruebas automáticas de tu código o del último del chat |
+| `/docs` (`/readme`) | README y comentarios de documentación |
+| `/depurar` (`/debug`, `/arreglar`) | Busca y arregla los errores de tu código o del último del chat |
+| `/docker` | Dockerfile, `.dockerignore` y `docker-compose.yml` |
+| `/regex` | Expresión regular explicada, con ejemplos |
+| `/explicar` | Explica paso a paso tu código o el último del chat |
+
+`/tests`, `/docs`, `/depurar`, `/docker` y `/explicar` se pueden mandar solos: trabajan sobre el último código de la
+conversación. Los juegos piden que sean originales (sin copiar juegos existentes ni sus personajes). Los de un solo
+HTML (`/html`, `/2d-game`, `/3d-game`, `/react`) se pueden probar con el botón «Ver». `/3d-game` y `/react` necesitan
+internet para cargar Three.js o React. Como todos los plugins, se pueden apagar en Configuración → 🧩 Plugins.
+
 ## 4 de noviembre de 2026 — depuración, segunda ronda: lo más nuevo
 
 Se revisó el código añadido estos días: cola y citas, el panel de GitHub y la barrita de Cece Pro. Salieron 8 fallos

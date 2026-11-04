@@ -2440,6 +2440,120 @@ prueba("GitHub: traer una carpeta con más de 80 archivos avisa de que hay más;
   await ctx.close();
 });
 
+prueba("saludo al empezar (hora del día, nombre e idioma), ideas para empezar y ajustes nuevos", async (nav) => {
+  let sistema = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        (sistema = (cuerpo.messages.find((m) => m.role === "system") || {}).content || ""),
+        { cuerpo: respuestaOpenAI("Hecho.") }
+      ),
+    },
+  });
+  const r = await pagina.evaluate(() => ({
+    burbuja: document.querySelector(".bot-msg .bubble").innerText,
+    tarde: textoSaludo(16),
+    manana: textoSaludo(9),
+    noche: textoSaludo(23),
+    ideas: [...document.querySelectorAll(".sugerencia")].map((e) => e.dataset.cmd.trim()),
+  }));
+  igual(r.tarde, "**Hola, buenas tardes, soy Cece AI** 👋 ¿En qué te puedo ayudar hoy?", "saludo de la tarde");
+  cierto(/buenos días/.test(r.manana) && /buenas noches/.test(r.noche), "saludo de mañana o noche: " + r.manana + " / " + r.noche);
+  cierto(/Hola, buen[oa]s \w+, soy Cece AI/.test(r.burbuja) && /¿En qué te puedo ayudar hoy\?/.test(r.burbuja), "el chat no saluda: " + r.burbuja);
+  cierto(["/html", "/2d-game", "/3d-game", "/backend"].every((c) => r.ideas.includes(c)), "faltan ideas para empezar: " + r.ideas.join(" "));
+  await pagina.click('.sugerencia[data-cmd="/3d-game "]');
+  igual(await pagina.inputValue("#userInput"), "/3d-game ", "la idea no rellenó el cuadro");
+  await pagina.fill("#userInput", "");
+  // ajustes: idioma de la app, nombre, nivel, emojis, hora, detalles, corrector y confirmar al limpiar
+  await pagina.click("#settingsBtn");
+  await pagina.selectOption("#appIdioma", "en");
+  await pagina.fill("#optNombre", "Ana");
+  await pagina.locator("#optNombre").dispatchEvent("change");
+  await pagina.selectOption("#optNivelTec", "experto");
+  await pagina.selectOption("#optEmojis", "ninguno");
+  await pagina.selectOption("#optHora", "12");
+  for (const id of ["swDetalles", "swCorrector", "swConfirmarLimpiar"]) await pagina.click(`label[for=${id}]`);
+  const en = await pagina.evaluate(() => ({
+    lang: document.documentElement.lang,
+    nav: document.querySelector('#ajustesNav [data-ir="secConvs"]').textContent.trim(),
+    titulo: document.querySelector(".settings-header h2").textContent.trim(),
+    limpiar: document.getElementById("clearBtn").textContent.trim(),
+    cuadro: document.getElementById("userInput").placeholder,
+    saludo: document.querySelector(".bot-msg .bubble").innerText,
+    hora: horaCorta(),
+    spell: document.getElementById("userInput").spellcheck,
+  }));
+  igual(en.lang, "en", "el idioma de la página");
+  cierto(/Conversations/.test(en.nav) && en.titulo === "Settings" && /Clear/.test(en.limpiar), "la interfaz no se tradujo: " + JSON.stringify(en));
+  cierto(/^Type your message/.test(en.cuadro), "el cuadro de texto sigue en español: " + en.cuadro);
+  cierto(/^Hi, Ana, good (morning|afternoon|evening), I'm Cece AI/.test(en.saludo), "el saludo no cambió de idioma o no lleva el nombre: " + en.saludo);
+  cierto(/[ap]m/i.test(en.hora), "la hora no está en formato de 12 horas: " + en.hora);
+  igual(en.spell, false, "el corrector sigue activo");
+  await pagina.click("#closeSettings");
+  await escribirYEnviar(pagina, "hola");
+  await ultimaRespuesta(pagina);
+  cierto(/se llama Ana/.test(sistema) && /experto/.test(sistema) && /No uses emojis/.test(sistema), "las instrucciones nuevas no llegan a la IA");
+  cierto(/normalmente inglés/.test(sistema), "el idioma de la app no llega a la IA");
+  igual(
+    await pagina.evaluate(() => getComputedStyle([...document.querySelectorAll(".bot-msg .msg-meta .det")].pop()).display),
+    "none",
+    "los detalles de la respuesta se ven aunque estén apagados",
+  );
+  // con «preguntar antes de limpiar», cancelar no borra nada
+  pagina.once("dialog", (d) => d.dismiss());
+  await pagina.click("#clearBtn");
+  cierto(await pagina.evaluate(() => historial.length > 0), "limpió sin preguntar");
+  // se recuerda al recargar
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  cierto(await pagina.evaluate(() => S.appIdioma === "en" && S.nombre === "Ana" && S.hora === "12" && !S.detalles), "no se guardaron los ajustes");
+  // sin saludo, el chat vacío no saluda
+  await pagina.evaluate(() => ((S.saludo = false), (historial = []), pintarHistorial()));
+  igual(await pagina.evaluate(() => document.querySelectorAll(".bot-msg").length), 0, "saluda aunque el saludo esté apagado");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("plugins de programación: /html, /2d-game, /3d-game, /backend, /api, /depurar… mandan sus instrucciones", async (nav) => {
+  const pedidos = [];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        pedidos.push(cuerpo.messages[cuerpo.messages.length - 1].content),
+        { cuerpo: respuestaOpenAI("```html\n<!doctype html><title>x</title><canvas></canvas>\n```\nListo.") }
+      ),
+    },
+  });
+  const ids = ["html", "2d-game", "3d-game", "backend", "api", "bd", "sql", "react", "extension", "bot", "cli", "tests", "docs", "depurar", "docker", "regex", "explicar"];
+  const faltan = await pagina.evaluate((ids) => ids.filter((i) => !(COMANDO[i] && COMANDO[i].plugin && COMANDO[i].plugin.plantilla)), ids);
+  igual(faltan.length, 0, "faltan plugins: " + faltan.join(", "));
+  igual(await pagina.evaluate(() => COMANDO.juego2d && COMANDO.juego2d.id), "2d-game", "el alias /juego2d");
+  const casos = [
+    ["/2d-game esquivar meteoritos", /juego 2D ORIGINAL/, /esquivar meteoritos/],
+    ["/3d-game un laberinto", /three@0\.160\.0/, /un laberinto/],
+    ["/backend una lista de tareas", /Node\.js con Express/, /una lista de tareas/],
+    ["/html una web para mi panadería", /página web COMPLETA/, /panadería/],
+    ["/api de reservas", /OpenAPI 3/, /de reservas/],
+    ["/depurar", /último código de esta conversación/, /Depura este código/],
+  ];
+  for (const [entrada, re1, re2] of casos) {
+    await escribirYEnviar(pagina, entrada);
+    await ultimaRespuesta(pagina);
+    const ultimo = pedidos[pedidos.length - 1] || "";
+    cierto(re1.test(ultimo) && re2.test(ultimo), `${entrada} no mandó sus instrucciones: ${ultimo.slice(0, 120)}`);
+  }
+  // en la burbuja del usuario se ve lo que escribió, no la plantilla entera
+  cierto(
+    await pagina.evaluate(() => [...document.querySelectorAll(".user-msg .bubble")].some((e) => /esquivar meteoritos/.test(e.textContent) && !/ORIGINAL/.test(e.textContent))),
+    "la burbuja enseña la plantilla en vez de lo escrito",
+  );
+  // salen en la lista de plugins de la configuración
+  await pagina.click("#settingsBtn");
+  cierto(await pagina.evaluate(() => /2d-game/.test(document.getElementById("pluginLista").textContent)), "no salen en la lista de plugins");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
