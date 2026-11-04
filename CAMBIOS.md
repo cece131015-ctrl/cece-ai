@@ -1,5 +1,16 @@
 # Informe de depuración
 
+## 4 de noviembre de 2026 — mensajes en cola y citar trozos del chat
+
+- **Ctrl+Enter (o ⌘+Enter) mientras Cece responde pone tu mensaje en cola** en vez de cortar la respuesta. Se ve en
+  una bandeja encima del cuadro (🕒 1. …, con 📎/💬 si lleva adjuntos o citas) y sale solo cuando termina la
+  respuesta, en orden. Se le aplican sus `/comandos` igual que a un mensaje normal (por ejemplo `/crear …`). Con ✕ lo
+  sacas de la cola y vuelve al cuadro para editarlo. Enter normal sigue como antes: corta la respuesta y envía.
+- **«💬 Mencionar en el chat»**: al seleccionar un trozo de la conversación aparece ese botón junto a la selección.
+  El trozo va a un recuadro encima del cuadro de texto que **no se puede editar** (se quita con ✕); lo que escribes
+  sí. Al enviar, Cece recibe esos fragmentos (y quién los dijo) como contexto delante de tu mensaje, y la burbuja los
+  muestra como cita. Hasta 5 citas por mensaje. Los `/comandos` se leen de lo que escribes, nunca del texto citado.
+
 ## 3 de noviembre de 2026 — subir a GitHub el código que escribe Cece
 
 - El panel **🐙 GitHub** (`/github`) ya permitía conectar tu cuenta, ver repositorios y archivos, editar y guardar un

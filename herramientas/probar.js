@@ -395,6 +395,87 @@ prueba("adjuntar un archivo de texto y una imagen", async (nav) => {
   await ctx.close();
 });
 
+prueba("Ctrl+Enter mientras responde pone el mensaje en cola (sin cortar) y se le aplican sus /comandos", async (nav) => {
+  const pedidos = [];
+  let n = 0;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": async ({ cuerpo }) => {
+        const yo = ++n;
+        pedidos.push(JSON.stringify(cuerpo.messages));
+        yo === 1 && (await new Promise((ok) => setTimeout(ok, 1500)));
+        return { cuerpo: respuestaOpenAI(yo === 1 ? "Primera respuesta COMPLETA." : "Respuesta del mensaje en cola.") };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "hola");
+  await pagina.waitForFunction(() => document.getElementById("sendBtn").classList.contains("parar"));
+  await pagina.fill("#userInput", "/crear una calculadora");
+  await pagina.press("#userInput", "Control+Enter");
+  await pagina.waitForSelector("#colaBandeja .cola-item", { timeout: 3000 });
+  igual(await pagina.inputValue("#userInput"), "", "el cuadro no se vació al ponerlo en cola");
+  await pagina.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".bot-msg .bubble")].some((e) => /en cola/.test(e.innerText)) &&
+      !document.querySelector(".bubble.thinking, .cursor"),
+    null,
+    { timeout: 20000 },
+  );
+  const textos = await pagina.evaluate(() => [...document.querySelectorAll(".bot-msg .bubble")].map((e) => e.innerText));
+  const i1 = textos.findIndex((t) => /Primera respuesta/.test(t)),
+    i2 = textos.findIndex((t) => /en cola/.test(t));
+  cierto(i1 >= 0 && /Primera respuesta COMPLETA/.test(textos[i1]) && !/detenid/.test(textos[i1]), "la primera respuesta se cortó: " + textos[i1]);
+  cierto(i2 > i1, "el mensaje en cola no salió después de la primera respuesta");
+  igual(pedidos.length, 2, "no salió el mensaje de la cola");
+  cierto(/aplicación web COMPLETA y ORIGINAL/.test(pedidos[1]), "al mensaje en cola no se le aplicó /crear");
+  cierto(await pagina.evaluate(() => document.getElementById("colaBandeja").hidden), "la bandeja de la cola no se vació");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("«Mencionar en el chat»: lo seleccionado va a un recuadro no editable y Cece lo recibe como contexto", async (nav) => {
+  const pedidos = [];
+  let n = 0;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        pedidos.push(JSON.stringify(cuerpo.messages)),
+        { cuerpo: respuestaOpenAI(++n === 1 ? "La FRASE_CITABLE_42 es la clave." : "Te lo explico.") }
+      ),
+    },
+  });
+  await escribirYEnviar(pagina, "dime algo");
+  await ultimaRespuesta(pagina);
+  await pagina.evaluate(() => {
+    const r = document.createRange();
+    r.selectNodeContents([...document.querySelectorAll(".bot-msg .bubble")].pop());
+    const s = getSelection();
+    (s.removeAllRanges(), s.addRange(r));
+  });
+  await pagina.waitForSelector("#citarBtn:not([hidden])", { timeout: 5000 });
+  await pagina.click("#citarBtn");
+  await pagina.waitForSelector("#citaBandeja .cita-item");
+  cierto(
+    await pagina.evaluate(() => {
+      const c = document.querySelector("#citaBandeja .cita-item");
+      return !c.isContentEditable && !c.querySelector("input,textarea,[contenteditable]") && /FRASE_CITABLE_42/.test(c.textContent);
+    }),
+    "el recuadro de la cita es editable o no lleva el texto",
+  );
+  await escribirYEnviar(pagina, "explícamelo");
+  await ultimaRespuesta(pagina);
+  const ult = pedidos[pedidos.length - 1];
+  cierto(/lo dijo Cece/.test(ult) && /> La FRASE_CITABLE_42/.test(ult) && /explícamelo/.test(ult), "a Cece no le llegó la cita: " + ult.slice(-300));
+  const b = await pagina.evaluate(() => {
+    const e = [...document.querySelectorAll(".user-msg .bubble")].pop();
+    return { cita: (e.querySelector(".cita-msg") || {}).textContent || "", todo: e.innerText };
+  });
+  cierto(/FRASE_CITABLE_42/.test(b.cita) && /explícamelo/.test(b.todo), "la burbuja no enseña la cita: " + JSON.stringify(b));
+  cierto(await pagina.evaluate(() => document.getElementById("citaBandeja").hidden), "la cita no se quitó del recuadro al enviar");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // IA «local» de prueba que contesta despacio (un trozo cada 150 ms), para poder pararla a medias
 function iaLenta({ trozos = 60, ms = 150 } = {}) {
   const http = require("http");

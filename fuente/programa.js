@@ -2956,7 +2956,16 @@ function pintarUsuario(e, t) {
     a = Array.isArray(o.cmds) ? o.cmds : null,
     n = "string" == typeof o.mostrar ? o.mostrar : String(o.content || ""),
     r = crearMensaje("user");
-  if (((r.bubble.textContent = n), n || r.bubble.classList.add("solo-adjuntos"), a && a.length)) {
+  if (((r.bubble.textContent = n), n || r.bubble.classList.add("solo-adjuntos"), Array.isArray(o.citas) && o.citas.length)) {
+    const e = document.createElement("div");
+    e.className = "citas-msg";
+    for (const t of o.citas) {
+      const q = document.createElement("blockquote");
+      ((q.className = "cita-msg"), (q.textContent = String((t && t.texto) || "")), e.appendChild(q));
+    }
+    r.bubble.prepend(e);
+  }
+  if (a && a.length) {
     const e = document.createElement("div");
     e.className = "cmd-chips";
     for (const t of a) {
@@ -3349,11 +3358,15 @@ async function enviarYa(e, t) {
   // (solo si se envía lo del cuadro: un /calc que esperaba no cierra el menú que se está usando)
   null == e && Menu.cerrar();
   const o = $("userInput"),
-    a = null == e;
+    a = null == e,
+    // (un mensaje que sale de la cola trae ya sus adjuntos y citas: no se cogen los que haya ahora en el cuadro)
+    { colaAdjuntos: ca, colaCitas: cc, ...resto } = t || {};
+  t = resto;
   let n = String(e ?? o.value).trim();
-  const r = a && !t.voz && Adjuntos.lista.length > 0;
+  const r = (a && !t.voz && Adjuntos.lista.length > 0) || !!(ca && ca.length),
+    hayCitas = !t.voz && (cc ? cc.length > 0 : a && Citas.lista.length > 0);
   if (a && Adjuntos.ocupado) return (toast("📎 Espera a que terminen de leerse los archivos."), null);
-  if (!n && !r) return null;
+  if (!n && !r && !hayCitas) return null;
   let i = [],
     s = null;
   if (!t.voz) {
@@ -3371,8 +3384,16 @@ async function enviarYa(e, t) {
   const c = { role: "user", content: n };
   (i.length && (c.cmds = i),
     s && s.plugin.plantilla && ((c.mostrar = n), (c.content = expandirPlantilla(s.plugin.plantilla, n))),
-    r && ((c.adjuntos = Adjuntos.sacar()), Adjuntos.guardar(c.adjuntos)),
+    r && ((c.adjuntos = ca && ca.length ? ca : Adjuntos.sacar()), Adjuntos.guardar(c.adjuntos)),
     a && ((o.value = ""), autoAlto()));
+  // Las citas van delante de lo que se manda a la IA (y se guardan aparte para pintarlas); lo que se ve en la burbuja
+  // es lo que escribió el usuario. Los /comandos ya se leyeron del texto escrito, nunca de lo citado.
+  if (hayCitas) {
+    const e = cc || Citas.sacar();
+    ((c.citas = e),
+      "string" != typeof c.mostrar && (c.mostrar = n),
+      (c.content = textoCitas(e) + (c.content ? "\n\n" + c.content : "")));
+  }
   const l = Red.sinRed() && !t.imagen && !Red.hayLocalPara(S.modelo);
   return (
     l && (c.pendiente = !0),
@@ -4942,6 +4963,119 @@ const Adjuntos = {
     } catch (e) {}
   },
 };
+// Citas («Mencionar en el chat»): trozos de la conversación que el usuario selecciona para su próximo mensaje. Van en un
+// recuadro sobre la caja de texto que no se edita (solo se quita con ✕); al enviar se mandan a la IA como contexto
+// delante del mensaje y se pintan en la burbuja del usuario.
+const Citas = {
+  lista: [],
+  agregar(e, t) {
+    let o = String(e || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (!o) return;
+    if (this.lista.length >= 5) return void toast("💬 Como mucho 5 citas por mensaje.", "mal");
+    (o.length > 4e3 && (o = o.slice(0, 4e3) + "…"),
+      this.lista.push({ id: uid(), texto: o, rol: "user" === t ? "user" : "assistant" }),
+      this.pintar());
+  },
+  quitar(e) {
+    ((this.lista = this.lista.filter((t) => t.id !== e)), this.pintar());
+  },
+  sacar() {
+    const e = this.lista;
+    return ((this.lista = []), this.pintar(), e);
+  },
+  pintar() {
+    const e = $("citaBandeja");
+    e &&
+      ((e.hidden = !this.lista.length),
+      (e.innerHTML = this.lista
+        .map(
+          (e) =>
+            `<div class="cita-item" data-id="${esc(e.id)}"><span class="cita-de">${"user" === e.rol ? "Tú" : "Cece"}</span><div class="cita-txt">${esc(e.texto)}</div><button type="button" class="adj-x cita-x" aria-label="Quitar esta cita" title="Quitar">✕</button></div>`,
+        )
+        .join("")));
+  },
+};
+const textoCitas = (e) =>
+  "El usuario menciona estos fragmentos de la conversación; tenlos en cuenta al responder:\n\n" +
+  e
+    .map(
+      (e) =>
+        `[${"user" === e.rol ? "lo dijo el usuario" : "lo dijo Cece"}]\n` +
+        e.texto
+          .split("\n")
+          .map((e) => "> " + e)
+          .join("\n"),
+    )
+    .join("\n\n");
+// Cola: con Ctrl/Cmd+Enter mientras Cece responde, el mensaje (con sus adjuntos y citas) espera su turno en vez de
+// cortar la respuesta; sale solo al terminar, en orden, y se le aplican sus /comandos como a cualquier mensaje.
+const Cola = {
+  items: [],
+  andando: !1,
+  meter(e) {
+    (this.items.push(e), this.pintar(), this.seguir());
+  },
+  devolver(e) {
+    const t = $("userInput");
+    (e.texto && ((t.value = t.value.trim() ? t.value.replace(/\s*$/, "\n") + e.texto : e.texto), autoAlto()),
+      e.adjuntos.length && (Adjuntos.lista.push(...e.adjuntos), Adjuntos.pintar()),
+      e.citas.length && (Citas.lista.push(...e.citas), Citas.pintar()));
+  },
+  quitar(e) {
+    const t = this.items.find((t) => t.id === e);
+    t && ((this.items = this.items.filter((e) => e !== t)), this.devolver(t), this.pintar());
+  },
+  pintar() {
+    const e = $("colaBandeja");
+    e &&
+      ((e.hidden = !this.items.length),
+      (e.innerHTML = this.items
+        .map(
+          (e, t) =>
+            `<span class="cola-item" data-id="${esc(e.id)}" title="${esc(e.texto)}">🕒 ${t + 1}. ${esc(e.texto.slice(0, 60) || "(sin texto)")}${e.texto.length > 60 ? "…" : ""}${e.adjuntos.length ? ` · 📎${e.adjuntos.length}` : ""}${e.citas.length ? ` · 💬${e.citas.length}` : ""}<button type="button" class="adj-x cola-x" aria-label="Sacar de la cola" title="Sacar de la cola (vuelve al cuadro)">✕</button></span>`,
+        )
+        .join("")),
+      aplicarEmojis(e));
+  },
+  async seguir() {
+    if (this.andando) return;
+    this.andando = !0;
+    try {
+      for (; this.items.length; ) {
+        for (; generando || enCola; ) await new Promise((e) => setTimeout(e, 200));
+        const e = this.items.shift();
+        if ((this.pintar(), !e)) break;
+        if (e.conv !== convId) {
+          (this.devolver(e), toast("🕒 Cambiaste de conversación: el mensaje en cola ha vuelto al cuadro."));
+          continue;
+        }
+        const t = enviarYa(e.texto, { colaAdjuntos: e.adjuntos, colaCitas: e.citas });
+        ((envioActual = t.catch(() => null)), await envioActual);
+      }
+    } finally {
+      this.andando = !1;
+    }
+  },
+};
+function encolar() {
+  const e = $("userInput"),
+    t = e.value.trim();
+  if (Adjuntos.ocupado) return void toast("📎 Espera a que terminen de leerse los archivos.");
+  if (!t && !Adjuntos.lista.length && !Citas.lista.length) return;
+  (Cola.meter({
+    id: uid(),
+    texto: t,
+    adjuntos: Adjuntos.lista.length ? Adjuntos.sacar() : [],
+    citas: Citas.lista.length ? Citas.sacar() : [],
+    conv: convId,
+  }),
+    (e.value = ""),
+    autoAlto(),
+    toast(`🕒 En cola (${Cola.items.length}): se enviará cuando termine la respuesta.`));
+}
 function adjuntosEnUso() {
   const e = new Set(),
     ver = (t) => {
@@ -5078,6 +5212,52 @@ function verApp(e, t) {
     document.addEventListener("keydown", onEscDoc, !0),
     document.body.appendChild(o),
     b.focus());
+}
+// «Mencionar en el chat»: al seleccionar texto de la conversación aparece un botón junto a la selección que lo manda al
+// recuadro de citas. También conecta los ✕ de las bandejas de citas y de la cola.
+function conectarCitas() {
+  const b = document.createElement("button");
+  ((b.type = "button"), (b.id = "citarBtn"), (b.hidden = !0), (b.textContent = "💬 Mencionar en el chat"));
+  document.body.appendChild(b);
+  let rol = "assistant",
+    texto = "",
+    pend = !1;
+  const ocultar = () => {
+      b.hidden = !0;
+    },
+    revisar = () => {
+      const e = window.getSelection(),
+        t = $("messages");
+      if (!e || e.isCollapsed || !e.rangeCount) return ocultar();
+      const o = e.toString().trim(),
+        a = e.anchorNode && (1 === e.anchorNode.nodeType ? e.anchorNode : e.anchorNode.parentElement);
+      if (!o || !a || !t.contains(a) || !t.contains(e.focusNode)) return ocultar();
+      const n = a.closest(".user-msg, .bot-msg"),
+        r = e.getRangeAt(0).getBoundingClientRect();
+      if (!r.width && !r.height) return ocultar();
+      ((rol = n && n.classList.contains("user-msg") ? "user" : "assistant"), (texto = o), (b.hidden = !1));
+      const i = b.offsetWidth || 180;
+      ((b.style.left = Math.max(8, Math.min(window.innerWidth - i - 8, r.left + r.width / 2 - i / 2)) + "px"),
+        (b.style.top = Math.max(8, Math.min(window.innerHeight - 44, r.bottom + 8)) + "px"));
+    },
+    luego = () => {
+      pend || ((pend = !0), requestAnimationFrame(() => ((pend = !1), revisar())));
+    };
+  (document.addEventListener("selectionchange", luego),
+    $("chatArea") && $("chatArea").addEventListener("scroll", luego, { passive: !0 }),
+    // (sin esto, el clic quitaba la selección antes de leerla)
+    b.addEventListener("mousedown", (e) => e.preventDefault()),
+    b.addEventListener("click", () => {
+      (Citas.agregar(texto, rol), window.getSelection().removeAllRanges(), ocultar(), $("userInput").focus());
+    }),
+    $("citaBandeja").addEventListener("click", (e) => {
+      const t = e.target.closest(".cita-x");
+      t && Citas.quitar(t.closest(".cita-item").dataset.id);
+    }),
+    $("colaBandeja").addEventListener("click", (e) => {
+      const t = e.target.closest(".cola-x");
+      t && Cola.quitar(t.closest(".cola-item").dataset.id);
+    }));
 }
 function conectarAdjuntos() {
   const e = $("adjInput");
@@ -8066,9 +8246,11 @@ function conectarAjustes() {
   if (
     (e.addEventListener("input", autoAlto),
     e.addEventListener("keydown", (e) => {
-      "Enter" !== e.key ||
-        e.isComposing ||
-        (("ctrl" === S.enviarCon ? e.ctrlKey || e.metaKey : !e.shiftKey) && (e.preventDefault(), enviar()));
+      if ("Enter" !== e.key || e.isComposing) return;
+      const t = e.ctrlKey || e.metaKey;
+      // Ctrl/Cmd+Enter mientras Cece responde: el mensaje se pone en cola, sin cortar la respuesta
+      if (t && generando) return (e.preventDefault(), void encolar());
+      ("ctrl" === S.enviarCon ? t : !e.shiftKey) && (e.preventDefault(), enviar());
     }),
     $("sendBtn").addEventListener("click", () => (generando ? detener() : enviar())),
     $("messages").addEventListener("click", (e) => {
@@ -11392,6 +11574,7 @@ function iniciarCece() {
     paso(conectarAjustes),
     paso(conectarVoz),
     paso(conectarAdjuntos),
+    paso(conectarCitas),
     paso(conectarBoveda),
     paso(conectarApariencia),
     paso(conectarPlugins),
