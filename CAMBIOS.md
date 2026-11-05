@@ -1,5 +1,19 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — memoria automática: Cece decide qué recordar
+
+- **Cece elige sola qué guardar en la 🧠 Memoria** mientras habláis, sin que tengas que decir «recuerda que…». Guarda
+  lo que cuentas de ti que sirve para más adelante: cómo te llamas, a qué te dedicas, tus gustos, alergias o
+  costumbres, tus proyectos o cómo prefieres las respuestas. Lo pasajero y lo que ya recuerda no lo guarda.
+- **También decide qué olvidar:** si algo deja de ser verdad («ya como carne») o le pides que lo olvide, lo quita.
+- **Debajo de la respuesta** sale «🧠 Recordado: «…»» con un botón «Olvidar» para deshacerlo, o «🧹 Olvidado: «…»».
+- **Nunca guarda** contraseñas, claves de API ni números de tarjeta o de cuenta, aunque la IA lo intente.
+- **Cómo funciona:** la IA añade al final de su respuesta unas marcas que no ves. Cece las recoge y las quita antes de
+  enseñar la respuesta, de guardarla en la conversación, de copiarla o de leerla en voz alta. Mientras llega el texto
+  tampoco se ve una marca a medias. No gasta llamadas de más. En Cece Pro vale lo que marque cualquiera de los pasos.
+- Se apaga en Configuración → 🤖 IA y respuestas → 🧠 Memoria → «Cece decide sola qué recordar». Lo de «recuerda
+  que…», `/recordar` y `/olvidar` sigue funcionando igual.
+
 ## 5 de noviembre de 2026 — que las claves funcionen y que la IA tenga memoria
 
 **Claves de API**

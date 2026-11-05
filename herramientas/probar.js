@@ -3015,6 +3015,81 @@ prueba("memoria: conversaciones largas no olvidan el principio; «recuerda que�
   await ctx.close();
 });
 
+prueba("memoria automática: Cece decide qué recordar u olvidar, las marcas no se ven nunca y no guarda claves", async (nav) => {
+  let respuesta = "¡Qué bien! Te propongo unas lentejas.\n<recordar>Es vegetariano</recordar>", sistema = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        (sistema = (cuerpo.messages.find((m) => m.role === "system") || {}).content || ""), { cuerpo: respuestaOpenAI(respuesta) }
+      ),
+    },
+  });
+  await escribirYEnviar(pagina, "soy vegetariano, ¿qué ceno?");
+  const a = await ultimaRespuesta(pagina);
+  cierto(/<recordar>/.test(sistema), "la IA no recibe la instrucción de la memoria automática");
+  cierto(!/recordar|Es vegetariano/.test(a.texto) && /lentejas/.test(a.texto), "la marca se ve en la respuesta: " + a.texto);
+  const r = await pagina.evaluate(() => ({
+    memoria: Memoria.lista().map((e) => e.texto).join(),
+    guardado: historial[historial.length - 1].content,
+    nota: [...document.querySelectorAll(".bot-msg")].pop().querySelector(".memo-nota")?.textContent || "",
+  }));
+  igual(r.memoria, "Es vegetariano", "no guardó lo que la IA decidió recordar");
+  cierto(!/recordar/.test(r.guardado), "la marca se guardó en la conversación");
+  cierto(/Recordado: «Es vegetariano»/.test(r.nota), "no se avisa debajo de la respuesta: " + r.nota);
+  // el botón «Olvidar» de la nota lo deshace
+  await pagina.click(".bot-msg:last-of-type .memo-nota .mini-btn");
+  igual(await pagina.evaluate(() => Memoria.lista().length), 0, "«Olvidar» no quitó el recuerdo");
+  // mientras llega el texto, una marca a medias tampoco se ve
+  igual(
+    await pagina.evaluate(() => {
+      const b = new Burbuja();
+      ((b.texto = "Vale.\n<recordar>Es veg"), (b.vis = b.texto.length), b._pintarHtml(true));
+      const t = b.bubble.innerText;
+      return (b.wrap.remove(), t + "|" + sinMarcasMemoria("Hola.\n<reco", true));
+    }),
+    "Vale.|Hola.",
+    "una marca a medias se ve mientras llega la respuesta",
+  );
+  // olvidar lo que ya no es verdad, y nunca guardar claves
+  await pagina.evaluate(() => Memoria.agregar("Es vegetariano"));
+  respuesta = "Entendido.\n<olvidar>Es vegetariano</olvidar>\n<recordar>Su clave de API es sk-abc1234567890xyz</recordar>";
+  await escribirYEnviar(pagina, "ya como carne; mi clave es sk-abc1234567890xyz");
+  await ultimaRespuesta(pagina);
+  igual(await pagina.evaluate(() => Memoria.lista().length), 0, "no olvidó lo que dejó de ser verdad, o guardó una clave");
+  // con «Cece decide sola» apagado, ni instrucción ni guardado
+  await pagina.evaluate(() => ((S.memoriaAuto = false), guardarAjustes()));
+  respuesta = "Vale.\n<recordar>Vive en Sevilla</recordar>";
+  await escribirYEnviar(pagina, "vivo en Sevilla");
+  const c = await ultimaRespuesta(pagina);
+  cierto(!/<recordar>/.test(sistema) && !/Sevilla/.test(c.texto), "con la memoria automática apagada se sigue pidiendo o se ve la marca");
+  igual(await pagina.evaluate(() => Memoria.lista().length), 0, "con la memoria automática apagada se guardó igual");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("memoria automática en Cece Pro: lo que marca cualquier paso se guarda y no se ve en el panel ni en la respuesta", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ max: "sk-c" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => {
+        const v = JSON.stringify(cuerpo.messages);
+        if (/Si no encuentras NING/i.test(v)) return { cuerpo: respuestaOpenAI("SIN ERRORES") };
+        return { cuerpo: respuestaOpenAI(/Haz la BASE/.test(v) ? "Base hecha.\n<recordar>Programa en Python</recordar>" : "Hecho.") };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "programo en python, hazme un script");
+  const r = await ultimaRespuesta(pagina, 45000);
+  const x = await pagina.evaluate(() => ({
+    memoria: Memoria.lista().map((e) => e.texto).join(),
+    panel: [...document.querySelectorAll(".bot-msg:last-of-type .borrador-txt")].map((e) => e.textContent).join(" "),
+  }));
+  igual(x.memoria, "Programa en Python", "no se guardó lo que marcó un paso de Cece Pro");
+  cierto(!/recordar/.test(x.panel + r.texto), "la marca se ve en el panel de Cece Pro o en la respuesta");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
