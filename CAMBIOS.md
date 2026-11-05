@@ -1,5 +1,25 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — depuración: idioma de la app y acceso directo de Windows
+
+Revisión de todo el código: ids que no existen, alias de comandos que se pisan, `innerHTML` con datos sin escapar,
+expresiones regulares construidas con texto del usuario, diccionarios de los siete idiomas y las partes más nuevas. Lo
+demás salió limpio. Estos son los fallos encontrados; cada uno se reprodujo antes de arreglarlo.
+
+- **Al cambiar de idioma, algunos textos volvían a un estado viejo.** Con MaxFull puesto y Cece Pro elegido, al pasar
+  por ejemplo del inglés al francés, el título de Cece Pro volvía a «reparto» y el distintivo del modelo al de Cece
+  Turbo. La traducción recordaba el texto de la primera vez. Ahora, si el código lo ha cambiado después, se traduce
+  el texto actual.
+- **Lo que el código cambia mientras la app está en otro idioma salía en español.** Por ejemplo, el aviso de MaxFull al
+  activarlo, la lista de modelos de Cece Live o los estados de la nube. Ahora se traduce en cuanto cambia.
+- **Seguían en español** los nombres de los temas (Oscuro, Claro, Océano…), las velocidades (Lento, Rápido, Máximo),
+  los estilos de emojis (Del sistema, Plano) y los avisos del panel. Ahora se traducen.
+- **`abrir-cece.bat` no abría a pantalla completa si Chrome o Edge ya estaban abiertos** (lo normal). En ese caso el
+  navegador ignora `--start-fullscreen` y abre una pestaña más. Ahora Cece se abre en su propia ventana (`--app`) con un
+  perfil propio (`%LOCALAPPDATA%\CeceAI\navegador`), así que siempre sale a pantalla completa. También encuentra
+  Chrome instalado solo para tu usuario. Como el perfil es aparte, las conversaciones que abras desde el acceso directo
+  se guardan en ese perfil: para llevarte las de antes, expórtalas e impórtalas, o usa la ☁️ Nube.
+
 ## 5 de noviembre de 2026 — te llama Cece y saluda distinto cada vez
 
 - **Nombre «Cece» por defecto.** Cece AI te saluda por tu nombre y la IA sabe que te llamas Cece. Si lo tenías vacío,

@@ -2635,6 +2635,33 @@ prueba("idioma de la app: se traduce todo el panel de ajustes, Cece Live, la bar
   await ctx.close();
 });
 
+prueba("idioma de la app: lo que el código cambia después se traduce y no vuelve al estado viejo al cambiar de idioma", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
+  await pagina.evaluate(() => ((S.appIdioma = "en"), traducirApp()));
+  // con la app en inglés: activar MaxFull y elegir Cece Pro (el código escribe estos textos en español)
+  await pagina.evaluate(() => ((S.maxi = true), pintarPro(), elegirNivel("cece-pro")));
+  await pagina.waitForTimeout(150);
+  const en = await pagina.evaluate(() => ({ aviso: avisoMaxi.textContent, titulo: tituloPro.textContent }));
+  cierto(/^All 6 models work/.test(en.aviso), "el aviso de MaxFull sale en español con la app en inglés: " + en.aviso);
+  await pagina.evaluate(() => ((S.appIdioma = "fr"), traducirApp()));
+  const fr = await pagina.evaluate(() => ({
+    titulo: tituloPro.textContent,
+    pill: pillBadge.textContent.trim(),
+    temas: [...document.querySelectorAll("#temasGrid .tema-nom")].map((e) => e.textContent),
+    vel: document.querySelector('#presetVel [data-vel="20"]').textContent,
+    emo: document.querySelector('.emo-opt[data-estilo="plano"]').textContent.trim(),
+  }));
+  igual(fr.titulo, "Cece Pro — MaxFull", "al cambiar de idioma el título volvió a «reparto» con MaxFull puesto");
+  igual(fr.pill, "🚀 Imbattable", "el distintivo volvió al del modelo anterior");
+  cierto(fr.temas.includes("Sombre") && fr.temas.includes("Clair"), "los nombres de los temas siguen en español: " + fr.temas.join(", "));
+  cierto(/Lent/.test(fr.vel) && /Plat/.test(fr.emo), "velocidad o estilo de emojis sin traducir: " + fr.vel + " / " + fr.emo);
+  // y al volver a español, cada cosa en su estado actual
+  await pagina.evaluate(() => ((S.appIdioma = "es"), traducirApp()));
+  igual(await pagina.evaluate(() => tituloPro.textContent), "Cece Pro — MaxFull", "en español el título no respeta MaxFull");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
