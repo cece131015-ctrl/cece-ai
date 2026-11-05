@@ -2749,6 +2749,78 @@ prueba("perfiles: la limpieza de adjuntos no borra los de otro perfil y cada per
   await ctx.close();
 });
 
+// PNG de colores de w×h px (para probar la foto del avatar)
+function pngDe(w = 200, h = 160) {
+  const zlib = require("zlib");
+  const filas = [];
+  for (let y = 0; y < h; y++) {
+    filas.push(Buffer.from([0]));
+    for (let x = 0; x < w; x++) filas.push(Buffer.from([x < w / 2 ? 250 : 20, 90, y < h / 2 ? 210 : 30]));
+  }
+  const crc = (b) => {
+    let c = ~0;
+    for (const v of b) {
+      c ^= v;
+      for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+    }
+    return ~c >>> 0;
+  };
+  const trozo = (t, d) => {
+    const l = Buffer.alloc(4), c = Buffer.alloc(4), td = Buffer.concat([Buffer.from(t), d]);
+    return (l.writeUInt32BE(d.length), c.writeUInt32BE(crc(td)), Buffer.concat([l, td, c]));
+  };
+  const ihdr = Buffer.alloc(13);
+  (ihdr.writeUInt32BE(w, 0), ihdr.writeUInt32BE(h, 4), ihdr.set([8, 2, 0, 0, 0], 8));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), trozo("IHDR", ihdr), trozo("IDAT", zlib.deflateSync(Buffer.concat(filas))), trozo("IEND", Buffer.alloc(0))]);
+}
+
+prueba("avatar: se elige un emoji o se sube una foto en Configuración, se ve en tus mensajes y se guarda", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Vale.") }) },
+  });
+  const av = () =>
+    pagina.evaluate(() => {
+      const a = document.querySelector(".user-msg > .avatar"),
+        i = a.querySelector("img");
+      return i ? "foto:" + i.src.slice(0, 22) : (a.querySelector(".emo-w") || {}).dataset?.e || a.textContent.trim();
+    });
+  await escribirYEnviar(pagina, "a");
+  await ultimaRespuesta(pagina);
+  igual(await av(), "🧑", "el avatar por defecto");
+  await pagina.click("#settingsBtn");
+  await pagina.click('.avatar-op[data-av="🦊"]');
+  igual(await av(), "🦊", "elegir un emoji no cambió el avatar de los mensajes que ya estaban");
+  await pagina.setInputFiles("#avatarArchivo", { name: "yo.png", mimeType: "image/png", buffer: pngDe() });
+  await pagina.waitForFunction(() => !!S.avatarImg, null, { timeout: 5000 });
+  igual(await av(), "foto:data:image/jpeg;base64", "subir una foto no la puso de avatar");
+  const tam = await pagina.evaluate(() => {
+    const i = new Image();
+    return new Promise((r) => ((i.onload = () => r(i.naturalWidth + "x" + i.naturalHeight)), (i.src = S.avatarImg)));
+  });
+  igual(tam, "128x128", "la foto no se recorta y reduce a 128×128");
+  // se guarda al recargar, y los mensajes nuevos también la llevan
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.evaluate(() => document.getElementById("cece-startup")?.remove());
+  igual(await av(), "foto:data:image/jpeg;base64", "la foto no se guardó");
+  // quitar la foto vuelve al emoji elegido
+  await pagina.click("#settingsBtn");
+  await pagina.click("#avatarQuitar");
+  igual(await av(), "🦊", "quitar la foto no volvió al emoji");
+  igual(await pagina.evaluate(() => AJUSTES_APARIENCIA.includes("avatar") && AJUSTES_APARIENCIA.includes("avatarImg")), true, "el avatar no viaja con la nube");
+  // un valor dañado o peligroso en los ajustes guardados no se acepta
+  igual(
+    await pagina.evaluate(() => {
+      const t = leerAjustes({ avatar: "<img src=x>", avatarImg: "javascript:alert(1)" });
+      return t.avatar + "|" + t.avatarImg;
+    }),
+    "🧑|",
+    "se aceptó un avatar no válido",
+  );
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

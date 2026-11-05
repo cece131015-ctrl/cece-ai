@@ -93,6 +93,14 @@
       <p class="settings-hint" data-i18n>Cambia el saludo y los textos principales de Cece AI. El idioma en que te responde se elige en «Cómo responde Cece», y el de la voz, en Cece Live.</p>
       <label class="etq" for="optNombre" data-i18n>Cómo te llamas (opcional)</label>
       <input type="text" class="campo" id="optNombre" maxlength="40" autocomplete="given-name" placeholder="Tu nombre" data-i18n-ph>
+      <label class="etq" id="avatarEtq" data-i18n>Tu avatar (sale junto a tus mensajes)</label>
+      <div class="avatar-opciones" id="avatarGrid" role="radiogroup" aria-labelledby="avatarEtq"></div>
+      <div class="fila2 avatar-foto-fila">
+        <img class="avatar-foto" id="avatarFoto" alt="" hidden>
+        <button type="button" class="btn-mini" id="avatarSubir" data-i18n>📷 Subir una foto</button>
+        <button type="button" class="btn-mini" id="avatarQuitar" data-i18n>Quitar la foto</button>
+      </div>
+      <input type="file" id="avatarArchivo" accept="image/*" hidden>
       <div class="switch-fila">
         <label for="swSaludo" data-i18n>Saludar al empezar una conversación</label>
         <span class="sw"><input type="checkbox" id="swSaludo" checked><span class="sw-pista"></span></span>

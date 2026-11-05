@@ -1,5 +1,15 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — tu avatar
+
+- **Tu avatar** (el dibujo junto a tus mensajes) se cambia en Configuración → 🌍 General → «Tu avatar». Puedes elegir
+  uno de 24 emojis o **📷 subir una foto**. La foto se recorta al centro y se reduce a 128×128, así ocupa muy poco.
+  «Quitar la foto» vuelve al emoji.
+- Cambia también en los mensajes que ya están en pantalla. Cada perfil tiene el suyo y viaja con la ☁️ Nube, como el
+  resto de la apariencia.
+- En la lista de perfiles, el tuyo sale con tu nombre aunque aún no hayas guardado ningún ajuste (antes ponía
+  «Principal»).
+
 ## 5 de noviembre de 2026 — perfiles de usuario
 
 - **Varios perfiles en la misma Cece AI**, en Configuración → 🌍 General → «👤 Perfil». Cada perfil tiene su nombre,
