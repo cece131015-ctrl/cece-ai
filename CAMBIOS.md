@@ -1,5 +1,25 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — configuración ordenada por partes
+
+La configuración era una sola lista muy larga y desordenada: por ejemplo, «Conversaciones» salía en medio de las
+opciones de la IA y «Emojis» lejos de «Apariencia». Ahora va por **pestañas** y solo se ve una parte cada vez:
+
+| Pestaña | Qué tiene |
+| --- | --- |
+| 🌍 General | Perfil, idioma de la app, tu nombre, tu avatar, saludo, hora, limpiar, detalles, corrector y pantalla completa |
+| 🤖 IA y respuestas | Cece Live, modo de esfuerzo (y Cece Pro), cómo responde Cece, ver el texto según se escribe, límite de velocidad, internet e imágenes |
+| 🎨 Apariencia | Tema, color, tamaño, espaciado, ancho, animaciones y estilo de los emojis |
+| 💬 Conversaciones | Guardar, buscar, exportar e importar, y la carpeta del código generado |
+| 🧩 Plugins | Los integrados y los tuyos |
+| 📴 Sin conexión | IA de tu ordenador y CeceHub |
+| ☁️ Nube | Sincronizar entre equipos |
+| 🔐 Seguridad | Cifrar las claves y comprobar las conexiones |
+
+- Al cerrar y volver a abrir la configuración, sigue en la última pestaña.
+- Con el teclado, las flechas, Inicio y Fin pasan de una pestaña a otra.
+- Las pestañas se traducen al idioma de la app. No se ha quitado ningún ajuste: solo están ordenados.
+
 ## 5 de noviembre de 2026 — tu avatar
 
 - **Tu avatar** (el dibujo junto a tus mensajes) se cambia en Configuración → 🌍 General → «Tu avatar». Puedes elegir

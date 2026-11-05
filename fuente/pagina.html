@@ -57,20 +57,19 @@
       <button class="close-settings" id="closeSettings" aria-label="Cerrar">&#10005;</button>
     </div>
     <div class="settings-body">
-
-      <!-- ===== Añadido: índice, Cece Live, Internet e imágenes ===== -->
-      <nav class="ajustes-nav" id="ajustesNav" aria-label="Secciones de la configuración">
-        <button type="button" data-ir="secGeneral" data-i18n>🌍 General</button>
-        <button type="button" data-ir="secConexiones" data-i18n>🔌 Conexiones</button>
-        <button type="button" data-ir="secConvs" data-i18n>💬 Conversaciones</button>
-        <button type="button" data-ir="secRespuestas" data-i18n>✍️ Respuestas</button>
-        <button type="button" data-ir="secApariencia" data-i18n>🎨 Apariencia</button>
-        <button type="button" data-ir="secPlugins" data-i18n>🧩 Plugins</button>
-        <button type="button" data-ir="secOffline" data-i18n>📴 Sin conexión</button>
-        <button type="button" data-ir="secNube" data-i18n>☁️ Nube</button>
-        <button type="button" data-ir="secSeguridad" data-i18n>🔐 Seguridad</button>
+      <!-- Pestañas: la configuración va por partes y se ve una cada vez -->
+      <nav class="ajustes-nav" id="ajustesNav" role="tablist" aria-label="Partes de la configuración">
+        <button type="button" role="tab" id="tab-general" data-parte="general" aria-controls="parte-general" aria-selected="true" tabindex="0" data-i18n>🌍 General</button>
+        <button type="button" role="tab" id="tab-ia" data-parte="ia" aria-controls="parte-ia" aria-selected="false" tabindex="-1" data-i18n>🤖 IA y respuestas</button>
+        <button type="button" role="tab" id="tab-apariencia" data-parte="apariencia" aria-controls="parte-apariencia" aria-selected="false" tabindex="-1" data-i18n>🎨 Apariencia</button>
+        <button type="button" role="tab" id="tab-convs" data-parte="convs" aria-controls="parte-convs" aria-selected="false" tabindex="-1" data-i18n>💬 Conversaciones</button>
+        <button type="button" role="tab" id="tab-plugins" data-parte="plugins" aria-controls="parte-plugins" aria-selected="false" tabindex="-1" data-i18n>🧩 Plugins</button>
+        <button type="button" role="tab" id="tab-offline" data-parte="offline" aria-controls="parte-offline" aria-selected="false" tabindex="-1" data-i18n>📴 Sin conexión</button>
+        <button type="button" role="tab" id="tab-nube" data-parte="nube" aria-controls="parte-nube" aria-selected="false" tabindex="-1" data-i18n>☁️ Nube</button>
+        <button type="button" role="tab" id="tab-seguridad" data-parte="seguridad" aria-controls="parte-seguridad" aria-selected="false" tabindex="-1" data-i18n>🔐 Seguridad</button>
       </nav>
 
+      <section class="aj-parte" id="parte-general" data-parte="general" role="tabpanel" aria-labelledby="tab-general">
       <!-- General: idioma de la app, tu nombre, saludo y detalles de la pantalla -->
       <h3 id="secGeneral" data-i18n>🌍 General</h3>
       <label class="etq" for="perfilSel" data-i18n>👤 Perfil</label>
@@ -125,35 +124,19 @@
 
       <hr class="divider">
 
+      <h3 data-i18n>Pantalla</h3>
+      <div class="switch-fila">
+        <label for="swPantalla">Abrir en pantalla completa</label>
+        <span class="sw"><input type="checkbox" id="swPantalla"><span class="sw-pista"></span></span>
+      </div>
+      <p class="settings-hint" style="margin-top:4px">Con <code>Ctrl+I</code> entras y sales cuando quieras. El navegador no deja entrar nada m&aacute;s abrir la p&aacute;gina: si marcas esta casilla, lo har&aacute; en cuanto hagas el primer clic o pulses una tecla.</p>
+      </section>
+
+      <section class="aj-parte" id="parte-ia" data-parte="ia" role="tabpanel" aria-labelledby="tab-ia" hidden>
       <h3 data-i18n>🎙️ Cece Live</h3>
       <button class="btn-settings-open" id="liveSettingsBtn">⚙️ Configurar Cece Live</button>
 
       <hr class="divider">
-
-      <h3 data-i18n>🌐 Internet</h3>
-      <div class="switch-fila">
-        <label for="swWeb">Buscar en internet y leer páginas</label>
-        <span class="sw"><input type="checkbox" id="swWeb" checked><span class="sw-pista"></span></span>
-      </div>
-
-      <hr class="divider">
-
-      <h3 id="secConexiones" data-i18n>🔌 Conexiones</h3>
-      <p class="settings-hint">Comprueba cada clave del bloque de configuración: si conecta, si vale y si tu cuenta tiene el modelo de cada motor. No gasta tokens.</p>
-      <button type="button" class="btn-secondary" id="probarConexiones">🔌 Comprobar conexiones</button>
-      <div class="conex-lista" id="conexLista" role="status" aria-live="polite"></div>
-
-      <hr class="divider">
-
-      <h3 data-i18n>🎨 Imágenes</h3>
-      <select class="sel-in" id="imgMotor" aria-label="Motor de imagen">
-        <option value="auto">Automático</option>
-        <option value="openai">Cece Imagen</option>
-        <option value="gratis">Cece Imagen (gratis)</option>
-      </select>
-      <input type="hidden" id="imgModeloOpenai">
-      <hr class="divider">
-      <!-- ===== Fin del añadido ===== -->
 
       <h3 data-i18n>Modo de esfuerzo</h3>
       <p class="settings-hint">Cu&aacute;nto piensa el modelo antes de responder. M&aacute;s esfuerzo da mejores respuestas pero tarda m&aacute;s y gasta m&aacute;s tokens.</p>
@@ -228,73 +211,6 @@
 
       <hr class="divider">
 
-      <h3 data-i18n>L&iacute;mite de velocidad</h3>
-      <p class="settings-hint">Tokens por segundo m&aacute;ximos que la IA puede gastar generando la respuesta.</p>
-      <div class="preset-row" id="presetVel">
-        <button class="preset-btn" data-vel="20">&#128034; <span data-i18n>Lento</span><span>20</span></button>
-        <button class="preset-btn" data-vel="80">&#128694; <span data-i18n>Normal</span><span>80</span></button>
-        <button class="preset-btn" data-vel="200">&#127939; <span data-i18n>R&aacute;pido</span><span>200</span></button>
-        <button class="preset-btn" data-vel="500">&#9889; <span data-i18n>M&aacute;ximo</span><span>500</span></button>
-      </div>
-      <div class="speed-row">
-        <input type="range" id="speedSlider" min="5" max="500" value="80" step="5" aria-label="L&iacute;mite de velocidad">
-        <span class="speed-num"><input type="number" class="num-in ancho" id="speedValue" min="5" max="500" step="5" value="80" aria-label="Tokens por segundo">t/s</span>
-      </div>
-
-      <hr class="divider">
-
-      <h3 data-i18n>Emojis</h3>
-      <p class="settings-hint">C&oacute;mo se ven los emojis de la interfaz. Los de dentro de los mensajes siguen siendo los de tu dispositivo.</p>
-      <div class="emoji-estilos" role="group" aria-label="Estilo de los emojis">
-        <button class="emo-opt" data-estilo="sistema" aria-pressed="true">
-          <span class="emo-prev" data-prev="sistema" data-fijo>&#128640;&#128172;&#127912;&#9881;&#65039;</span>
-          <span data-i18n>Del sistema</span>
-        </button>
-        <button class="emo-opt" data-estilo="windows" aria-pressed="false">
-          <span class="emo-prev" data-prev="windows" data-fijo></span>
-          <span>Windows 11</span>
-        </button>
-        <button class="emo-opt" data-estilo="plano" aria-pressed="false">
-          <span class="emo-prev" data-prev="plano" data-fijo></span>
-          <span data-i18n>Plano</span>
-        </button>
-      </div>
-
-      <hr class="divider">
-
-      <h3 data-i18n>Pantalla</h3>
-      <div class="switch-fila">
-        <label for="swPantalla">Abrir en pantalla completa</label>
-        <span class="sw"><input type="checkbox" id="swPantalla"><span class="sw-pista"></span></span>
-      </div>
-      <p class="settings-hint" style="margin-top:4px">Con <code>Ctrl+I</code> entras y sales cuando quieras. El navegador no deja entrar nada m&aacute;s abrir la p&aacute;gina: si marcas esta casilla, lo har&aacute; en cuanto hagas el primer clic o pulses una tecla.</p>
-
-      <hr class="divider">
-
-      <h3 data-i18n>C&oacute;digo generado</h3>
-      <p class="settings-hint">Cada lenguaje tiene su carpeta. Si pides uno nuevo se crea su carpeta y se recuerda, para que la pr&oacute;xima vez vaya siempre a la misma.</p>
-      <div class="aviso" id="estadoCarpeta" style="display:none"></div>
-      <button class="btn-secondary" id="reconectarCarpeta" style="display:none">&#128279; Reconectar carpeta guardada</button>
-      <button class="btn-secondary" id="elegirCarpeta">&#128193; Elegir carpeta donde guardar</button>
-      <button class="btn-secondary" id="zipBtn" style="display:none">&#128230; Descargar todo el c&oacute;digo</button>
-      <div class="switch-fila">
-        <label for="autoZipChk">Guardar autom&aacute;ticamente lo nuevo</label>
-        <span class="sw"><input type="checkbox" id="autoZipChk" checked><span class="sw-pista"></span></span>
-      </div>
-      <div class="carpeta-lista" id="carpetaLista"></div>
-      <button class="btn-secondary" id="resetCarpetas">&#8634; Olvidar carpetas guardadas</button>
-
-      <hr class="divider">
-
-      <h3 data-i18n>Respuesta</h3>
-      <div class="switch-fila">
-        <label for="swStream">Ver el texto seg&uacute;n se escribe</label>
-        <span class="sw"><input type="checkbox" id="swStream" checked><span class="sw-pista"></span></span>
-      </div>
-      <p class="settings-hint" style="margin-top:6px">Si lo apagas, la respuesta aparece de golpe al terminar.</p>
-
-      <hr class="divider">
-
       <h3 id="secRespuestas" data-i18n>✍️ Cómo responde Cece</h3>
       <p class="settings-hint">Valen para todos los niveles y también para Cece Live.</p>
       <label class="etq" for="optLargo" data-i18n>Longitud de las respuestas</label>
@@ -355,24 +271,48 @@
 
       <hr class="divider">
 
-      <h3 id="secConvs" data-i18n>Conversaciones</h3>
-      <p class="settings-hint">Se guardan en este navegador. Para llev&aacute;rtelas a otro ordenador, exp&oacute;rtalas a un archivo.</p>
-      <button class="btn-secondary" id="saveConvBtn">&#128190; Guardar conversaci&oacute;n actual</button>
-      <div class="aviso aviso-naranja" id="avisoAlmacen" style="display:none">
-        Este navegador no conserva datos al cerrar la p&aacute;gina (pasa al abrir el archivo desde un USB).
-        Lo que guardes se descargar&aacute; adem&aacute;s como archivo para que no se pierda.
+      <h3 data-i18n>Respuesta</h3>
+      <div class="switch-fila">
+        <label for="swStream">Ver el texto seg&uacute;n se escribe</label>
+        <span class="sw"><input type="checkbox" id="swStream" checked><span class="sw-pista"></span></span>
       </div>
-      <input type="text" id="buscarConv" class="buscador" placeholder="&#128269; Buscar en las guardadas..." aria-label="Buscar conversaciones">
-      <div class="conv-list" id="convList"></div>
-      <button class="btn-secondary" id="exportBtn">&#11015;&#65039; Exportar (.json)</button>
-      <button class="btn-secondary" id="exportarMd">&#128221; Exportar como texto (.md)</button>
-      <button class="btn-secondary" id="importBtn">&#11014;&#65039; Importar (.json)</button>
-      <input type="file" id="importFile" accept=".json,application/json" style="display:none">
-      <div class="save-status" id="convStatus" role="status"></div>
+      <p class="settings-hint" style="margin-top:6px">Si lo apagas, la respuesta aparece de golpe al terminar.</p>
 
-      <!-- ===== Añadido: apariencia, plugins, sin conexión, nube y seguridad ===== -->
       <hr class="divider">
 
+      <h3 data-i18n>L&iacute;mite de velocidad</h3>
+      <p class="settings-hint">Tokens por segundo m&aacute;ximos que la IA puede gastar generando la respuesta.</p>
+      <div class="preset-row" id="presetVel">
+        <button class="preset-btn" data-vel="20">&#128034; <span data-i18n>Lento</span><span>20</span></button>
+        <button class="preset-btn" data-vel="80">&#128694; <span data-i18n>Normal</span><span>80</span></button>
+        <button class="preset-btn" data-vel="200">&#127939; <span data-i18n>R&aacute;pido</span><span>200</span></button>
+        <button class="preset-btn" data-vel="500">&#9889; <span data-i18n>M&aacute;ximo</span><span>500</span></button>
+      </div>
+      <div class="speed-row">
+        <input type="range" id="speedSlider" min="5" max="500" value="80" step="5" aria-label="L&iacute;mite de velocidad">
+        <span class="speed-num"><input type="number" class="num-in ancho" id="speedValue" min="5" max="500" step="5" value="80" aria-label="Tokens por segundo">t/s</span>
+      </div>
+
+      <hr class="divider">
+
+      <h3 data-i18n>🌐 Internet</h3>
+      <div class="switch-fila">
+        <label for="swWeb">Buscar en internet y leer páginas</label>
+        <span class="sw"><input type="checkbox" id="swWeb" checked><span class="sw-pista"></span></span>
+      </div>
+
+      <hr class="divider">
+
+      <h3 data-i18n>🎨 Imágenes</h3>
+      <select class="sel-in" id="imgMotor" aria-label="Motor de imagen">
+        <option value="auto">Automático</option>
+        <option value="openai">Cece Imagen</option>
+        <option value="gratis">Cece Imagen (gratis)</option>
+      </select>
+      <input type="hidden" id="imgModeloOpenai">
+      </section>
+
+      <section class="aj-parte" id="parte-apariencia" data-parte="apariencia" role="tabpanel" aria-labelledby="tab-apariencia" hidden>
       <h3 id="secApariencia" data-i18n>🎨 Apariencia</h3>
       <p class="settings-hint">Tema, color y tamaño. Se guarda en este navegador (y en la nube, si la usas).</p>
       <div class="temas-grid" id="temasGrid" role="radiogroup" aria-label="Tema"></div>
@@ -405,6 +345,57 @@
 
       <hr class="divider">
 
+      <h3 data-i18n>Emojis</h3>
+      <p class="settings-hint">C&oacute;mo se ven los emojis de la interfaz. Los de dentro de los mensajes siguen siendo los de tu dispositivo.</p>
+      <div class="emoji-estilos" role="group" aria-label="Estilo de los emojis">
+        <button class="emo-opt" data-estilo="sistema" aria-pressed="true">
+          <span class="emo-prev" data-prev="sistema" data-fijo>&#128640;&#128172;&#127912;&#9881;&#65039;</span>
+          <span data-i18n>Del sistema</span>
+        </button>
+        <button class="emo-opt" data-estilo="windows" aria-pressed="false">
+          <span class="emo-prev" data-prev="windows" data-fijo></span>
+          <span>Windows 11</span>
+        </button>
+        <button class="emo-opt" data-estilo="plano" aria-pressed="false">
+          <span class="emo-prev" data-prev="plano" data-fijo></span>
+          <span data-i18n>Plano</span>
+        </button>
+      </div>
+      </section>
+
+      <section class="aj-parte" id="parte-convs" data-parte="convs" role="tabpanel" aria-labelledby="tab-convs" hidden>
+      <h3 id="secConvs" data-i18n>Conversaciones</h3>
+      <p class="settings-hint">Se guardan en este navegador. Para llev&aacute;rtelas a otro ordenador, exp&oacute;rtalas a un archivo.</p>
+      <button class="btn-secondary" id="saveConvBtn">&#128190; Guardar conversaci&oacute;n actual</button>
+      <div class="aviso aviso-naranja" id="avisoAlmacen" style="display:none">
+        Este navegador no conserva datos al cerrar la p&aacute;gina (pasa al abrir el archivo desde un USB).
+        Lo que guardes se descargar&aacute; adem&aacute;s como archivo para que no se pierda.
+      </div>
+      <input type="text" id="buscarConv" class="buscador" placeholder="&#128269; Buscar en las guardadas..." aria-label="Buscar conversaciones">
+      <div class="conv-list" id="convList"></div>
+      <button class="btn-secondary" id="exportBtn">&#11015;&#65039; Exportar (.json)</button>
+      <button class="btn-secondary" id="exportarMd">&#128221; Exportar como texto (.md)</button>
+      <button class="btn-secondary" id="importBtn">&#11014;&#65039; Importar (.json)</button>
+      <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+      <div class="save-status" id="convStatus" role="status"></div>
+
+      <hr class="divider">
+
+      <h3 data-i18n>C&oacute;digo generado</h3>
+      <p class="settings-hint">Cada lenguaje tiene su carpeta. Si pides uno nuevo se crea su carpeta y se recuerda, para que la pr&oacute;xima vez vaya siempre a la misma.</p>
+      <div class="aviso" id="estadoCarpeta" style="display:none"></div>
+      <button class="btn-secondary" id="reconectarCarpeta" style="display:none">&#128279; Reconectar carpeta guardada</button>
+      <button class="btn-secondary" id="elegirCarpeta">&#128193; Elegir carpeta donde guardar</button>
+      <button class="btn-secondary" id="zipBtn" style="display:none">&#128230; Descargar todo el c&oacute;digo</button>
+      <div class="switch-fila">
+        <label for="autoZipChk">Guardar autom&aacute;ticamente lo nuevo</label>
+        <span class="sw"><input type="checkbox" id="autoZipChk" checked><span class="sw-pista"></span></span>
+      </div>
+      <div class="carpeta-lista" id="carpetaLista"></div>
+      <button class="btn-secondary" id="resetCarpetas">&#8634; Olvidar carpetas guardadas</button>
+      </section>
+
+      <section class="aj-parte" id="parte-plugins" data-parte="plugins" role="tabpanel" aria-labelledby="tab-plugins" hidden>
       <h3 id="secPlugins" data-i18n>🧩 Plugins</h3>
       <p class="settings-hint">Comandos extra: escríbelos con <code>/</code> al principio del mensaje. Los de utilidades (<code>/calc</code>, <code>/hora</code>…) se hacen aquí mismo, sin IA, sin gastar tokens y sin internet; los de programación (<code>/html</code>, <code>/2d-game</code>, <code>/3d-game</code>, <code>/backend</code>, <code>/api</code>…) le piden a Cece el trabajo con instrucciones ya preparadas.</p>
       <div class="plugin-lista" id="pluginLista"></div>
@@ -412,9 +403,9 @@
       <button class="btn-secondary" id="pluginExportar">⬇️ Exportar mis plugins</button>
       <button class="btn-secondary" id="pluginImportar">⬆️ Importar plugins</button>
       <input type="file" id="pluginArchivo" accept=".json,application/json" hidden>
+      </section>
 
-      <hr class="divider">
-
+      <section class="aj-parte" id="parte-offline" data-parte="offline" role="tabpanel" aria-labelledby="tab-offline" hidden>
       <h3 id="secOffline" data-i18n>📴 Sin conexión</h3>
       <p class="settings-hint">Sin internet, Cece sigue funcionando: tus conversaciones, los plugins y la voz del navegador. Lo que pidas a la IA espera y se envía solo al volver la conexión. Y si tienes una IA en tu ordenador (Ollama, LM Studio…), responde también sin internet.</p>
       <div class="switch-fila">
@@ -475,9 +466,9 @@
         </div>
         <p class="settings-hint">Ollama: arráncalo con <code>OLLAMA_ORIGINS=*</code> para que el navegador pueda hablar con él (en Mac: <code>launchctl setenv OLLAMA_ORIGINS "*"</code> y reinícialo). LM Studio: en el servidor, activa «Enable CORS» y usa <code>http://localhost:1234/v1</code>. Elige «Cece Local» en el menú de niveles.</p>
       </div>
+      </section>
 
-      <hr class="divider">
-
+      <section class="aj-parte" id="parte-nube" data-parte="nube" role="tabpanel" aria-labelledby="tab-nube" hidden>
       <h3 id="secNube" data-i18n>☁️ Nube</h3>
       <p class="settings-hint">Tus conversaciones guardadas, tus plugins y la apariencia, en un Gist privado de tu cuenta de GitHub, para tenerlos en todos tus equipos. Van cifrados de extremo a extremo con tu frase secreta: ni GitHub ni nadie más puede leerlos.</p>
       <div class="aviso" id="nubeEstado" role="status"></div>
@@ -495,9 +486,9 @@
           <li>Ábrelo, protégelo con contraseña (🔐 Seguridad) y pulsa «Sincronizar ahora».</li>
         </ol>
       </details>
+      </section>
 
-      <hr class="divider">
-
+      <section class="aj-parte" id="parte-seguridad" data-parte="seguridad" role="tabpanel" aria-labelledby="tab-seguridad" hidden>
       <h3 id="secSeguridad" data-i18n>🔐 Seguridad</h3>
       <div class="aviso" id="segEstado" role="status"></div>
       <button class="btn-secondary" id="segCifrar">🔐 Cifrar mis claves con contraseña</button>
@@ -505,7 +496,14 @@
       <button class="btn-secondary" id="segBloquear" style="display:none">🔒 Bloquear ahora (y olvidar en este equipo)</button>
       <button class="btn-secondary" id="segPlano" style="display:none">📝 Descargar sin cifrar para cambiar claves</button>
       <p class="settings-hint">Cifrar descarga una copia de Cece con las claves protegidas (AES-256-GCM) y sin nada legible: úsala y borra la antigua. Sin tu contraseña nadie puede sacar las claves del archivo, ni siquiera con F12. Mientras Cece está desbloqueada y habla con una IA, la clave de ese proveedor viaja en la petición (se ve en F12 → Red): no compartas capturas de esa pestaña.</p>
-      <!-- ===== Fin del añadido ===== -->
+
+      <hr class="divider">
+
+      <h3 id="secConexiones" data-i18n>🔌 Conexiones</h3>
+      <p class="settings-hint">Comprueba cada clave del bloque de configuración: si conecta, si vale y si tu cuenta tiene el modelo de cada motor. No gasta tokens.</p>
+      <button type="button" class="btn-secondary" id="probarConexiones">🔌 Comprobar conexiones</button>
+      <div class="conex-lista" id="conexLista" role="status" aria-live="polite"></div>
+      </section>
     </div>
   </div>
 </div>

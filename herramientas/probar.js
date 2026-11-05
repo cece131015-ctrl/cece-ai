@@ -253,6 +253,7 @@ prueba("el tema elegido se mantiene al recargar (también con ajustes antiguos)"
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({}), { almacen: { cece_ajustes: { tema: "oscuro", versionTema: 1 } } });
   igual(await pagina.evaluate(() => document.documentElement.dataset.tema), "neon", "migración a neón");
   await pagina.click("#settingsBtn");
+  await verParte(pagina, "#temasGrid");
   await pagina.click('.tema-opt[data-tema="oscuro"]');
   igual(await pagina.evaluate(() => document.documentElement.dataset.tema), "oscuro");
   await pagina.reload();
@@ -302,6 +303,7 @@ prueba("guardar, buscar y volver a abrir una conversación", async (nav) => {
   await escribirYEnviar(pagina, "/guardar");
   await pagina.click("#clearBtn");
   await pagina.click("#settingsBtn");
+  await verParte(pagina, "#buscarConv");
   await pagina.fill("#buscarConv", "tortilla");
   await pagina.click("#convList .conv-load");
   await pagina.waitForFunction(() => document.querySelectorAll(".msg").length >= 2);
@@ -312,6 +314,7 @@ prueba("guardar, buscar y volver a abrir una conversación", async (nav) => {
 prueba("cifrar las claves con contraseña y abrir la copia protegida", async (nav) => {
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk-secreta-123" }));
   await pagina.click("#settingsBtn");
+  await verParte(pagina, "#segCifrar");
   await pagina.click("#segCifrar");
   // (la ventana pone el foco en la contraseña a los 30 ms: si se escribe antes, el texto acaba en otro campo)
   await pagina.waitForFunction(() => document.activeElement && document.activeElement.id === "cifrarPass");
@@ -1056,6 +1059,7 @@ prueba("modo de esfuerzo: bajo/medio/alto/extra/max junto a UltraCode, se elige 
   await pagina.click("#settingsBtn");
   const niveles = await pagina.$$eval("#esfuerzoRow .esf-btn", (bs) => bs.map((b) => b.dataset.esf));
   igual(niveles.join(","), "bajo,medio,alto,extra,max,ultracode", "faltan niveles de esfuerzo: " + niveles.join(","));
+  await verParte(pagina, "#esfuerzoRow");
   await pagina.click('#esfuerzoRow .esf-btn[data-esf="extra"]');
   cierto(
     await pagina.evaluate(() => document.querySelector('.esf-btn[data-esf="extra"]').classList.contains("on")),
@@ -1146,6 +1150,7 @@ prueba("nube: sube el historial cifrado a un Gist y otro equipo lo recupera", as
   await escribirYEnviar(a.pagina, "receta de gazpacho");
   await ultimaRespuesta(a.pagina);
   await a.pagina.click("#settingsBtn");
+  await verParte(a.pagina, "#nubeAhora");
   await a.pagina.click("#nubeAhora");
   await a.pagina.waitForFunction(() => /Última vez/.test(document.getElementById("nubeEstado").textContent), null, { timeout: 20000 });
   const subido = Object.values([...gists.values()][0].files)[0].content;
@@ -1153,8 +1158,10 @@ prueba("nube: sube el historial cifrado a un Gist y otro equipo lo recupera", as
   // otro equipo, con la misma frase: recupera la conversación
   const b = await nuevaPagina(nav, conClaves(claves), { ia: { "api.github.com": gh } });
   await b.pagina.click("#settingsBtn");
+  await verParte(b.pagina, "#nubeAhora");
   await b.pagina.click("#nubeAhora");
   await b.pagina.waitForFunction(() => /Última vez/.test(document.getElementById("nubeEstado").textContent), null, { timeout: 20000 });
+  await verParte(b.pagina, "#buscarConv");
   await b.pagina.fill("#buscarConv", "gazpacho");
   cierto(/gazpacho/.test(await b.pagina.innerText("#convList")), "no llegó la conversación");
   await a.ctx.close();
@@ -1224,6 +1231,8 @@ function githubSimulado({ nRepos = 2 } = {}) {
   };
   return g;
 }
+// La configuración va por pestañas: abre la parte en la que está un ajuste antes de tocarlo
+const verParte = (p, sel) => p.evaluate((s) => mostrarParteDe(document.querySelector(s)), sel);
 async function abrirGitHub(pagina) {
   const dialogos = [];
   pagina.on("dialog", (d) => (dialogos.push(d.message()), d.accept()));
@@ -1855,6 +1864,7 @@ prueba("nube: con «automático» apagado no sube nada y «Desvincular» deja de
   const claves = { turbo: "sk", nube_token: "ghp_prueba", nube: "mi frase secreta de la nube 123" };
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves(claves), { ia: { "api.github.com": g.manejar } });
   await pagina.click("#settingsBtn");
+  await verParte(pagina, "#swNubeAuto");
   await pagina.click("label[for=swNubeAuto]");
   await pagina.waitForFunction(() => /Última vez/.test(document.getElementById("nubeEstado").textContent), null, { timeout: 20000 });
   const guardar = (t) =>
@@ -2025,6 +2035,7 @@ prueba("con el teclado: visor de imágenes, editor de plugins y «reducir movimi
   cierto(await pagina.evaluate(() => !document.querySelector(".visor-img") && !document.querySelector("body > [inert]")), "el visor no se cerró bien");
   // editor de plugins: Enter en «Texto de prueba» prueba, no guarda y cierra
   await pagina.click("#settingsBtn");
+  await verParte(pagina, "#pluginNuevo");
   await pagina.evaluate(() => document.getElementById("pluginNuevo").scrollIntoView());
   await pagina.click("#pluginNuevo");
   await pagina.fill("#plgId", "gritar");
@@ -2037,15 +2048,12 @@ prueba("con el teclado: visor de imágenes, editor de plugins y «reducir movimi
   cierto(await pagina.evaluate(() => document.getElementById("pluginModal").classList.contains("active")), "el editor se cerró");
   igual(await pagina.evaluate(() => localStorage.getItem("cece_plugins")), null, "el plugin se guardó sin querer");
   await pagina.keyboard.press("Escape");
-  // con «reducir movimiento», el índice de Configuración salta sin animación
-  const pasos = await pagina.evaluate(async () => {
-    const panel = document.querySelector(".settings-panel");
-    [...document.querySelectorAll("#ajustesNav [data-ir]")].pop().click();
-    const a = panel.scrollTop;
-    await new Promise((r) => setTimeout(r, 80));
-    return [a, panel.scrollTop];
+  // la pestaña de Configuración abre su parte al momento (y solo esa)
+  const vis = await pagina.evaluate(() => {
+    [...document.querySelectorAll("#ajustesNav [data-parte]")].pop().click();
+    return [...document.querySelectorAll(".aj-parte")].filter((e) => !e.hidden).map((e) => e.dataset.parte).join(",");
   });
-  cierto(pasos[0] > 0 && pasos[0] === pasos[1], "el desplazamiento va animado: " + pasos.join(" → "));
+  igual(vis, "seguridad", "la última pestaña no abre solo su parte");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -2487,13 +2495,15 @@ prueba("saludo al empezar (hora del día, nombre e idioma) y ajustes nuevos", as
   await pagina.selectOption("#appIdioma", "en");
   await pagina.fill("#optNombre", "Ana");
   await pagina.locator("#optNombre").dispatchEvent("change");
+  await verParte(pagina, "#optNivelTec");
   await pagina.selectOption("#optNivelTec", "experto");
   await pagina.selectOption("#optEmojis", "ninguno");
+  await verParte(pagina, "#optHora");
   await pagina.selectOption("#optHora", "12");
   for (const id of ["swDetalles", "swCorrector", "swConfirmarLimpiar"]) await pagina.click(`label[for=${id}]`);
   const en = await pagina.evaluate(() => ({
     lang: document.documentElement.lang,
-    nav: document.querySelector('#ajustesNav [data-ir="secConvs"]').textContent.trim(),
+    nav: document.querySelector('#ajustesNav [data-parte="convs"]').textContent.trim(),
     titulo: document.querySelector(".settings-header h2").textContent.trim(),
     limpiar: document.getElementById("clearBtn").textContent.trim(),
     cuadro: document.getElementById("userInput").placeholder,
@@ -2625,7 +2635,7 @@ prueba("idioma de la app: se traduce todo el panel de ajustes, Cece Live, la bar
   // vuelta a español
   await pagina.selectOption("#appIdioma", "es");
   await pagina.waitForTimeout(150);
-  cierto(await pagina.evaluate(() => /Conexiones/.test(document.querySelector('#ajustesNav [data-ir="secConexiones"]').textContent) && /Última:/.test(document.querySelector(".stat-strip").textContent)), "no vuelve al español");
+  cierto(await pagina.evaluate(() => /Conversaciones/.test(document.querySelector('#ajustesNav [data-parte="convs"]').textContent) && /Última:/.test(document.querySelector(".stat-strip").textContent)), "no vuelve al español");
   // francés: un título y una opción
   await pagina.selectOption("#appIdioma", "fr");
   await pagina.waitForTimeout(150);
@@ -2817,6 +2827,49 @@ prueba("avatar: se elige un emoji o se sube una foto en Configuración, se ve en
     "🧑|",
     "se aceptó un avatar no válido",
   );
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("configuración por partes: cada pestaña enseña lo suyo, no se pierde nada, teclado y recuerda la última", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  await pagina.click("#settingsBtn");
+  const esperado = {
+    general: ["🌍 General", "Pantalla"],
+    ia: ["🎙️ Cece Live", "Modo de esfuerzo", "✍️ Cómo responde Cece", "Respuesta", "Límite de velocidad", "🌐 Internet", "🎨 Imágenes"],
+    apariencia: ["🎨 Apariencia", "Emojis"],
+    convs: ["Conversaciones", "Código generado"],
+    plugins: ["🧩 Plugins"],
+    offline: ["📴 Sin conexión"],
+    nube: ["☁️ Nube"],
+    seguridad: ["🔐 Seguridad", "🔌 Conexiones"],
+  };
+  for (const [parte, titulos] of Object.entries(esperado)) {
+    await pagina.click(`#tab-${parte}`);
+    const r = await pagina.evaluate(() => {
+      const v = [...document.querySelectorAll(".aj-parte")].filter((e) => !e.hidden);
+      return { partes: v.map((e) => e.dataset.parte), h3: v.flatMap((e) => [...e.querySelectorAll(":scope > h3")].map((h) => h.textContent.trim())) };
+    });
+    igual(r.partes.join(), parte, "se ve más de una parte o la que no es");
+    igual(r.h3.join(" · "), titulos.join(" · "), `la pestaña ${parte} no tiene lo suyo`);
+  }
+  // ningún apartado se ha quedado fuera de las partes
+  igual(await pagina.evaluate(() => [...document.querySelectorAll(".settings-body h3")].filter((h) => !h.closest(".aj-parte")).length), 0, "hay apartados fuera de las pestañas");
+  // teclado: flechas entre pestañas (y da la vuelta)
+  await pagina.focus("#tab-seguridad");
+  await pagina.keyboard.press("ArrowRight");
+  igual(await pagina.evaluate(() => document.activeElement.id + "|" + !document.getElementById("parte-general").hidden), "tab-general|true", "la flecha no pasa a la pestaña siguiente");
+  // ir directo a un ajuste de otra parte la abre
+  await pagina.evaluate(() => mostrarParteDe(document.getElementById("swNubeAuto")));
+  igual(await pagina.evaluate(() => !document.getElementById("parte-nube").hidden), true, "ir a un ajuste no abre su parte");
+  // al cerrar y volver a abrir, sigue en la última
+  await pagina.click("#tab-plugins");
+  await pagina.click("#closeSettings");
+  await pagina.click("#settingsBtn");
+  igual(await pagina.evaluate(() => [...document.querySelectorAll(".aj-parte")].filter((e) => !e.hidden).map((e) => e.dataset.parte).join()), "plugins", "no recuerda la última pestaña");
+  // las pestañas se traducen
+  await pagina.evaluate(() => ((S.appIdioma = "en"), traducirApp()));
+  igual(await pagina.evaluate(() => document.getElementById("tab-ia").textContent.trim()), "🤖 AI and replies", "las pestañas no se traducen");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
