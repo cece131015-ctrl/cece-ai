@@ -1371,10 +1371,13 @@ prueba("copia protegida: ninguna clave comentada o fuera de sitio queda a la vis
     bloque.replace('enterprise: ""', 'enterprise: /* mi clave */ "sk-viejo-1234567890"'),
     bloque.replace('  turbo:      "",', '  // turbo: "sk-vieja-pero-valida-999",\n  turbo: "sk-nueva-123",'),
     bloque.replace('  turbo:      "",', "  // antes: sk-proj-AbCdEf0123456789xyzQWERTY\n  turbo: 'sk-nueva-123',"),
+    // una clave de verdad dentro de un comentario, junto a las ayudas de cómo empieza cada clave
+    bloque.replace('  turbo:      "",', "  // clave vieja: sk-ant-api03-AbCdEfGhIjKlMnOpQrStUv0123456789\n  turbo: \"\","),
   ];
   for (const v of variantes) {
     const salida = await pagina.evaluate((t) => reescribirBloque(t, { enterprise: "", turbo: "" }, "cece1$prueba"), v);
-    cierto(!/sk-|AbCdEf/.test(salida), "queda una clave a la vista:\n" + salida.slice(0, 600));
+    // (las ayudas del bloque dicen cómo empieza cada clave, «sk-ant-…»: eso no es una clave; un trozo con pinta de clave sí)
+    cierto(!/sk-[\w-]{6,}|AbCdEf/.test(salida), "queda una clave a la vista:\n" + salida.slice(0, 600));
     const c = {};
     vm.createContext(c);
     vm.runInContext(salida + "\nthis.K = CECE_KEYS; this.B = CECE_BOVEDA;", c);
@@ -2836,7 +2839,7 @@ prueba("configuración por partes: cada pestaña enseña lo suyo, no se pierde n
   await pagina.click("#settingsBtn");
   const esperado = {
     general: ["🌍 General", "Pantalla"],
-    ia: ["🎙️ Cece Live", "Modo de esfuerzo", "✍️ Cómo responde Cece", "Respuesta", "Límite de velocidad", "🌐 Internet", "🎨 Imágenes"],
+    ia: ["🎙️ Cece Live", "Modo de esfuerzo", "✍️ Cómo responde Cece", "🧠 Memoria", "Respuesta", "Límite de velocidad", "🌐 Internet", "🎨 Imágenes"],
     apariencia: ["🎨 Apariencia", "Emojis"],
     convs: ["Conversaciones", "Código generado"],
     plugins: ["🧩 Plugins"],
@@ -2910,6 +2913,104 @@ prueba("avatar con fondo transparente lo conserva; no se crean dos perfiles con 
   igual(p.b, "Ya hay un perfil con ese nombre.", "se creó un segundo perfil «Ana»");
   igual(p.c, "Pon un nombre para el perfil.", "se aceptó un nombre vacío");
   igual(p.n, 2, "número de perfiles");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("claves: una en el hueco de otro motor se usa donde toca; espacios, comillas y «Bearer» no la estropean; el 401 dice qué hueco", async (nav) => {
+  const ANT = "sk-ant-api03-" + "A".repeat(40);
+  const DS = "sk-1234567890abcdef1234567890abcdef";
+  let antClave = "", dsAuth = "";
+  // la de Anthropic puesta en «turbo» y la de DeepSeek pegada con «Bearer», comillas y espacios en «max»
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: ANT, max: `  "Bearer ${DS}" ` }), {
+    almacen: { cece_ajustes: { modelo: "cece-enterprise-plus" } },
+    ia: {
+      "api.anthropic.com": ({ req }) => ((antClave = req.headers()["x-api-key"] || ""), { cuerpo: respuestaClaude("Hola desde Enterprise.") }),
+      "api.deepseek.com": ({ req }) => ((dsAuth = req.headers()["authorization"] || ""), { status: 401, tipo: "application/json", cuerpo: '{"error":{"message":"Authentication Fails"}}' }),
+    },
+  });
+  const r = await pagina.evaluate(() => ({
+    movidas: CLAVES_MOVIDAS.map((e) => e.de + ">" + e.a + (e.usada ? "" : " (sobra)")).sort(),
+    ant: Boveda.clave("anthropic").slice(0, 7),
+    ds: Boveda.clave("deepseek"),
+  }));
+  igual(r.movidas.join(), "max>turbo,turbo>enterprise", "no detectó las claves en el hueco de otro motor");
+  igual(r.ant, "sk-ant-", "la clave de Enterprise no se usa para Enterprise");
+  igual(r.ds, DS, "la clave pegada con «Bearer», comillas y espacios no se limpió");
+  await escribirYEnviar(pagina, "hola");
+  const a = await ultimaRespuesta(pagina);
+  cierto(/Hola desde Enterprise/.test(a.texto) && antClave === ANT, "Enterprise no respondió con la clave que estaba en «turbo»: " + a.texto);
+  // el 401 de verdad dice qué hueco revisar
+  await pagina.evaluate(() => elegirNivel("cece-turbo"));
+  await escribirYEnviar(pagina, "hola otra vez");
+  const b = await ultimaRespuesta(pagina, 20000);
+  igual(dsAuth, "Bearer " + DS, "la petición a Turbo no llevó la clave limpia");
+  cierto(/«turbo»/.test(b.texto + b.pie), "el 401 no dice qué hueco revisar: " + b.texto + " | " + b.pie);
+  // «Comprobar conexiones» enseña dónde estaba cada clave
+  await pagina.click("#settingsBtn");
+  await verParte(pagina, "#probarConexiones");
+  await pagina.click("#probarConexiones");
+  await pagina.waitForFunction(() => !document.getElementById("probarConexiones").disabled && /🔀/.test(document.getElementById("conexLista").textContent), null, { timeout: 20000 });
+  cierto(/«turbo» es de «enterprise»/.test(await pagina.evaluate(() => document.getElementById("conexLista").textContent)), "«Comprobar conexiones» no avisa de la clave movida");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("memoria: conversaciones largas no olvidan el principio; «recuerda que…» y /recordar valen en todas las conversaciones y en Live", async (nav) => {
+  let sistema = "", usuario = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        (sistema = (cuerpo.messages.find((m) => m.role === "system") || {}).content || ""),
+        (usuario = JSON.stringify(cuerpo.messages.filter((m) => m.role !== "system"))),
+        { cuerpo: respuestaOpenAI("Entendido.") }
+      ),
+    },
+  });
+  // dentro de la conversación: 40 mensajes caben enteros (antes solo 30) y, si no cabe todo, va un resumen del principio
+  const h = await pagina.evaluate(() => {
+    historial = [];
+    for (let i = 0; i < 20; i++) historial.push({ role: "user", content: (i ? "pregunta " : "OBJETIVO: una web de recetas ") + i }, { role: "assistant", content: "respuesta " + i });
+    const todo = historialApi(),
+      corto = historialApi(6);
+    return { n: todo.length, primero: corto.find((m) => m.role === "user").content };
+  });
+  igual(h.n, 40, "con 40 mensajes no se mandan todos");
+  cierto(/^\[Antes en esta conversación/.test(h.primero) && /OBJETIVO: una web de recetas/.test(h.primero), "al recortar se olvida el principio: " + h.primero.slice(0, 120));
+  await pagina.evaluate(() => ((historial = []), pintarHistorial()));
+  // «recuerda que…» lo guarda (y el mensaje sigue a la IA)
+  await escribirYEnviar(pagina, "Recuerda que soy vegetariano");
+  await ultimaRespuesta(pagina);
+  cierto(/soy vegetariano/.test(usuario), "el mensaje «recuerda que…» no llegó a la IA");
+  igual(await pagina.evaluate(() => Memoria.lista().map((e) => e.texto).join()), "soy vegetariano", "no se guardó en la memoria");
+  // en una conversación nueva, la IA lo sabe
+  await pagina.click("#clearBtn");
+  await escribirYEnviar(pagina, "¿qué ceno hoy?");
+  await ultimaRespuesta(pagina);
+  cierto(/soy vegetariano/.test(sistema), "en una conversación nueva la IA no recuerda lo que le pediste");
+  // /recordar y /olvidar
+  await escribirYEnviar(pagina, "/recordar mi perro se llama Toby");
+  cierto(/Lo recordaré/.test((await ultimaRespuesta(pagina)).texto), "/recordar no guardó");
+  await escribirYEnviar(pagina, "/recordar");
+  const lista = await ultimaRespuesta(pagina);
+  cierto(/<ol>\s*<li>soy vegetariano<\/li>\s*<li>mi perro se llama Toby<\/li>/.test(lista.html), "/recordar no lista la memoria en orden: " + lista.html.slice(0, 200));
+  await escribirYEnviar(pagina, "/olvidar 1");
+  await ultimaRespuesta(pagina);
+  igual(await pagina.evaluate(() => Memoria.lista().map((e) => e.texto).join()), "mi perro se llama Toby", "/olvidar 1 no quitó el primero");
+  // Cece Live también lo sabe (y tu nombre y tus instrucciones, que antes no llegaban a Live)
+  const live = await pagina.evaluate(() => ((S.instrucciones = "Háblame de tú"), sistemaLive("cece-turbo")));
+  cierto(/Toby/.test(live) && /se llama Cece/.test(live) && /Háblame de tú/.test(live), "Cece Live no recibe la memoria, el nombre o las instrucciones");
+  // en Configuración: la lista, quitar y apagarla
+  await pagina.click("#settingsBtn");
+  await verParte(pagina, "#memoriaLista");
+  cierto(/Toby/.test(await pagina.evaluate(() => document.getElementById("memoriaLista").textContent)), "la memoria no sale en Configuración");
+  await pagina.click("#memoriaLista .memoria-x");
+  igual(await pagina.evaluate(() => Memoria.lista().length), 0, "el ✕ no quitó el recuerdo");
+  await pagina.fill("#memoriaNueva", "vivo en Sevilla");
+  await pagina.click("#memoriaAnadir");
+  await pagina.click("label[for=swMemoria]");
+  igual(await pagina.evaluate(() => S.memoria + "|" + Memoria.paraSistema()), "false|", "con la memoria apagada se sigue mandando a la IA");
+  igual(await pagina.evaluate(() => CLAVES_DE_PERFIL.has("cece_memoria")), true, "la memoria no es de cada perfil");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });

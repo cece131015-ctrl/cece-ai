@@ -1,5 +1,48 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — que las claves funcionen y que la IA tenga memoria
+
+**Claves de API**
+
+La causa más común de «las claves no funcionan» era poner una clave en el hueco que no es el suyo. Cada hueco del
+bloque de configuración va a un servicio fijo, pero el archivo no decía cuál; una clave en el hueco de otro servicio se
+le mandaba a ese otro y fallaba siempre con «HTTP 401».
+
+- **El bloque de configuración dice de qué servicio es cada hueco** y cómo empieza su clave: `enterprise` → Anthropic
+  (`sk-ant-…`), `astra` → OpenAI, `max` → Moonshot/Kimi, `turbo` → DeepSeek, `argon` → Google Gemini (`AIza…`),
+  `reserva` → Groq (`gsk_…`), `muse` → Meta, `voz` → ElevenLabs y `nube_token` → GitHub.
+- **Una clave en el hueco equivocado se usa donde toca** cuando su formato no deja dudas: `sk-ant-…`, `AIza…`, `gsk_…`,
+  `sk-proj-…`, las de DeepSeek, `ghp_…` o `github_pat_…`, y las de ElevenLabs. Al abrir sale un aviso, y «Comprobar
+  conexiones» dice qué clave estaba dónde. Al descargar la copia cifrada (o la de cambiar claves), cada clave queda ya
+  en su hueco.
+- **Al pegar una clave** se quitan las comillas, el «Bearer » de delante y los espacios o saltos de línea que se cuelan.
+- **El error 401 dice qué hueco revisar:** «La clave de «turbo» (…) no es válida, caducó o no tiene permisos». Si Cece
+  pasa sola a otro motor, el aviso del pie también lo dice.
+- **Sin ninguna clave:** «Fallo de conexión (HTTP 401): no encuentro ninguna clave. Ponlas en el bloque de
+  configuración del principio del archivo.»
+- El comentario del bloque manda a «🔐 Seguridad → Comprobar conexiones», que es donde está ahora.
+
+**Memoria**
+
+- **En una conversación:** la IA recibe los últimos 80 mensajes, en vez de 30, y hasta el doble de texto. Si la
+  conversación es más larga, también recibe un resumen de lo que pediste antes, empezando por tu primer mensaje (que
+  suele ser el objetivo). Así no se le olvida el principio.
+- **🧠 Memoria entre conversaciones** (nueva, en la pestaña «IA y respuestas»): lo que le pidas recordar lo sabe en
+  todas tus conversaciones y en Cece Live.
+  - Empieza un mensaje con «recuerda que…», «acuérdate de que…» o «no olvides que…» (también en los otros seis
+    idiomas). Se guarda y el mensaje le llega igual a la IA.
+  - `/recordar texto` lo guarda, `/recordar` solo enseña lo que recuerda, y `/olvidar 2`, `/olvidar perro` u
+    `/olvidar todo` lo quitan.
+  - En Configuración: la lista con ✕ para quitar, un cuadro para añadir, «Borrar toda la memoria» y un interruptor
+    para apagarla. Cada perfil tiene la suya. Todavía no viaja con la ☁️ Nube.
+- **Cece Live no recibía nada de «Cómo responde Cece»**, aunque la configuración decía que sí: ni tu nombre, ni el
+  tono, ni el nivel, ni tus instrucciones. Ahora los recibe, y también la memoria.
+
+**Otros arreglos**
+
+- Con un perfil que no es el principal, el tema se pintaba un instante con el del principal al abrir. Ahora sale
+  directamente el suyo.
+
 ## 5 de noviembre de 2026 — depuración de perfiles, avatar y pestañas
 
 He revisado lo más nuevo y además he comprobado que no hay mezcla de perfiles entre ventanas (la app no escucha

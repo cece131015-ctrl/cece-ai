@@ -271,6 +271,21 @@
 
       <hr class="divider">
 
+      <h3 id="secMemoria" data-i18n>🧠 Memoria</h3>
+      <p class="settings-hint" data-i18n>Cosas que Cece recuerda de ti en todas las conversaciones. Se añaden empezando un mensaje con «recuerda que…» o con /recordar, y aquí puedes quitarlas.</p>
+      <div class="switch-fila">
+        <label for="swMemoria" data-i18n>Usar la memoria</label>
+        <span class="sw"><input type="checkbox" id="swMemoria" checked><span class="sw-pista"></span></span>
+      </div>
+      <div class="memoria-lista" id="memoriaLista" data-i18n-no></div>
+      <div class="fila2">
+        <input type="text" class="campo" id="memoriaNueva" maxlength="300" placeholder="Ej.: Soy vegetariano">
+        <button type="button" class="btn-mini" id="memoriaAnadir" data-i18n>➕ Añadir</button>
+      </div>
+      <button type="button" class="btn-secondary" id="memoriaBorrar" data-i18n>🗑️ Borrar toda la memoria</button>
+
+      <hr class="divider">
+
       <h3 data-i18n>Respuesta</h3>
       <div class="switch-fila">
         <label for="swStream">Ver el texto seg&uacute;n se escribe</label>
