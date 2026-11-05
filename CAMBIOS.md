@@ -1,5 +1,21 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — te llama Cece y saluda distinto cada vez
+
+- **Nombre «Cece» por defecto.** Cece AI te saluda por tu nombre y la IA sabe que te llamas Cece. Si lo tenías vacío,
+  pasa a «Cece». Se cambia o se borra en Configuración → 🌍 General → «Cómo te llamas», y si lo borras, se respeta.
+- **El saludo cambia cada vez** y depende de la hora:
+  - **Mañana (6 a 13 h):** «¡Hola, Cece! 👋 ¿Qué tal estás?», «Hola, madrugador 👋 ¿Cómo has dormido, Cece?» (solo
+    hasta las 10), «¡Buenos días, Cece! 👋 ¿Con qué empezamos hoy?», «¡Arriba, Cece! 👋 Un café y a por el día. ¿En
+    qué te ayudo?» y «Buenos días, Cece 👋 ¿Qué tal ha empezado la mañana?».
+  - **Tarde (13 a 21 h):** «¡Buenas tardes, Cece! 👋 ¿Qué tal va el día?», «¡Hola, Cece! 👋 ¿Cómo va la tarde?»,
+    «¡Hola de nuevo, Cece! 👋 ¿Qué hacemos esta tarde?» y «Buenas tardes, Cece 👋 ¿En qué te puedo ayudar?».
+  - **Noche (21 a 6 h):** «¡Buenas noches, Cece! 👋 ¿Qué tal ha ido el día?», «Hola, ave nocturna 👋 ¿En qué te ayudo
+    esta noche, Cece?», «¡Hola, Cece! 👋 ¿Trasnochando un poco?» y «Buenas noches, Cece 👋 ¿Un último proyecto antes de
+    dormir?».
+- Los otros seis idiomas de la app tienen sus propios saludos equivalentes (por ejemplo, «Hello, early bird» o «Hello,
+  night owl» en inglés).
+
 ## 4 de noviembre de 2026 — acceso directo en Windows (Ctrl+Alt+C)
 
 - **`windows/abrir-cece.bat`:** abre `cece-ai.html` (que debe estar en la misma carpeta) en **pantalla completa**, con

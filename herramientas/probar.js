@@ -2461,16 +2461,26 @@ prueba("saludo al empezar (hora del día, nombre e idioma) y ajustes nuevos", as
       ),
     },
   });
-  const r = await pagina.evaluate(() => ({
-    burbuja: document.querySelector(".bot-msg .bubble").innerText,
-    tarde: textoSaludo(16),
-    manana: textoSaludo(9),
-    noche: textoSaludo(23),
-  }));
-  igual(r.tarde, "**Hola, buenas tardes, soy Cece AI** 👋 ¿En qué te puedo ayudar hoy?", "saludo de la tarde");
-  cierto(/buenos días/.test(r.manana) && /buenas noches/.test(r.noche), "saludo de mañana o noche: " + r.manana + " / " + r.noche);
-  cierto(/Hola, buen[oa]s \w+, soy Cece AI/.test(r.burbuja) && /¿En qué te puedo ayudar hoy\?/.test(r.burbuja), "el chat no saluda: " + r.burbuja);
-  cierto(/^Hola, (buenos días|buenas tardes|buenas noches), soy Cece AI 👋 ¿En qué te puedo ayudar hoy\?$/.test(r.burbuja.trim()), "el saludo debe ser solo esa frase: " + r.burbuja);
+  const r = await pagina.evaluate(() => {
+    const todos = (h) => saludosPara(h).map((e, i) => textoSaludo(h, i));
+    return {
+      burbuja: document.querySelector(".bot-msg .bubble").innerText.trim(),
+      ahora: todos(new Date().getHours()).map((e) => e.replace(/\*\*/g, "")),
+      manana: textoSaludo(8, 0),
+      temprano: todos(8),
+      tarde: todos(16),
+      noche: todos(23),
+      tardeMañana: todos(11),
+      nombre: S.nombre,
+    };
+  });
+  igual(r.nombre, "Cece", "el nombre por defecto");
+  igual(r.manana, "**¡Hola, Cece!** 👋 ¿Qué tal estás?", "el primer saludo de la mañana");
+  cierto(r.temprano.some((e) => /Hola, madrugador.*¿Cómo has dormido, Cece\?/.test(e)), "falta «Hola, madrugador» temprano: " + r.temprano.join(" / "));
+  cierto(!r.tardeMañana.some((e) => /madrugador/.test(e)), "«madrugador» a las 11 no pega: " + r.tardeMañana.join(" / "));
+  cierto(r.tarde.every((e) => /Cece/.test(e)) && r.tarde.some((e) => /tarde/.test(e)), "saludos de la tarde: " + r.tarde.join(" / "));
+  cierto(r.noche.some((e) => /noches/.test(e)) && r.noche.some((e) => /ave nocturna/.test(e)), "saludos de la noche: " + r.noche.join(" / "));
+  cierto(r.ahora.includes(r.burbuja), "el chat no saluda con uno de los saludos de ahora: " + r.burbuja);
   igual(await pagina.evaluate(() => document.querySelectorAll(".sugerencia").length), 0, "siguen saliendo ideas para empezar");
   // ajustes: idioma de la app, nombre, nivel, emojis, hora, detalles, corrector y confirmar al limpiar
   await pagina.click("#settingsBtn");
@@ -2494,7 +2504,7 @@ prueba("saludo al empezar (hora del día, nombre e idioma) y ajustes nuevos", as
   igual(en.lang, "en", "el idioma de la página");
   cierto(/Conversations/.test(en.nav) && en.titulo === "Settings" && /Clear/.test(en.limpiar), "la interfaz no se tradujo: " + JSON.stringify(en));
   cierto(/^Type your message/.test(en.cuadro), "el cuadro de texto sigue en español: " + en.cuadro);
-  cierto(/^Hi, Ana, good (morning|afternoon|evening), I'm Cece AI/.test(en.saludo), "el saludo no cambió de idioma o no lleva el nombre: " + en.saludo);
+  cierto(/^(Hi|Hello|Good|Rise)/.test(en.saludo) && /Ana/.test(en.saludo), "el saludo no cambió de idioma o no lleva el nombre: " + en.saludo);
   cierto(/[ap]m/i.test(en.hora), "la hora no está en formato de 12 horas: " + en.hora);
   igual(en.spell, false, "el corrector sigue activo");
   await pagina.click("#closeSettings");
@@ -2560,6 +2570,25 @@ prueba("plugins de programación: /html, /2d-game, /3d-game, /backend, /api, /de
   cierto(await pagina.evaluate(() => /2d-game/.test(document.getElementById("pluginLista").textContent)), "no salen en la lista de plugins");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
+});
+
+prueba("nombre «Cece» por defecto: también para quien lo tenía vacío, pero si lo borras después se respeta", async (nav) => {
+  let sistema = "";
+  const ia = {
+    "api.deepseek.com": ({ cuerpo }) => (
+      (sistema = (cuerpo.messages.find((m) => m.role === "system") || {}).content || ""), { cuerpo: respuestaOpenAI("Hola.") }
+    ),
+  };
+  let a = await nuevaPagina(nav, conClaves({ turbo: "sk" }), { almacen: { cece_ajustes: { nombre: "", tema: "neon" } }, ia });
+  igual(await a.pagina.evaluate(() => S.nombre), "Cece", "un nombre vacío de antes no pasó a «Cece»");
+  await escribirYEnviar(a.pagina, "hola");
+  await ultimaRespuesta(a.pagina);
+  cierto(/se llama Cece/.test(sistema), "la IA no sabe que te llamas Cece");
+  await a.ctx.close();
+  a = await nuevaPagina(nav, conClaves({}), { almacen: { cece_ajustes: { nombre: "", versionNombre: 1 } } });
+  igual(await a.pagina.evaluate(() => S.nombre), "", "un nombre borrado a propósito volvió a «Cece»");
+  igual(a.errores.length, 0, "errores: " + a.errores.join(" | "));
+  await a.ctx.close();
 });
 
 prueba("idioma de la app: se traduce todo el panel de ajustes, Cece Live, la barra de estado y los distintivos", async (nav) => {
