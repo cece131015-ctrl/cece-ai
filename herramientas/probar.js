@@ -2662,6 +2662,93 @@ prueba("idioma de la app: lo que el código cambia después se traduce y no vuel
   await ctx.close();
 });
 
+prueba("perfiles: cada uno con sus conversaciones y ajustes; crear, cambiar, /perfil y borrar", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Vale.") }) },
+  });
+  pagina.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Ana" : undefined));
+  const listo = async () => {
+    await pagina.waitForSelector("#userInput");
+    await pagina.evaluate(() => document.getElementById("cece-startup")?.remove());
+    await pagina.waitForTimeout(300);
+  };
+  await escribirYEnviar(pagina, "mensaje del principal XYZ");
+  await ultimaRespuesta(pagina);
+  // crear «Ana»: pasa a ese perfil, vacío y con su nombre
+  await pagina.click("#settingsBtn");
+  await Promise.all([pagina.waitForEvent("load"), pagina.click("#perfilNuevo")]);
+  await listo();
+  const ana = await pagina.evaluate(() => ({
+    perfil: almacen.perfil,
+    nombre: S.nombre,
+    hist: historial.length,
+    saludo: document.querySelector(".bot-msg .bubble").innerText,
+    lista: [...document.querySelectorAll("#perfilSel option")].map((o) => o.textContent),
+  }));
+  cierto(ana.perfil !== "principal" && ana.nombre === "Ana" && ana.hist === 0, "el perfil nuevo no empieza vacío con su nombre: " + JSON.stringify(ana));
+  cierto(/Ana/.test(ana.saludo), "el saludo no usa el nombre del perfil: " + ana.saludo);
+  igual(ana.lista.join(","), "Cece,Ana", "la lista de perfiles");
+  await escribirYEnviar(pagina, "mensaje de Ana ABC");
+  await ultimaRespuesta(pagina);
+  await pagina.evaluate(() => ((S.tema = "claro"), guardarAjustes()));
+  // volver al principal: sus cosas siguen igual
+  await pagina.click("#settingsBtn");
+  await Promise.all([pagina.waitForEvent("load"), pagina.selectOption("#perfilSel", "principal")]);
+  await listo();
+  const pri = await pagina.evaluate(() => ({ nombre: S.nombre, tema: S.tema, hist: historial.map((m) => m.content).join(" | ") }));
+  cierto(pri.nombre === "Cece" && pri.tema !== "claro", "los ajustes del principal cambiaron: " + JSON.stringify(pri));
+  cierto(/XYZ/.test(pri.hist) && !/ABC/.test(pri.hist), "las conversaciones se mezclaron: " + pri.hist);
+  // /perfil lista y cambia por nombre
+  await escribirYEnviar(pagina, "/perfil");
+  const lista = await ultimaRespuesta(pagina);
+  cierto(/Cece ✅/.test(lista.texto) && /Ana/.test(lista.texto), "/perfil no lista los perfiles: " + lista.texto);
+  await pagina.fill("#userInput", "/perfil ana");
+  await Promise.all([pagina.waitForEvent("load"), pagina.press("#userInput", "Enter")]);
+  await listo();
+  const otra = await pagina.evaluate(() => ({ nombre: S.nombre, tema: S.tema, hist: historial.map((m) => m.content).join(" | ") }));
+  cierto(otra.nombre === "Ana" && otra.tema === "claro" && /ABC/.test(otra.hist) && !/XYZ/.test(otra.hist), "/perfil ana no cambió al perfil de Ana: " + JSON.stringify(otra));
+  // borrar el perfil de Ana: se vuelve al principal y no queda nada suyo
+  await pagina.click("#settingsBtn");
+  await Promise.all([pagina.waitForEvent("load"), pagina.click("#perfilBorrar")]);
+  await listo();
+  const fin = await pagina.evaluate(() => ({
+    perfil: almacen.perfil,
+    lista: Perfiles.leer().lista.map((e) => e.id),
+    sueltas: Object.keys(localStorage).filter((k) => k.includes("@")),
+    hist: historial.map((m) => m.content).join(" | "),
+    borrarOff: document.getElementById("perfilBorrar").disabled,
+  }));
+  cierto(fin.perfil === "principal" && fin.lista.join() === "principal" && !fin.sueltas.length, "al borrar quedan restos: " + JSON.stringify(fin));
+  cierto(/XYZ/.test(fin.hist), "borrar a Ana tocó las conversaciones del principal: " + fin.hist);
+  igual(fin.borrarOff, true, "el perfil principal no se debe poder borrar");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("perfiles: la limpieza de adjuntos no borra los de otro perfil y cada perfil tiene su archivo en la nube", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  // el principal tiene una imagen guardada en IndexedDB; se pasa a otro perfil
+  await pagina.evaluate(async () => {
+    await idb("set", "adj:fotoPrincipal", { datos: "iVBORw0KGgo=", mime: "image/png" });
+    almacen.set("cece_actual", { id: "c1", mensajes: [{ role: "user", content: "mira", adjuntos: [{ id: "fotoPrincipal", nombre: "f.png", tipo: "imagen", mime: "image/png", tam: 8, idb: true }] }] });
+    almacen.congelado = true; // (que no lo pise el guardado de la página antes de recargar)
+    localStorage.setItem("cece_perfiles", JSON.stringify({ activo: "otro1", lista: [{ id: "principal", nombre: "Cece" }, { id: "otro1", nombre: "Ana" }] }));
+  });
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.waitForTimeout(5000); // la limpieza de adjuntos huérfanos se hace a los 4 s de abrir
+  const r = await pagina.evaluate(async () => ({
+    perfil: almacen.perfil,
+    foto: !!(await idb("get", "adj:fotoPrincipal")),
+    archivo: Nube.ARCHIVO,
+  }));
+  igual(r.perfil, "otro1", "no abrió el otro perfil");
+  igual(r.foto, true, "la limpieza de otro perfil borró la imagen del principal");
+  igual(r.archivo, "cece-ai-nube-otro1.json", "el otro perfil usaría el mismo archivo de la nube que el principal");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

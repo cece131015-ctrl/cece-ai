@@ -1,5 +1,22 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — perfiles de usuario
+
+- **Varios perfiles en la misma Cece AI**, en Configuración → 🌍 General → «👤 Perfil». Cada perfil tiene su nombre,
+  sus conversaciones, sus ajustes (idioma, tema, cómo responde…), sus plugins y su nube. Las claves del bloque de
+  configuración son las mismas para todos, porque van en el archivo.
+- **➕ Nuevo:** pide un nombre, crea el perfil y entra en él, vacío y con el saludo ya con ese nombre.
+- **Cambiar:** se elige en la lista. Cece guarda lo que hay y se recarga con los datos del otro perfil.
+- **🗑️ Borrar:** borra el perfil en el que estás con todo lo suyo y vuelve al principal. El principal no se puede
+  borrar.
+- **`/perfil`** lista los perfiles, y **`/perfil Ana`** cambia al perfil «Ana».
+- El nombre del perfil es el de «Cómo te llamas»: si lo cambias, cambia en la lista.
+- **No pierdes nada:** lo que ya tenías es el perfil principal y sigue donde estaba.
+- La **nube** usa un archivo distinto en tu Gist para cada perfil, así no se mezclan. La limpieza de imágenes y PDF
+  guardados respeta los de los demás perfiles.
+- Son del equipo y se comparten entre perfiles: CeceHub, el desbloqueo de las claves con contraseña y la carpeta donde
+  se guarda el código.
+
 ## 5 de noviembre de 2026 — depuración: idioma de la app y acceso directo de Windows
 
 Revisión de todo el código: ids que no existen, alias de comandos que se pisan, `innerHTML` con datos sin escapar,
