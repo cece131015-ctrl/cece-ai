@@ -2874,6 +2874,46 @@ prueba("configuración por partes: cada pestaña enseña lo suyo, no se pierde n
   await ctx.close();
 });
 
+prueba("avatar con fondo transparente lo conserva; no se crean dos perfiles con el mismo nombre", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  const r = await pagina.evaluate(async () => {
+    // logo PNG: mitad izquierda transparente, mitad derecha roja
+    const c = document.createElement("canvas");
+    c.width = c.height = 100;
+    const g = c.getContext("2d");
+    ((g.fillStyle = "red"), g.fillRect(50, 0, 50, 100));
+    const url = await fotoAvatar(new File([await new Promise((r) => c.toBlob(r, "image/png"))], "logo.png", { type: "image/png" }));
+    const i = new Image();
+    await new Promise((r) => ((i.onload = r), (i.src = url)));
+    const d = document.createElement("canvas");
+    d.width = d.height = 128;
+    const h = d.getContext("2d");
+    h.drawImage(i, 0, 0);
+    // y una foto sin transparencia sigue en JPEG (ocupa menos)
+    const f = document.createElement("canvas");
+    f.width = f.height = 100;
+    const fg = f.getContext("2d");
+    ((fg.fillStyle = "#3a6"), fg.fillRect(0, 0, 100, 100));
+    const jpg = await fotoAvatar(new File([await new Promise((r) => f.toBlob(r, "image/png"))], "foto.png", { type: "image/png" }));
+    return { tipo: url.split(";")[0], alfa: h.getImageData(10, 64, 1, 1).data[3], tipoFoto: jpg.split(";")[0] };
+  });
+  igual(r.tipo, "data:image/png", "un avatar con transparencia no se guarda en PNG");
+  igual(r.alfa, 0, "el fondo transparente del avatar sale opaco (negro)");
+  igual(r.tipoFoto, "data:image/jpeg", "una foto sin transparencia debería ir en JPEG");
+  const p = await pagina.evaluate(() => {
+    const a = Perfiles.crear("Ana"),
+      b = Perfiles.crear("ANA"),
+      c = Perfiles.crear("   ");
+    return { a: !!(a && a.id), b: b && b.error, c: c && c.error, n: Perfiles.leer().lista.length };
+  });
+  cierto(p.a, "no se creó el primer perfil «Ana»");
+  igual(p.b, "Ya hay un perfil con ese nombre.", "se creó un segundo perfil «Ana»");
+  igual(p.c, "Pon un nombre para el perfil.", "se aceptó un nombre vacío");
+  igual(p.n, 2, "número de perfiles");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();

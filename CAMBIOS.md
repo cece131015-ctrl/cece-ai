@@ -1,5 +1,21 @@
 # Informe de depuración
 
+## 5 de noviembre de 2026 — depuración de perfiles, avatar y pestañas
+
+He revisado lo más nuevo y además he comprobado que no hay mezcla de perfiles entre ventanas (la app no escucha
+cambios de otras pestañas), que la trampa de foco del panel ignora las pestañas ocultas y que todo cabe en un móvil.
+Arreglos:
+
+- **Un avatar con fondo transparente salía con el fondo negro.** La foto se guardaba siempre en JPEG, que no tiene
+  transparencia. Ahora, si la imagen tiene partes transparentes, se guarda en PNG; si no, sigue en JPEG, que ocupa
+  menos.
+- **Se podían crear dos perfiles con el mismo nombre**, y entonces `/perfil Ana` no sabía a cuál ir. Ahora avisa «Ya hay
+  un perfil con ese nombre». También avisa si pasas de 20 perfiles.
+- **Abrir la configuración** recibía el clic del botón como si fuera el nombre de una pestaña. Funcionaba por
+  casualidad. Ahora siempre abre la última pestaña que usaste.
+- La ayuda del **idioma de la app** decía que solo cambiaba «los textos principales» y mandaba a «Cómo responde Cece»
+  sin decir en qué pestaña está. Ahora dice que está en «IA y respuestas».
+
 ## 5 de noviembre de 2026 — configuración ordenada por partes
 
 La configuración era una sola lista muy larga y desordenada: por ejemplo, «Conversaciones» salía en medio de las
