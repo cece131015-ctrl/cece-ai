@@ -2856,6 +2856,8 @@ prueba("configuración por partes: cada pestaña enseña lo suyo, no se pierde n
     igual(r.partes.join(), parte, "se ve más de una parte o la que no es");
     igual(r.h3.join(" · "), titulos.join(" · "), `la pestaña ${parte} no tiene lo suyo`);
   }
+  // la versión de la copia sale al final de General
+  cierto(/^Cece AI · \d{4}\.\d{2}\.\d{2}$/.test(await pagina.evaluate(() => document.getElementById("versionCece").textContent)), "no se ve la versión en General");
   // ningún apartado se ha quedado fuera de las partes
   igual(await pagina.evaluate(() => [...document.querySelectorAll(".settings-body h3")].filter((h) => !h.closest(".aj-parte")).length), 0, "hay apartados fuera de las pestañas");
   // teclado: flechas entre pestañas (y da la vuelta)
@@ -3056,6 +3058,13 @@ prueba("memoria automática: Cece decide qué recordar u olvidar, las marcas no 
   await escribirYEnviar(pagina, "ya como carne; mi clave es sk-abc1234567890xyz");
   await ultimaRespuesta(pagina);
   igual(await pagina.evaluate(() => Memoria.lista().length), 0, "no olvidó lo que dejó de ser verdad, o guardó una clave");
+  // si la IA solo pone la marca, sin texto, la burbuja no se queda en «Pensando» ni se guarda un mensaje vacío
+  respuesta = "<recordar>Se llama Ana</recordar>";
+  await escribirYEnviar(pagina, "me llamo Ana");
+  const sola = await ultimaRespuesta(pagina);
+  cierto(/Anotado/.test(sola.texto), "con solo la marca la respuesta queda vacía: " + sola.texto);
+  igual(await pagina.evaluate(() => historial[historial.length - 1].content), "🧠 Anotado.", "se guardó un mensaje vacío");
+  await pagina.evaluate(() => Memoria.borrar());
   // con «Cece decide sola» apagado, ni instrucción ni guardado
   await pagina.evaluate(() => ((S.memoriaAuto = false), guardarAjustes()));
   respuesta = "Vale.\n<recordar>Vive en Sevilla</recordar>";

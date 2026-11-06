@@ -1,5 +1,21 @@
 # Informe de depuración
 
+## 6 de noviembre de 2026 — listo para usar
+
+- **Guía de uso** nueva, [`GUIA.md`](GUIA.md), para quien solo quiere usarlo. Explica qué clave va en cada hueco y dónde
+  se consigue, cómo abrirlo, comprobar las claves y protegerlas, el acceso directo de Windows, los modelos, LIVE, los
+  comandos, la memoria, los perfiles, las conversaciones y la nube, el modo sin internet, la seguridad, y una tabla de
+  «si algo falla» con cada aviso y qué hacer.
+- **Paquete listo para repartir:** `npm run preparar` hace `dist/Cece-AI.zip` con la carpeta `Cece-AI/` y dentro
+  `cece-ai.html`, `abrir-cece.bat`, `crear-acceso-directo.bat` y `LEEME.txt` (la guía, para el Bloc de notas). Antes
+  de empaquetar **comprueba que el archivo no lleve ninguna clave ni copia cifrada**; si la lleva, no hace el paquete. El
+  zip sale idéntico cada vez.
+- **Versión visible:** al final de Configuración → 🌍 General sale «Cece AI · 2026.11.06», para saber qué copia
+  tienes.
+- **Arreglo:** si la IA respondía solo con una marca de memoria, sin texto, la burbuja se quedaba en «Pensando» y se
+  guardaba un mensaje vacío. Ahora dice «🧠 Anotado.».
+- El README manda a la guía y a «🔐 Seguridad → Comprobar conexiones», que es donde está ahora.
+
 ## 5 de noviembre de 2026 — memoria automática: Cece decide qué recordar
 
 - **Cece elige sola qué guardar en la 🧠 Memoria** mientras habláis, sin que tengas que decir «recuerda que…». Guarda

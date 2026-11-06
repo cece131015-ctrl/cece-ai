@@ -5,11 +5,16 @@ Todo Cece AI es **un solo archivo**: [`cece-ai.html`](cece-ai.html). Se abre con
 
 ## Usarlo
 
+La guía completa para quien lo va a usar está en [`GUIA.md`](GUIA.md). En resumen:
+
 1. Abre `cece-ai.html` con el Bloc de notas y rellena las claves del bloque de configuración del principio
-   (`CECE_KEYS`). Las que no uses se pueden dejar vacías.
-2. Ábrelo en el navegador. En ⚙️ Configuración → 🔌 Conexiones puedes comprobar que cada clave funciona.
+   (`CECE_KEYS`). Cada hueco dice de qué servicio es; las que no uses se pueden dejar vacías.
+2. Ábrelo en el navegador. En ⚙️ Configuración → 🔐 Seguridad → 🔌 Comprobar conexiones ves si cada clave funciona.
 3. Recomendado: ⚙️ Configuración → 🔐 Seguridad → cifrar las claves con contraseña. Se descarga una copia
    protegida (AES-256-GCM); usa esa y borra la que tiene las claves a la vista.
+
+`npm run preparar` hace `dist/Cece-AI.zip` con todo lo que necesita quien lo va a usar: `cece-ai.html` (sin claves),
+los dos `.bat` de Windows (`windows/`) y `LEEME.txt` (esta guía).
 
 ## Cambiarlo
 

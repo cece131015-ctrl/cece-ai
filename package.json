@@ -6,7 +6,8 @@
     "desempaquetar": "node herramientas/desempaquetar.js",
     "empaquetar": "node herramientas/empaquetar.js",
     "lint": "eslint fuente/programa.js && ruff check fuente/cecehub-server.py",
-    "probar": "node herramientas/probar.js"
+    "probar": "node herramientas/probar.js",
+    "preparar": "node herramientas/preparar.js"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
