@@ -1,5 +1,16 @@
 # Informe de depuración
 
+## 6 de noviembre de 2026 — «🧠 Anotando» mientras Cece guarda algo en la memoria
+
+- Mientras espera la respuesta sigue saliendo **«Pensando»**, como siempre. Cuando Cece se pone a escribir algo para
+  la memoria, sale **«🧠 Anotando»** con los mismos puntitos animados:
+  - si todavía no ha escrito texto, la burbuja dice «🧠 Anotando» en lugar de quedarse en blanco o en «Pensando»;
+  - si ya ha escrito su respuesta, «🧠 Anotando» aparece debajo mientras termina la nota y se quita al acabar;
+  - sin «Ver el texto según se escribe», el «Pensando» pasa a «🧠 Anotando»;
+  - en Cece Pro, el paso que está anotando lo dice en la barrita.
+- Al terminar queda la nota «🧠 Recordado: «…»» con su botón «Olvidar», como antes. «Anotando» se traduce al
+  idioma de la app.
+
 ## 6 de noviembre de 2026 — listo para usar
 
 - **Guía de uso** nueva, [`GUIA.md`](GUIA.md), para quien solo quiere usarlo. Explica qué clave va en cada hueco y dónde

@@ -3046,11 +3046,31 @@ prueba("memoria automática: Cece decide qué recordar u olvidar, las marcas no 
     await pagina.evaluate(() => {
       const b = new Burbuja();
       ((b.texto = "Vale.\n<recordar>Es veg"), (b.vis = b.texto.length), b._pintarHtml(true));
-      const t = b.bubble.innerText;
+      const t = b.bubble.innerText.replace(/\s+/g, " ").trim();
       return (b.wrap.remove(), t + "|" + sinMarcasMemoria("Hola.\n<reco", true));
     }),
-    "Vale.|Hola.",
+    "Vale. 🧠 Anotando|Hola.",
     "una marca a medias se ve mientras llega la respuesta",
+  );
+  // mientras escribe la nota se dice «🧠 Anotando», como «Pensando» (sin texto, con texto delante y sin ver el texto según llega)
+  igual(
+    await pagina.evaluate(() => {
+      const t = (b) => b.bubble.innerText.replace(/\s+/g, " ").trim(),
+        a = new Burbuja();
+      ((a.texto = "<recordar>Se llama A"), (a.vis = a.texto.length), a._pintarHtml(true));
+      const c = new Burbuja();
+      ((c.texto = "Te preparo unas lentejas.\n<recordar>Es veget"), (c.vis = c.texto.length), c._pintarHtml(true));
+      const conTexto = t(c);
+      ((c.texto = "Te preparo unas lentejas."), (c.vis = c.texto.length), c._pintarHtml(false));
+      S.stream = false;
+      const d = new Burbuja();
+      (d.meter("Vale. "), d.meter("<recordar>Vive en"));
+      S.stream = true;
+      const r = [t(a), a.bubble.classList.contains("thinking"), conTexto, t(c), t(d)].join("|");
+      return (a.wrap.remove(), c.wrap.remove(), d.wrap.remove(), r);
+    }),
+    "🧠 Anotando|true|Te preparo unas lentejas. 🧠 Anotando|Te preparo unas lentejas.|🧠 Anotando",
+    "no se avisa de que está anotando, o el aviso se queda al terminar",
   );
   // olvidar lo que ya no es verdad, y nunca guardar claves
   await pagina.evaluate(() => Memoria.agregar("Es vegetariano"));
