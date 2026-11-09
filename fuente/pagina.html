@@ -46,6 +46,7 @@
     </div>
   </div>
 
+  <button class="icon-btn" id="incognitoBtn" aria-pressed="false" aria-label="Incógnito" title="Chat de incógnito: no se guarda y se borra al salir"><span aria-hidden="true">&#128374;&#65039;</span></button>
   <button class="icon-btn" id="clearBtn" title="Limpiar chat" data-i18n-title><span class="ico-trash">&#128465;&#65039;</span> <span data-i18n>Limpiar</span></button>
   <button class="icon-btn" id="settingsBtn" title="Configuraci&oacute;n" aria-label="Configuraci&oacute;n" data-i18n-title data-i18n-aria><span class="ico-gear">&#9881;&#65039;</span></button>
 </header>
@@ -385,7 +386,11 @@
 
       <section class="aj-parte" id="parte-convs" data-parte="convs" role="tabpanel" aria-labelledby="tab-convs" hidden>
       <h3 id="secConvs" data-i18n>Conversaciones</h3>
-      <p class="settings-hint">Se guardan en este navegador. Para llev&aacute;rtelas a otro ordenador, exp&oacute;rtalas a un archivo.</p>
+      <p class="settings-hint">Se guardan solas en este navegador a cada mensaje: no hace falta guardarlas ni descargarlas. Las de inc&oacute;gnito (&#128374;&#65039;) no se guardan. Para llev&aacute;rtelas a otro ordenador, usa la nube o exp&oacute;rtalas a un archivo.</p>
+      <div class="switch-fila">
+        <label for="swAutoConv">Guardar las conversaciones autom&aacute;ticamente</label>
+        <span class="sw"><input type="checkbox" id="swAutoConv" checked><span class="sw-pista"></span></span>
+      </div>
       <button class="btn-secondary" id="saveConvBtn">&#128190; Guardar conversaci&oacute;n actual</button>
       <div class="aviso aviso-naranja" id="avisoAlmacen" style="display:none">
         Este navegador no conserva datos al cerrar la p&aacute;gina (pasa al abrir el archivo desde un USB).
@@ -529,6 +534,10 @@
 </div>
 
 <main class="chat-area" id="chatArea">
+  <div class="incognito-aviso" id="incognitoAviso" role="status" hidden>
+    <span data-i18n>🕶️ Chat de incógnito: no se guarda ni usa la memoria. Al salir se borra.</span>
+    <button type="button" class="mini-btn" id="incognitoSalir" data-i18n>Salir</button>
+  </div>
   <div class="messages" id="messages" role="log" aria-live="polite"></div>
 </main>
 

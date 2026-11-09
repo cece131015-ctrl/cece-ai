@@ -3407,6 +3407,87 @@ prueba("los .bat de Windows: saltos de Windows, sin tildes y avisan si se abren 
   cierto(/--start-fullscreen/.test(abrir) && /--app=/.test(abrir) && /--user-data-dir=/.test(abrir), "abrir-cece.bat no abre a pantalla completa con su perfil");
 });
 
+prueba("las conversaciones se guardan solas; el chat de incógnito no deja rastro y se borra al salir", async (nav) => {
+  let sistema = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: {
+      "api.deepseek.com": ({ cuerpo }) => (
+        (sistema = (cuerpo.messages.find((m) => m.role === "system") || {}).content || ""),
+        { cuerpo: respuestaOpenAI("Vale.\n<recordar>Se llama Pepe</recordar>") }
+      ),
+    },
+  });
+  const estado = () =>
+    pagina.evaluate(() => ({
+      convs: convs.map((c) => c.titulo),
+      guardado: JSON.stringify(localStorage),
+      incognito: document.body.classList.contains("incognito"),
+      aviso: !document.getElementById("incognitoAviso").hidden,
+      pulsado: document.getElementById("incognitoBtn").getAttribute("aria-pressed"),
+      memoria: Memoria.lista().map((m) => m.texto),
+      chat: document.getElementById("messages").innerText,
+    }));
+  // una conversación normal se guarda en la lista sin pulsar «Guardar», y «Limpiar» no la pierde
+  await escribirYEnviar(pagina, "primera conversación normal");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForTimeout(900);
+  let e = await estado();
+  igual(e.convs.join(), "primera conversación normal", "la conversación no se guardó sola en la lista");
+  await pagina.evaluate(() => Memoria.borrar());
+  await pagina.click("#clearBtn");
+  await pagina.waitForTimeout(700);
+  igual((await estado()).convs.length, 1, "«Limpiar» borró la conversación de la lista");
+  // incógnito: nada en la lista, ni en lo guardado, ni en la memoria (tampoco con «recuerda que…»)
+  await pagina.click("#incognitoBtn");
+  e = await estado();
+  cierto(e.incognito && e.aviso && e.pulsado === "true", "no se ve que está en incógnito: " + JSON.stringify(e));
+  await escribirYEnviar(pagina, "recuerda que mi secreto es SECRETO_INCOGNITO");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForTimeout(900);
+  e = await estado();
+  igual(e.convs.length, 1, "la conversación de incógnito se guardó en la lista");
+  cierto(!e.guardado.includes("SECRETO_INCOGNITO"), "algo del incógnito quedó guardado en el navegador");
+  igual(e.memoria.length, 0, "en incógnito se guardó algo en la memoria: " + e.memoria.join());
+  cierto(!/<recordar>|Memoria:|recuerdas del usuario/.test(sistema), "en incógnito se pide o se usa la memoria");
+  cierto(/SECRETO_INCOGNITO/.test(e.chat) && !/<recordar>/.test(e.chat), "el chat de incógnito no se ve o enseña la marca");
+  // /guardar tampoco la guarda
+  await pagina.fill("#userInput", "/guardar");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForTimeout(300);
+  igual((await estado()).convs.length, 1, "/guardar guardó el chat de incógnito");
+  // al recargar no queda nada
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.evaluate(() => document.getElementById("cece-startup")?.remove());
+  e = await estado();
+  cierto(!e.incognito && !/SECRETO_INCOGNITO/.test(e.chat) && e.convs.length === 1, "al recargar sigue el incógnito o su chat: " + JSON.stringify(e).slice(0, 300));
+  // salir abriendo otra conversación también lo borra
+  await pagina.fill("#userInput", "/incognito");
+  await pagina.press("#userInput", "Enter");
+  cierto((await estado()).incognito, "/incognito no entra en incógnito");
+  await escribirYEnviar(pagina, "otra cosa SECRETO_DOS");
+  await ultimaRespuesta(pagina);
+  await pagina.evaluate(() => cargarConversacion(convs[0].id));
+  e = await estado();
+  cierto(!e.incognito && !/SECRETO_DOS/.test(e.chat) && /primera conversación normal/.test(e.chat), "abrir otra no sale del incógnito: " + e.chat.slice(0, 200));
+  await pagina.waitForTimeout(800);
+  cierto(!(await estado()).guardado.includes("SECRETO_DOS"), "quedó rastro del segundo incógnito");
+  // fuera del incógnito vuelve la memoria automática
+  await escribirYEnviar(pagina, "ahora normal");
+  await ultimaRespuesta(pagina);
+  igual((await estado()).memoria.join(), "Se llama Pepe", "fuera del incógnito no vuelve la memoria");
+  // borrar de la lista la conversación abierta empieza otra (antes, al seguir escribiendo, volvía a aparecer)
+  pagina.on("dialog", (d) => d.accept());
+  await pagina.click("#settingsBtn");
+  await verParte(pagina, "#convList");
+  await pagina.click("#convList .conv-del");
+  await pagina.waitForTimeout(900);
+  e = await estado();
+  cierto(e.convs.length === 0 && !/primera conversación normal/.test(e.chat), "la conversación borrada sigue abierta o vuelve: " + JSON.stringify(e.convs));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
