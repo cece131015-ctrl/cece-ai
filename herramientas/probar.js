@@ -855,6 +855,152 @@ prueba("Motor Enterprise: sigue tras «pause_turn» (pausa en mitad de una búsq
   await ctx.close();
 });
 
+prueba("Motor Enterprise: modelo nuevo, asesor emparejado, pensamiento devuelto intacto y relevo si el modelo declina", async (nav) => {
+  const MODELO = "claude-fable-5-2";
+  const pedidos = [];
+  let guion = [];
+  const texto = (t) => [
+    { type: "message_start", message: { usage: { input_tokens: 5 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: t } },
+    { type: "content_block_stop", index: 0 },
+    { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } },
+  ];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk" }), {
+    almacen: { cece_ajustes: { modelo: "cece-enterprise-plus" } },
+    ia: {
+      "api.anthropic.com": ({ cuerpo, req }) => {
+        pedidos.push({ cuerpo, beta: req.headers()["anthropic-beta"] || "" });
+        const r = guion.shift() || texto("Vale.");
+        return typeof r === "function" ? r(cuerpo) : { cuerpo: sse(r) };
+      },
+    },
+  });
+  // 1) el modelo, sin parámetros que ese modelo rechaza, y el asesor con el mismo modelo (otro se rechaza con un 400)
+  await escribirYEnviar(pagina, "/asesor ¿cuánto es 2+2?");
+  await ultimaRespuesta(pagina);
+  let c = pedidos[0].cuerpo;
+  igual(c.model, MODELO, "modelo del Motor Enterprise");
+  const asesor = (c.tools || []).find((t) => t.name === "advisor");
+  cierto(asesor && asesor.model === MODELO, "el asesor no usa el mismo modelo que el motor: " + JSON.stringify(asesor));
+  cierto(!("temperature" in c) && !("top_p" in c) && !("tool_choice" in c), "manda parámetros que este modelo rechaza");
+  cierto(!c.thinking || c.thinking.type === "adaptive", "configuración de pensamiento no válida: " + JSON.stringify(c.thinking));
+  cierto(!/budget_tokens|"disabled"/.test(JSON.stringify(c.thinking || {})), "pensamiento con presupuesto o desactivado");
+  igual(c.fallbacks, "default", "no pide el relevo del proveedor");
+  cierto(/advisor-tool-2026-03-01/.test(pedidos[0].beta) && /server-side-fallback-2026-07-01/.test(pedidos[0].beta), "cabecera beta: " + pedidos[0].beta);
+  igual(await pagina.evaluate(() => PRECIOS_MODELO["claude-fable-5-2"].join("/")), "8/40", "precio del modelo");
+  // 2) turno pausado con un bloque de pensamiento: se devuelve tal cual, con el mismo sistema y las mismas herramientas
+  pedidos.length = 0;
+  guion = [
+    [
+      { type: "message_start", message: { usage: { input_tokens: 5 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Pienso en " } },
+      { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "buscarlo." } },
+      { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "FIRMA==" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "content_block_start", index: 1, content_block: { type: "server_tool_use", id: "s1", name: "web_search", input: {} } },
+      { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"query":"hoy"}' } },
+      { type: "content_block_stop", index: 1 },
+      { type: "message_delta", delta: { stop_reason: "pause_turn" }, usage: { output_tokens: 3 } },
+    ],
+    texto("Encontrado."),
+  ];
+  await escribirYEnviar(pagina, "/buscar hoy");
+  await ultimaRespuesta(pagina);
+  igual(pedidos.length, 2, "peticiones del turno pausado");
+  const eco = pedidos[1].cuerpo.messages[pedidos[1].cuerpo.messages.length - 1];
+  igual(
+    JSON.stringify(eco),
+    JSON.stringify({
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "Pienso en buscarlo.", signature: "FIRMA==" },
+        { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "hoy" } },
+      ],
+    }),
+    "el turno pausado no se devuelve tal cual",
+  );
+  igual(JSON.stringify(pedidos[1].cuerpo.system), JSON.stringify(pedidos[0].cuerpo.system), "el sistema cambió al seguir el turno");
+  igual(JSON.stringify(pedidos[1].cuerpo.tools), JSON.stringify(pedidos[0].cuerpo.tools), "las herramientas cambiaron al seguir el turno");
+  igual(
+    JSON.stringify(pedidos[1].cuerpo.messages.slice(0, -1)),
+    JSON.stringify(pedidos[0].cuerpo.messages),
+    "los mensajes anteriores cambiaron al seguir el turno",
+  );
+  // 3) el modelo declina a mitad y sigue el de reserva en el mismo flujo: se ve todo el texto y se avisa
+  guion = [
+    [
+      { type: "message_start", message: { usage: { input_tokens: 5 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Empiezo yo." } },
+      { type: "content_block_stop", index: 0 },
+      { type: "content_block_start", index: 1, content_block: { type: "fallback", from: { model: MODELO }, to: { model: "claude-opus-5" } } },
+      { type: "content_block_stop", index: 1 },
+      { type: "content_block_start", index: 2, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 2, delta: { type: "text_delta", text: "Sigo yo." } },
+      { type: "content_block_stop", index: 2 },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 6 } },
+    ],
+  ];
+  await escribirYEnviar(pagina, "otra cosa");
+  let r = await ultimaRespuesta(pagina);
+  cierto(/Empiezo yo\.\s+Sigo yo\./.test(r.texto), "no se ve el texto de los dos modelos: " + JSON.stringify(r.texto));
+  cierto(/modelo de reserva/.test(r.pie), "no avisa de que respondió el modelo de reserva: " + r.pie);
+  // 4) relevo y, después, turno pausado: de lo anterior al relevo solo vuelven el texto y las herramientas con resultado
+  pedidos.length = 0;
+  guion = [
+    [
+      { type: "message_start", message: { usage: { input_tokens: 5 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "A", signature: "SA" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "content_block_start", index: 1, content_block: { type: "text", text: "Antes." } },
+      { type: "content_block_stop", index: 1 },
+      { type: "content_block_start", index: 2, content_block: { type: "server_tool_use", id: "s9", name: "web_search", input: {} } },
+      { type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '{"query":"x"}' } },
+      { type: "content_block_stop", index: 2 },
+      { type: "content_block_start", index: 3, content_block: { type: "fallback", from: { model: MODELO }, to: { model: "claude-opus-5" } } },
+      { type: "content_block_stop", index: 3 },
+      { type: "content_block_start", index: 4, content_block: { type: "thinking", thinking: "B", signature: "SB" } },
+      { type: "content_block_stop", index: 4 },
+      { type: "content_block_start", index: 5, content_block: { type: "server_tool_use", id: "s10", name: "web_search", input: {} } },
+      { type: "content_block_delta", index: 5, delta: { type: "input_json_delta", partial_json: '{"query":"y"}' } },
+      { type: "content_block_stop", index: 5 },
+      { type: "message_delta", delta: { stop_reason: "pause_turn" }, usage: { output_tokens: 3 } },
+    ],
+    texto("Listo."),
+  ];
+  await escribirYEnviar(pagina, "/buscar algo más");
+  await ultimaRespuesta(pagina);
+  igual(
+    pedidos[1].cuerpo.messages[pedidos[1].cuerpo.messages.length - 1].content.map((b) => b.type + (b.id ? ":" + b.id : "") + (b.signature ? ":" + b.signature : "")).join(" | "),
+    "text | fallback | thinking:SB | server_tool_use:s10",
+    "lo devuelto tras un relevo",
+  );
+  // 5) si la cuenta no admite el relevo (400), se repite sin él y no se vuelve a pedir
+  pedidos.length = 0;
+  const sinRelevo = (cuerpo) =>
+    cuerpo.fallbacks
+      ? { status: 400, tipo: "application/json", cuerpo: '{"type":"error","error":{"type":"invalid_request_error","message":"fallbacks: Extra inputs are not permitted"}}' }
+      : { cuerpo: sse(texto("Sin relevo, pero respondo.")) };
+  guion = [sinRelevo, sinRelevo, sinRelevo];
+  await escribirYEnviar(pagina, "hola");
+  r = await ultimaRespuesta(pagina);
+  cierto(/Sin relevo, pero respondo/.test(r.texto), "no respondió cuando la cuenta no admite el relevo: " + r.texto + " | " + r.pie);
+  // (una sola petición de más: no se repiten todas las variantes del cuerpo con el relevo puesto)
+  igual(pedidos.map((p) => (p.cuerpo.fallbacks ? "con" : "sin")).join(), "con,sin", "peticiones cuando la cuenta no admite el relevo");
+  const ultimo = pedidos[pedidos.length - 1];
+  cierto(!("fallbacks" in ultimo.cuerpo) && !/server-side-fallback/.test(ultimo.beta), "siguió pidiendo el relevo");
+  pedidos.length = 0;
+  guion = [];
+  await escribirYEnviar(pagina, "y otra");
+  await ultimaRespuesta(pagina);
+  igual(pedidos.length, 1, "peticiones tras saber que no hay relevo");
+  cierto(!("fallbacks" in pedidos[0].cuerpo), "volvió a pedir el relevo en el mensaje siguiente");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("Cece Pro (pipeline): los archivos del equipo pasan entre pasos y llegan al final", async (nav) => {
   // Anthropic crea un archivo con un token único en sus pasos de construcción; Moonshot nunca lo reescribe. El archivo
   // tiene que llegar a algún paso posterior (incrustado en el contexto) y a la respuesta final.

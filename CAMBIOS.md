@@ -1,5 +1,21 @@
 # Informe de depuración
 
+## 9 de noviembre de 2026 — Motor Enterprise: modelo nuevo
+
+- El **Motor Enterprise** (el de Cece Enterprise Plus y una de las partes de Cece Pro) usa el modelo más nuevo de su
+  proveedor. Es **más barato**: los costes que calcula Cece pasan de 10 $/50 $ a 8 $/40 $ por millón de tokens
+  (entrada/salida).
+- El **asesor** (`/asesor`) usa siempre el mismo modelo que el motor. Con el modelo nuevo, un asesor de otro modelo se
+  rechaza con un error.
+- **Relevo si el modelo declina.** Si el modelo prefiere no responder a algo por sus filtros de seguridad, el proveedor
+  repite la petición en su modelo de reserva dentro de la misma respuesta, y Cece lo dice debajo («respondió su modelo
+  de reserva»). Si la cuenta no admite ese relevo, Cece lo nota en la primera petición, sigue sin él y no lo vuelve a
+  pedir hasta recargar. Si nadie responde, sigue pasando al siguiente motor, como antes.
+- Al seguir un turno que el proveedor dejó en pausa (búsquedas largas), Cece devuelve lo recibido **tal cual**, con el
+  mismo sistema y las mismas herramientas: el modelo nuevo lo comprueba en todas las cuentas. Tras un relevo, de lo
+  anterior solo se devuelve lo que el proveedor admite.
+- Prueba nueva con todo lo anterior.
+
 ## 9 de noviembre de 2026 — cualquier archivo, guardado solo, incógnito, Lab 3D y preguntas
 
 - **📎 Cualquier archivo.** Antes solo imágenes, PDF, Office y texto. Ahora vale todo. Los `.zip`, `.tar`, `.tar.gz`,

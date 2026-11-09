@@ -243,7 +243,7 @@ const PROVEEDORES = {
     tipo: "chat",
     fmt: "anthropic",
     base: "https://api.anthropic.com/v1",
-    modelos: ["claude-fable-5-1"],
+    modelos: ["claude-fable-5-2"],
     h: ["buscar", "leer", "codigo", "asesor"],
     vista: !0,
     pdf: !0,
@@ -345,7 +345,7 @@ const capacidad = (e, t) => {
   PROV_CHAT = Object.keys(PROVEEDORES).filter((e) => "chat" === PROVEEDORES[e].tipo),
   nombreProv = (e) => (PROVEEDORES[e] && PROVEEDORES[e].nombre) || e,
   NOMBRE_MODELO = {
-    "claude-fable-5-1": "Motor Enterprise",
+    "claude-fable-5-2": "Motor Enterprise",
     "gpt-6-astra": "Motor Astra",
     "gpt-6.1": "Motor Sol",
     "kimi-k3.1-pro": "Motor Max",
@@ -362,7 +362,7 @@ const capacidad = (e, t) => {
     return o >= 1 && o <= 5 && ((t >= 1 && t < 4) || (t >= 6 && t < 10));
   },
   PRECIOS_MODELO = {
-    "claude-fable-5-1": [10, 50],
+    "claude-fable-5-2": [8, 40],
     "gpt-6-astra": [10, 50],
     "gpt-6.1": [10, 50],
     "kimi-k3.1-pro": [3, 15],
@@ -383,7 +383,7 @@ const capacidad = (e, t) => {
       code: !0,
       pro: !0,
       motores: [
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "gemini:gemini-4-argon",
         "openai:gpt-6-astra",
         "moonshot:kimi-k3.1-pro",
@@ -397,7 +397,7 @@ const capacidad = (e, t) => {
       color: "#ffc46b",
       neon: "#ffb000",
       motores: [
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "moonshot:kimi-k3.1-pro",
         "openai:gpt-6-astra",
         "deepseek:deepseek-flash",
@@ -414,7 +414,7 @@ const capacidad = (e, t) => {
       insignia: ["badge-argon", "⚛️ Argon"],
       motores: [
         "gemini:gemini-4-argon",
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "openai:gpt-6-astra",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
@@ -429,7 +429,7 @@ const capacidad = (e, t) => {
       neon: "#3d8bff",
       motores: [
         "openai:gpt-6-astra",
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
@@ -444,7 +444,7 @@ const capacidad = (e, t) => {
       insignia: ["badge-new", "☀️ Sol"],
       motores: [
         "openai:gpt-6.1",
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "openai:gpt-6-astra",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
@@ -473,7 +473,7 @@ const capacidad = (e, t) => {
       code: !0,
       motores: [
         "moonshot:kimi-k3.1-pro",
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "openai:gpt-6-astra",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
@@ -489,7 +489,7 @@ const capacidad = (e, t) => {
       codePrompt: !0,
       motores: [
         "moonshot:kimi-k2.7-code",
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "openai:gpt-6-astra",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
@@ -506,7 +506,7 @@ const capacidad = (e, t) => {
         "deepseek:deepseek-flash",
         "moonshot:kimi-k3.1-pro",
         "openai:gpt-6-astra",
-        "anthropic:claude-fable-5-1",
+        "anthropic:claude-fable-5-2",
         "groq:openai/gpt-oss-120b",
       ],
     },
@@ -1437,7 +1437,7 @@ const RE_MARCAS =
     /\b(?:anthropic|claude[\w.\-]*|openai|chatgpt|gpt[\w.\-]*|kimi[\w.\-]*|moonshot(?:\.ai)?|deepseek[\w.\-]*|gemini[\w.\-]*|google(?:apis)?|groq|elevenlabs|whisper[\w.\-]*|orpheus[\w.\-]*|pollinations)\b/gi,
   sinMarcas = (e) => String(null == e ? "" : e).replace(RE_MARCAS, "Cece"),
   VIA_ANTES = [
-    [/Claude Fable 5\.1|\bClaude\b/g, "Motor Enterprise"],
+    [/Claude Fable 5(?:\.\d)?|\bClaude\b/g, "Motor Enterprise"],
     [/GPT-6 Astra/g, "Motor Astra"],
     [/ChatGPT · [^+]*|Pollinations \(gratis\)/g, (e) => (/^Poll/.test(e) ? "Cece Imagen (gratis)" : "Cece Imagen")],
     [/\bChatGPT\b/g, "Motor Astra"],
@@ -1619,6 +1619,8 @@ async function postJSON(e, t, o, a, n, r, i = {}) {
       }
     }
     if ((400 !== u.status && 422 !== u.status) || "modelo no disponible" === l.corto || errorDeCuenta(l)) throw l;
+    // (un error que quien llama sabe arreglar de otra forma: no se prueban las demás variantes del cuerpo)
+    if (i.cortarSi && i.cortarSi(m)) throw l;
     if (RE_ADJUNTO.test(m)) throw ((l.corto = "adjunto no válido"), l);
     RE_PARAM.test(m) || (d = !1);
   }
@@ -2265,9 +2267,34 @@ const CLAUDE_H = {
       },
     ],
     codigo: [{ type: "code_execution_20260521", name: "code_execution" }],
-    asesor: [{ type: "advisor_20260301", name: "advisor", model: "claude-fable-5-1", max_uses: 2 }],
+    // (el asesor tiene que ser al menos tan capaz como el motor que le consulta: siempre el modelo principal del
+    // proveedor, el mismo de la lista de arriba, para que no se queden desparejados al cambiar de modelo)
+    asesor: [{ type: "advisor_20260301", name: "advisor", model: PROVEEDORES.anthropic.modelos[0], max_uses: 2 }],
   },
-  BETA_ASESOR = "advisor-tool-2026-03-01";
+  BETA_ASESOR = "advisor-tool-2026-03-01",
+  // Relevo del proveedor: si el modelo declina una petición por sus filtros de seguridad, la API la repite dentro de la
+  // misma llamada en el modelo de reserva que recomienda (la respuesta sigue en el mismo flujo).
+  BETA_RELEVO = "server-side-fallback-2026-07-01";
+// (si la cuenta no admite el relevo, se deja de pedir hasta recargar la página)
+let claudeSinRelevo = !1;
+// Lo que se devuelve al seguir un turno pausado: los bloques tal como llegaron. Si a mitad de respuesta tomó el relevo
+// otro modelo (bloque «fallback»), de lo de antes del relevo solo se devuelven el texto y las herramientas del
+// servidor que tienen su resultado; el bloque «fallback» se queda en su sitio.
+function ecoClaude(e) {
+  const t = e.filter(Boolean),
+    o = t.map((e) => e.type).lastIndexOf("fallback");
+  if (o < 0) return t;
+  const usos = new Set(t.filter((e) => "server_tool_use" === e.type).map((e) => e.id)),
+    resultados = new Set(t.filter((e) => /_tool_result$/.test(e.type)).map((e) => e.tool_use_id));
+  return t.filter(
+    (e, t) =>
+      t >= o ||
+      "text" === e.type ||
+      "fallback" === e.type ||
+      ("server_tool_use" === e.type && resultados.has(e.id)) ||
+      (/_tool_result$/.test(e.type) && usos.has(e.tool_use_id)),
+  );
+}
 async function chatClaude(e, t) {
   const o = t.h || new Set(),
     a = ESF[t.esf] || ESF.medio,
@@ -2304,16 +2331,28 @@ async function chatClaude(e, t) {
     g = "";
   const v = nuevasFuentes(),
     act = (e) => t.onActividad && t.onActividad(e);
+  const pedir = async (a) => {
+    const conRelevo = !claudeSinRelevo;
+    try {
+      return await postJSON(
+        e,
+        baseDe("anthropic") + "/messages",
+        cuerpos().map((e) => ponerSistema(conRelevo ? { ...e, fallbacks: "default" } : e, t)),
+        headersClaude([o.has("asesor") && BETA_ASESOR, conRelevo && BETA_RELEVO].filter(Boolean).join(",")),
+        t.signal,
+        t.modelo,
+        { recordar: !a, cortarSi: conRelevo ? (e) => /fallback/i.test(e) : null },
+      );
+    } catch (e) {
+      // (la cuenta o la versión de la API no admiten el relevo: se repite sin él y no se vuelve a pedir)
+      if (!conRelevo || !(e instanceof ErrorApi) || (400 !== e.status && 422 !== e.status) || !/fallback/i.test(e.message || ""))
+        throw e;
+      return ((claudeSinRelevo = !0), pedir(a));
+    }
+  };
+  let relevo = !1;
   for (let a = 0; a < 5; a++) {
-    const n = await postJSON(
-      e,
-      baseDe("anthropic") + "/messages",
-      cuerpos().map((e) => ponerSistema(e, t)),
-      headersClaude(o.has("asesor") ? BETA_ASESOR : ""),
-      t.signal,
-      t.modelo,
-      { recordar: !a },
-    );
+    const n = await pedir(a);
     a || (m = herramientasDelCuerpo(n.cuerpo));
     const i = [];
     u = null;
@@ -2347,6 +2386,7 @@ async function chatClaude(e, t) {
                 ((c += "\n\n"), t.onTexto && t.onTexto("\n\n")),
               (g = e.type),
               (i[n.index] = e),
+              "fallback" === e.type && (relevo = !0),
               /_tool_result$/.test(e.type))
             ) {
               const o = e.content;
@@ -2433,7 +2473,7 @@ async function chatClaude(e, t) {
       "pause_turn" !== u)
     )
       break;
-    r.push({ role: "assistant", content: i.filter(Boolean) });
+    r.push({ role: "assistant", content: ecoClaude(i) });
   }
   return {
     texto: c,
@@ -2442,6 +2482,7 @@ async function chatClaude(e, t) {
     fin: u,
     fuentes: v.lista,
     usadas: m,
+    relevo,
     cortado:
       "max_tokens" === u || "model_context_window_exceeded" === u
         ? "tokens"
@@ -3784,7 +3825,7 @@ async function ejecutarSimple(e, t, o = {}) {
       via: etiquetaMotor(u.motor),
       tokens: e.tokens,
       tps: e.tps,
-      avisos: s.concat(avisosFaltan(u), avisoCorte(u), avisoSinVer(u)),
+      avisos: s.concat(avisosFaltan(u), avisoCorte(u), avisoRelevo(u), avisoSinVer(u)),
       texto: u.texto,
     }),
       notaMemoria(a, mem),
@@ -3808,6 +3849,7 @@ const avisoCorte = (e) =>
               : "proveedor" === e.cortado
                 ? ["✂️ el proveedor cortó la respuesta antes de terminar: vuelve a pedirla"]
                 : [],
+  avisoRelevo = (e) => (e && e.relevo ? ["🔁 el motor prefirió no seguir y respondió su modelo de reserva"] : []),
   avisoSinVer = (e) =>
     e && e.sinVer && e.sinVer.length ? [`📎 ${etiquetaMotor(e.motor)} no pudo abrir: ${e.sinVer.join(", ")}`] : [];
 // Sin ninguna clave en el bloque de configuración: solo «Error HTTP 401», sin más explicación (la explicación está en
