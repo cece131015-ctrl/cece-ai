@@ -1558,6 +1558,143 @@ async function adjuntar(pagina, nombre, buffer) {
   return { ...r, ms: Date.now() - t0 };
 }
 
+// .tar con nombres largos (más de 100 letras van en una entrada «L» aparte, como hace GNU tar)
+function tarDe(archivos) {
+  const cab = (nombre, tam, tipo) => {
+    const h = Buffer.alloc(512);
+    h.write(nombre.slice(0, 99), 0);
+    h.write("0000644\0", 100);
+    h.write("0000000\0", 108);
+    h.write("0000000\0", 116);
+    h.write(tam.toString(8).padStart(11, "0") + "\0", 124);
+    h.write("00000000000\0", 136);
+    h.write("        ", 148);
+    h.write(tipo, 156);
+    h.write("ustar\0", 257);
+    h.write("00", 263);
+    let suma = 0;
+    for (const b of h) suma += b;
+    h.write(suma.toString(8).padStart(6, "0") + "\0 ", 148);
+    return h;
+  };
+  const relleno = (n) => Buffer.alloc((512 - (n % 512)) % 512);
+  const partes = [];
+  for (const [nombre, contenido] of Object.entries(archivos)) {
+    if (nombre.length > 99) {
+      const n = Buffer.from(nombre + "\0");
+      partes.push(cab("././@LongLink", n.length, "L"), n, relleno(n.length));
+    }
+    const datos = Buffer.from(contenido);
+    partes.push(cab(nombre, datos.length, nombre.endsWith("/") ? "5" : "0"), datos, relleno(datos.length));
+  }
+  partes.push(Buffer.alloc(1024));
+  return Buffer.concat(partes);
+}
+// Imagen de disco ISO 9660 mínima: «LEEME.TXT» en la raíz y «DOCS/GUIA.MD»
+function isoDe(leeme, guia) {
+  const S = 2048,
+    iso = Buffer.alloc(22 * S);
+  const rec = (nombre, lba, tam, carpeta) => {
+    const n = Buffer.isBuffer(nombre) ? nombre : Buffer.from(nombre, "latin1");
+    const r = Buffer.alloc(33 + n.length + (n.length % 2 ? 0 : 1));
+    r[0] = r.length;
+    r.writeUInt32LE(lba, 2);
+    r.writeUInt32BE(lba, 6);
+    r.writeUInt32LE(tam, 10);
+    r.writeUInt32BE(tam, 14);
+    r[25] = carpeta ? 2 : 0;
+    r.writeUInt16LE(1, 28);
+    r[32] = n.length;
+    n.copy(r, 33);
+    return r;
+  };
+  const yo = Buffer.from([0]),
+    padre = Buffer.from([1]);
+  iso[16 * S] = 1;
+  iso.write("CD001", 16 * S + 1);
+  iso[16 * S + 6] = 1;
+  rec(yo, 18, S, true).copy(iso, 16 * S + 156);
+  iso[17 * S] = 255;
+  iso.write("CD001", 17 * S + 1);
+  Buffer.concat([rec(yo, 18, S, true), rec(padre, 18, S, true), rec("LEEME.TXT;1", 20, Buffer.byteLength(leeme), false), rec("DOCS", 19, S, true)]).copy(iso, 18 * S);
+  Buffer.concat([rec(yo, 19, S, true), rec(padre, 18, S, true), rec("GUIA.MD;1", 21, Buffer.byteLength(guia), false)]).copy(iso, 19 * S);
+  iso.write(leeme, 20 * S);
+  iso.write(guia, 21 * S);
+  return iso;
+}
+
+prueba("adjuntar cualquier archivo: .zip, .tar, .tar.gz, .gz, .iso, programas, .7z, HEIC y textos enormes", async (nav) => {
+  const zlib = require("zlib");
+  let enviado = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": ({ cuerpo }) => ((enviado = JSON.stringify(cuerpo.messages)), { cuerpo: respuestaOpenAI("Visto.") }) },
+  });
+  const leer = async (nombre, buffer, tipo = "application/octet-stream") => {
+    await pagina.evaluate(() => Adjuntos.lista.splice(0));
+    await pagina.setInputFiles("#adjInput", [{ name: nombre, mimeType: tipo, buffer }]);
+    await pagina.waitForFunction(() => !Adjuntos.ocupado, null, { timeout: 30000 });
+    return pagina.evaluate(() => {
+      const a = Adjuntos.lista[0];
+      return a ? { tipo: a.tipo, origen: a.origen, texto: a.texto, recortado: !!a.recortado, ico: document.querySelector("#adjBandeja .adj-ico")?.textContent } : null;
+    });
+  };
+  // .zip: la lista, el README primero, un .docx de dentro leído y node_modules sin abrir
+  const zip = zipDe({
+    "src/main.py": "print('hola desde main')",
+    "README.md": "# Mi proyecto\nLéeme primero",
+    "docs/contrato.docx": docx(parrafo(run("Precio 120 euros"))),
+    "node_modules/lib/index.js": "SECRETO_DE_NODE_MODULES",
+    "logo.png": Buffer.from([137, 80, 78, 71, 0, 0, 0]),
+  });
+  let r = await leer("proyecto.zip", zip, "application/zip");
+  cierto(r && r.tipo === "texto" && r.origen === "zip", "el .zip no se adjuntó: " + JSON.stringify(r));
+  cierto(/ZIP «proyecto\.zip»: 5 archivo\(s\) en 4 carpeta\(s\)/.test(r.texto), "la cabecera del .zip: " + r.texto.split("\n")[0]);
+  cierto(/^src\/main\.py · /m.test(r.texto) && /^logo\.png · /m.test(r.texto), "falta la lista de archivos");
+  cierto(r.texto.indexOf("=== README.md ===") > 0 && r.texto.indexOf("=== README.md ===") < r.texto.indexOf("=== src/main.py ==="), "el README no va primero");
+  cierto(/=== docs\/contrato\.docx ===\nPrecio 120 euros/.test(r.texto), "no lee el .docx de dentro");
+  cierto(!/SECRETO_DE_NODE_MODULES/.test(r.texto) && /node_modules\/lib\/index\.js · /.test(r.texto), "abre node_modules o no lo lista");
+  igual(r.ico, "🗜️", "icono del .zip");
+  // y le llega a la IA
+  await escribirYEnviar(pagina, "¿qué hay aquí?");
+  await ultimaRespuesta(pagina);
+  cierto(/print\('hola desde main'\)/.test(enviado) && /proyecto\.zip/.test(enviado), "el contenido del .zip no llegó a la IA");
+  // .tar (con un nombre de más de 100 letras), .tar.gz y .gz de un solo archivo
+  const largo = "carpeta/" + "x".repeat(110) + ".txt";
+  const tar = tarDe({ "app/": "", "app/index.js": "console.log('tar')", [largo]: "nombre largo" });
+  r = await leer("copia.tar", tar);
+  cierto(r.origen === "tar" && /=== app\/index\.js ===\nconsole\.log\('tar'\)/.test(r.texto) && r.texto.includes("=== " + largo + " ===\nnombre largo"), "el .tar: " + r.texto.slice(0, 300));
+  r = await leer("copia.tar.gz", zlib.gzipSync(tar));
+  cierto(r.origen === "gz" && /^TAR comprimido «copia\.tar\.gz»/.test(r.texto) && /console\.log\('tar'\)/.test(r.texto), "el .tar.gz: " + r.texto.slice(0, 200));
+  r = await leer("app.log.gz", zlib.gzipSync("ERROR: algo falló a las 3"));
+  cierto(/dentro va «app\.log»/.test(r.texto) && /algo falló a las 3/.test(r.texto), "el .gz: " + r.texto);
+  // .iso: carpetas y archivos de texto
+  r = await leer("disco.iso", isoDe("Instrucciones del disco", "# Guía del disco"));
+  cierto(r.origen === "iso" && /^Imagen de disco ISO «disco\.iso»: 2 archivo\(s\) en 1 carpeta\(s\)/.test(r.texto), "el .iso: " + r.texto.split("\n")[0]);
+  cierto(/=== LEEME\.TXT ===\nInstrucciones del disco/.test(r.texto) && /=== DOCS\/GUIA\.MD ===\n# Guía del disco/.test(r.texto), "no lee lo de dentro del .iso: " + r.texto);
+  igual(r.ico, "💿", "icono del .iso");
+  // binarios: qué son, el principio y lo legible (nada se ejecuta)
+  const exe = Buffer.concat([Buffer.from("MZ\x90\0\x03\0\0\0", "latin1"), Buffer.alloc(56), Buffer.from("This program cannot be run in DOS mode."), Buffer.alloc(200)]);
+  r = await leer("instalador.exe", exe);
+  cierto(r.origen === "bin" && /programa de Windows/.test(r.texto) && /4D 5A 90 00/.test(r.texto) && /This program cannot be run in DOS mode/.test(r.texto), "el .exe: " + r.texto);
+  r = await leer("fotos.7z", Buffer.concat([Buffer.from([55, 122, 188, 175, 39, 28, 0, 4]), Buffer.alloc(100)]));
+  cierto(/7-Zip/.test(r.texto) && /pasa?s a \.zip/.test(r.texto), "el .7z: " + r.texto);
+  r = await leer("foto.heic", Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypheic"), Buffer.alloc(40)]), "image/heic");
+  cierto(/foto HEIC/.test(r.texto) && /JPG/.test(r.texto), "la foto HEIC: " + JSON.stringify(r));
+  r = await leer("video.mp4", Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.alloc(40)]), "video/mp4");
+  cierto(/vídeo MP4/.test(r.texto), "el .mp4: " + r.texto);
+  // texto con una extensión desconocida, y uno enorme (antes: «pasa de 5 MB») sin romper las tildes al cortar
+  r = await leer("info.nfo", Buffer.from("Hola desde un archivo .nfo con tildes: canción"));
+  igual(r.texto, "Hola desde un archivo .nfo con tildes: canción", "el .nfo");
+  r = await leer("enorme.log", Buffer.from("canción ñandú\n".repeat(450000)), "text/plain");
+  cierto(r.recortado && r.texto.startsWith("canción ñandú\n") && !/Ã/.test(r.texto.slice(0, 1000)), "el .log enorme: " + JSON.stringify(r.texto.slice(0, 60)));
+  // un .zip dañado no rompe nada: va como binario diciendo por qué
+  r = await leer("roto.zip", Buffer.from("PK\x03\x04 no hay más", "latin1"));
+  cierto(r.origen === "bin" && /no es un ZIP válido/.test(r.texto), "el .zip roto: " + r.texto);
+  igual(await pagina.evaluate(() => document.getElementById("adjInput").getAttribute("accept")), null, "el selector de archivos sigue limitando los tipos");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("Word, Excel y PowerPoint: control de cambios, hojas de gráfico y archivos que congelaban", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
   // control de cambios: lo borrado y lo movido de sitio no es parte del documento
@@ -2714,7 +2851,7 @@ prueba("idioma de la app: también los títulos al pasar el ratón y las etiquet
   const en = await leer();
   igual(en.live, "Cece Live: voice conversation", "título de LIVE");
   igual(en.maxi, "All models at 100%", "título de 100 %");
-  cierto(/^Attach files: images/.test(en.adjuntar), "título de adjuntar: " + en.adjuntar);
+  cierto(/^Attach files of any kind/.test(en.adjuntar), "título de adjuntar: " + en.adjuntar);
   igual(en.cerrar, "Close", "etiqueta de Cerrar");
   igual(en.mensaje, "Message", "etiqueta del cuadro de texto");
   igual(en.sinTraducir.length, 0, "títulos o etiquetas sin traducir: " + en.sinTraducir.join(" | "));
