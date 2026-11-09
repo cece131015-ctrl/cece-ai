@@ -74,10 +74,20 @@ abriendo el archivo normal. Para pasarlas de un sitio a otro: Configuración →
   Configuración → 🤖 IA y respuestas → «Enviar mensajes con».
 - **Ctrl+Enter** mientras Cece responde deja tu mensaje **en cola**: sale solo cuando termina.
 - **⏹** para la respuesta.
-- **📎** adjunta imágenes, PDF, documentos de Word, Excel y PowerPoint, código o texto. También se pueden arrastrar o
-  pegar.
+- **📎** adjunta **cualquier archivo**: imágenes, PDF, Word, Excel, PowerPoint, código, texto, `.zip`, `.tar`, `.tar.gz`,
+  `.iso`… También se pueden arrastrar o pegar. De los comprimidos y las imágenes de disco, Cece lee la lista de archivos
+  y el texto de los que son de texto, sin abrir ni ejecutar nada. De los demás (programas, vídeos, `.7z`…) le dice a la
+  IA qué tipo de archivo es.
 - Selecciona un trozo de la conversación y pulsa **«💬 Mencionar en el chat»** para citarlo en tu próximo mensaje.
 - Debajo de cada respuesta tienes **📋 Copiar** y **🔊 Leer**. El código tiene su botón **Ver** para probar webs y juegos.
+- **❓ Cece pregunta sus dudas:** si mientras programa algo importante no está claro, te lo pregunta con botones. Pulsa
+  uno o escribe tu respuesta y sigue con el trabajo. Se apaga en Configuración → 🤖 IA y respuestas.
+
+### Chat de incógnito 🕶️
+
+Pulsa **🕶️** arriba (o escribe `/incognito`). Ese chat **no se guarda** en ningún sitio (ni en la lista, ni en la nube,
+ni en la carpeta) y Cece no usa ni apunta nada en su memoria. **Al salir se borra**: con «Salir», con «Limpiar», al abrir
+otra conversación, al cambiar de perfil o al cerrar o recargar la página.
 
 ### Elegir el modelo
 
@@ -109,7 +119,8 @@ Escribe **/** al principio del mensaje y sale la lista. Los más útiles:
 | Comando | Qué hace |
 | --- | --- |
 | `/crear` | Te programa una app completa en un solo archivo |
-| `/html`, `/2d-game`, `/3d-game` | Una página web, un juego 2D o un juego 3D |
+| `/html`, `/2d-game`, `/3d-game` | Una página web, un juego 2D o un juego 3D. El 3D, en **Unity**, **Unreal** o **web** (HTML, JS y CSS): si no lo dices, te pregunta |
+| `/lab3d` | **Lab 3D:** describe un modelo («una casita con un árbol») y Cece lo enseña en 3D y te da el `.obj` y su `.mtl` para Blender, Unity o Unreal |
 | `/backend`, `/api`, `/bd`, `/sql` | Servidor, API, base de datos o consulta SQL |
 | `/react`, `/extension`, `/bot`, `/cli` | Interfaz con React, extensión de Chrome, bot, programa de terminal |
 | `/depurar`, `/tests`, `/docs`, `/explicar` | Arreglar, probar, documentar o explicar código (el tuyo o el último del chat) |
@@ -120,7 +131,7 @@ Escribe **/** al principio del mensaje y sale la lista. Los más útiles:
 | `/recordar`, `/olvidar` | La memoria de Cece |
 | `/perfil` | Ver o cambiar de perfil |
 | `/github` | El panel de GitHub |
-| `/nuevo`, `/guardar`, `/exportar` | Conversación nueva, guardarla o descargarla |
+| `/nuevo`, `/incognito`, `/exportar` | Conversación nueva, chat de incógnito o descargar la conversación |
 | `/ayuda` | Todos los comandos |
 
 ---
@@ -142,12 +153,16 @@ Escribe **/** al principio del mensaje y sale la lista. Los más útiles:
 
 ## 5. Tus conversaciones
 
-- Se guardan **solas en este navegador**. En 💬 Conversaciones puedes buscarlas, abrirlas, exportarlas (.json o .md)
-  e importarlas en otro ordenador.
+- Se guardan **solas** en este navegador a cada mensaje: no hace falta guardarlas ni descargarlas. «Limpiar» empieza
+  otra sin perder la anterior. En 💬 Conversaciones puedes buscarlas, abrirlas, borrarlas, exportarlas (.json o .md) e
+  importarlas en otro ordenador. Las de incógnito no se guardan.
+- **📁 Archivos que crea Cece:** en 💬 Conversaciones, elige una carpeta una vez (Chrome o Edge) y el código, las
+  imágenes y los modelos 3D se guardan ahí solos, sin descargar nada. Al volver a abrir Cece, la carpeta se reconecta
+  con tu primer clic (con «Permitir siempre», ni pregunta).
 - **☁️ Nube (opcional):** sincroniza conversaciones, plugins y aspecto entre tus equipos, cifrado con tu frase
   secreta, en un Gist privado de tu cuenta de GitHub. Necesita los huecos `nube_token` y `nube`. Se activa en ☁️ Nube.
-- Si abres el archivo desde un USB, algunos navegadores no guardan nada al cerrar: Cece te avisa y descarga una copia
-  de lo que guardes.
+- Si abres el archivo desde un USB, algunos navegadores no guardan nada al cerrar: Cece te avisa. Elige la carpeta de
+  «📁 Archivos que crea Cece» y las conversaciones se guardan ahí solas y vuelven al conectarla.
 
 ## 6. Sin internet
 

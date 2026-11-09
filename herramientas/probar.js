@@ -3046,7 +3046,7 @@ prueba("configuración por partes: cada pestaña enseña lo suyo, no se pierde n
     general: ["🌍 General", "Pantalla"],
     ia: ["🎙️ Cece Live", "Modo de esfuerzo", "✍️ Cómo responde Cece", "🧠 Memoria", "Respuesta", "Límite de velocidad", "🌐 Internet", "🎨 Imágenes"],
     apariencia: ["🎨 Apariencia", "Emojis"],
-    convs: ["Conversaciones", "Código generado"],
+    convs: ["Conversaciones", "📁 Archivos que crea Cece"],
     plugins: ["🧩 Plugins"],
     offline: ["📴 Sin conexión"],
     nube: ["☁️ Nube"],

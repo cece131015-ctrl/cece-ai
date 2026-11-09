@@ -9711,8 +9711,11 @@ const Lab3D = (() => {
       }
       g.putImageData(img, 0, 0);
     }
-    // Gira solo mientras se ve y nadie lo toca; si no, solo se pinta cuando cambia (no gasta nada)
-    const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Gira solo mientras se ve y nadie lo toca; si no, solo se pinta cuando cambia (no gasta nada). Un modelo muy grande
+    // no gira solo: pintarlo sin parar congelaba la página.
+    const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches || tris.length > 3e4;
+    let pedido = !1;
+    const pedirDibujo = () => pedido || ((pedido = !0), requestAnimationFrame(() => ((pedido = !1), dibujar())));
     let enPantalla = !0,
       girando = !1;
     function bucle() {
@@ -9732,13 +9735,13 @@ const Lab3D = (() => {
           ((st.yaw += 0.01 * (e.clientX - st.arr[0])),
           (st.pitch = Math.max(-1.5, Math.min(1.5, st.pitch + 0.01 * (e.clientY - st.arr[1])))),
           (st.arr = [e.clientX, e.clientY]),
-          dibujar());
+          pedirDibujo());
       }),
       cv.addEventListener("pointerup", () => (st.arr = null)),
       cv.addEventListener(
         "wheel",
         (e) => {
-          (e.preventDefault(), (st.zoom = Math.max(0.3, Math.min(5, st.zoom * (e.deltaY < 0 ? 1.1 : 0.9)))), (st.solo = !1), dibujar());
+          (e.preventDefault(), (st.zoom = Math.max(0.3, Math.min(5, st.zoom * (e.deltaY < 0 ? 1.1 : 0.9)))), (st.solo = !1), pedirDibujo());
         },
         { passive: !1 },
       ),

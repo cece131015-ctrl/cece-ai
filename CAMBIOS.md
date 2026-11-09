@@ -1,5 +1,32 @@
 # Informe de depuración
 
+## 9 de noviembre de 2026 — cualquier archivo, guardado solo, incógnito, Lab 3D y preguntas
+
+- **📎 Cualquier archivo.** Antes solo imágenes, PDF, Office y texto. Ahora vale todo. Los `.zip`, `.tar`, `.tar.gz`,
+  `.gz` y `.iso` se leen por trozos, sin cargarlos enteros: Cece le pasa a la IA la lista de archivos y el texto de los
+  de texto (README primero, sin `node_modules`, y también Word/Excel/PowerPoint de dentro). No abre, no instala y no
+  ejecuta nada. De los demás (programas, vídeos, `.7z`, `.rar`, fotos HEIC…) dice qué son, su tamaño y lo legible que
+  llevan. Un texto enorme ya no se rechaza: se lee el principio sin romper las tildes.
+- **Las conversaciones se guardan solas** en la lista a cada mensaje. Antes, sin pulsar «Guardar», «Limpiar» las
+  perdía. Se puede apagar. Borrar de la lista la conversación abierta empieza otra; antes, al seguir escribiendo,
+  volvía a aparecer.
+- **🕶️ Chat de incógnito** (botón o `/incognito`). No se guarda en la lista, ni para cuando vuelvas, ni en la nube, ni
+  en la carpeta, y no usa ni apunta memoria (tampoco con «recuerda que…»). Al salir, abrir otra conversación o
+  recargar, se borra con los archivos que creó.
+- **📁 Lo que crea Cece se guarda solo, sin descargar.** Con una carpeta elegida (Chrome o Edge) van solos el código,
+  las imágenes (`imagenes/`) y los modelos 3D (`modelos-3d/`). La carpeta de la última vez se reconecta con el primer
+  clic, sin pulsar «Reconectar», y lo creado antes de conectarla se guarda al conectarla. Si el navegador no conserva
+  datos (USB), las conversaciones van a la carpeta y vuelven al conectarla, en vez de descargarse. Tras recargar, el
+  código de la conversación vuelve a la lista de «Descargar todo».
+- **🧪 Lab 3D** (`/lab3d`). La IA describe el modelo con piezas (caja, esfera, cilindro, cono, toro, pirámide, plano).
+  Cece construye la malla con las caras hacia fuera, hace el `.obj` y su `.mtl` (un material por color) y lo enseña en
+  3D: se gira arrastrando y se acerca con la rueda. Un bloque `obj` escrito tal cual también se ve.
+- **❓ Cece pregunta sus dudas mientras programa.** Si algo importante no está claro, termina con una pregunta con
+  botones, y lo que eliges (o escribes) le llega como respuesta. Se apaga en 🤖 IA y respuestas.
+- **🧊 `/3d-game` en Unity, Unreal o web.** Si no lo dices, Cece pregunta antes de gastar nada. Unity da C# y los
+  pasos en el editor. Unreal da C++, Blueprints y los pasos. Web da HTML, JS y CSS con Three.js, que se prueba con «Ver».
+- Cada cosa tiene su prueba (93 en total).
+
 ## 9 de noviembre de 2026 — «Error HTTP 401» y repaso general
 
 - **Sin ninguna clave**, el chat y Cece Live solo dicen **«Error HTTP 401»**, sin más explicación. Lo que hay que hacer
