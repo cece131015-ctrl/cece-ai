@@ -3488,6 +3488,119 @@ prueba("las conversaciones se guardan solas; el chat de incógnito no deja rastr
   await ctx.close();
 });
 
+// Carpeta simulada para el guardado automático (File System Access): lo escrito queda en window.__carpeta
+const INIT_CARPETA = () => {
+  const archivos = new Map();
+  window.__carpeta = archivos;
+  const dir = (ruta) => ({
+    kind: "directory",
+    name: ruta.split("/").pop(),
+    async getDirectoryHandle(n) {
+      return dir(ruta + "/" + n);
+    },
+    async getFileHandle(n) {
+      const r = (ruta + "/" + n).replace(/^MiCarpeta\//, "");
+      return {
+        kind: "file",
+        name: n,
+        async createWritable() {
+          const partes = [];
+          return {
+            async write(d) {
+              partes.push(d);
+            },
+            async close() {
+              const b = new Blob(partes);
+              archivos.set(r, b.type.startsWith("image/") || /\.png$/.test(r) ? "bytes:" + b.size : await b.text());
+            },
+          };
+        },
+        async getFile() {
+          return new File([archivos.get(r) || ""], n);
+        },
+      };
+    },
+    async *entries() {
+      const pre = ruta.replace(/^MiCarpeta\/?/, "");
+      for (const k of [...archivos.keys()])
+        if (k.startsWith(pre + "/") && !k.slice(pre.length + 1).includes("/")) yield [k.slice(pre.length + 1), await this.getFileHandle(k.slice(pre.length + 1))];
+    },
+    async queryPermission() {
+      return "granted";
+    },
+    async requestPermission() {
+      window.__permisoPedido = (window.__permisoPedido || 0) + 1;
+      return "granted";
+    },
+  });
+  window.showDirectoryPicker = async () => dir("MiCarpeta");
+};
+
+prueba("lo que crea Cece se guarda solo en la carpeta: código, imágenes y, sin almacenamiento, las conversaciones", async (nav) => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const resp = ["Aquí está:\n\n```python app.py\nprint('uno')\n```", "Y el juego:\n\n```javascript juego.js\nconsole.log('juego')\n```", "En incógnito:\n\n```python secreto.py\nprint('NO_A_LA_CARPETA')\n```"];
+  let n = 0;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    init: INIT_CARPETA,
+    ia: {
+      "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI(resp[n++] || "Vale.") }),
+      "image.pollinations.ai": () => ({ tipo: "image/png", cuerpo: png }),
+    },
+  });
+  const carpeta = () => pagina.evaluate(() => Object.fromEntries(window.__carpeta));
+  // sin carpeta: se dice una vez cómo hacer que se guarde solo
+  await escribirYEnviar(pagina, "hazme app.py");
+  await ultimaRespuesta(pagina);
+  cierto(/se guarde solo, sin descargar/.test(await pagina.textContent("#toast")), "no se aconseja elegir la carpeta");
+  // al elegir la carpeta se guarda lo de antes, y lo nuevo va solo, sin pulsar nada
+  await pagina.click("#settingsBtn");
+  await verParte(pagina, "#elegirCarpeta");
+  await pagina.click("#elegirCarpeta");
+  await pagina.waitForFunction(() => window.__carpeta.size > 0);
+  await pagina.click("#closeSettings");
+  await escribirYEnviar(pagina, "ahora juego.js");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForTimeout(300);
+  let c = await carpeta();
+  cierto(Object.entries(c).some(([k, v]) => /app\.py$/.test(k) && /print\('uno'\)/.test(v)), "lo de antes de elegir la carpeta no se guardó: " + Object.keys(c));
+  cierto(Object.entries(c).some(([k, v]) => /juego\.js$/.test(k) && /juego/.test(v)), "lo nuevo no se guardó solo: " + Object.keys(c));
+  // las imágenes también
+  await escribirYEnviar(pagina, "/imagen un gato");
+  await pagina.waitForFunction(() => Object.keys(Object.fromEntries(window.__carpeta)).some((k) => k.startsWith("imagenes/cece-imagen-")), null, { timeout: 20000 });
+  await pagina.waitForSelector(".bot-msg:last-of-type .carpeta-ok");
+  // en incógnito no va nada a la carpeta
+  await pagina.click("#incognitoBtn");
+  await escribirYEnviar(pagina, "algo secreto");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForTimeout(300);
+  cierto(!JSON.stringify(await carpeta()).includes("NO_A_LA_CARPETA"), "en incógnito se guardó en la carpeta");
+  await pagina.click("#incognitoSalir");
+  // si el navegador no conserva datos (USB), las conversaciones van a la carpeta y vuelven al conectarla
+  const usb = await pagina.evaluate(async () => {
+    almacen.ok = false;
+    cargarConversacion(convs[0].id);
+    guardarConversacion({ silencio: true });
+    await new Promise((r) => setTimeout(r, 200));
+    const archivo = [...window.__carpeta.keys()].find((k) => k.startsWith("conversaciones/"));
+    const id = convs[0].id;
+    convs = [];
+    await convsDeCarpeta();
+    return { archivo, vuelve: convs.some((c) => c.id === id) };
+  });
+  cierto(usb.archivo && /\.json$/.test(usb.archivo) && usb.vuelve, "sin almacenamiento, las conversaciones no van a la carpeta o no vuelven: " + JSON.stringify(usb));
+  // la carpeta de la última vez se vuelve a conectar con el primer clic, sin pulsar «Reconectar»
+  const re = await pagina.evaluate(async () => {
+    const h = Codigo.raiz;
+    ((Codigo.raiz = null), (Codigo._pendiente = h), (Codigo._esperando = false), Codigo.reconectarSolo());
+    return !!Codigo.raiz;
+  });
+  igual(re, false, "se conectó antes del clic");
+  await pagina.mouse.click(5, 300);
+  await pagina.waitForFunction(() => !!Codigo.raiz && window.__permisoPedido === 1, null, { timeout: 3000 });
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
