@@ -2714,7 +2714,7 @@ prueba("plugins de programación: /html, /2d-game, /3d-game, /backend, /api, /de
   igual(await pagina.evaluate(() => COMANDO.juego2d && COMANDO.juego2d.id), "2d-game", "el alias /juego2d");
   const casos = [
     ["/2d-game esquivar meteoritos", /juego 2D ORIGINAL/, /esquivar meteoritos/],
-    ["/3d-game un laberinto", /three@0\.160\.0/, /un laberinto/],
+    ["/3d-game web: un laberinto", /three@0\.160\.0/, /un laberinto/],
     ["/backend una lista de tareas", /Node\.js con Express/, /una lista de tareas/],
     ["/html una web para mi panadería", /página web COMPLETA/, /panadería/],
     ["/api de reservas", /OpenAPI 3/, /de reservas/],
@@ -3597,6 +3597,76 @@ prueba("lo que crea Cece se guarda solo en la carpeta: código, imágenes y, sin
   igual(re, false, "se conectó antes del clic");
   await pagina.mouse.click(5, 300);
   await pagina.waitForFunction(() => !!Codigo.raiz && window.__permisoPedido === 1, null, { timeout: 3000 });
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece pregunta sus dudas con botones; /3d-game pregunta Unity, Unreal o web sin gastar", async (nav) => {
+  const pedidos = [];
+  let respuesta = "Hago la base.\n<pregunta>¿En qué motor lo quieres?<opcion>Unity</opcion><opcion>Unreal</opcion><opcion>Web</opcion></pregunta>";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": ({ cuerpo }) => (pedidos.push(cuerpo.messages), { cuerpo: respuestaOpenAI(respuesta) }) },
+  });
+  const sistema = () => (pedidos[pedidos.length - 1].find((m) => m.role === "system") || {}).content || "";
+  const ultimoUsuario = () => [...pedidos[pedidos.length - 1]].reverse().find((m) => m.role === "user").content;
+  await escribirYEnviar(pagina, "hazme un juego de coches");
+  let r = await ultimaRespuesta(pagina);
+  cierto(/<pregunta>/.test(sistema()), "no se le explica a la IA cómo preguntar");
+  cierto(!/<pregunta|<opcion/.test(r.texto) && /Hago la base/.test(r.texto), "la marca se ve: " + r.texto);
+  const tarjeta = await pagina.evaluate(() => {
+    const t = [...document.querySelectorAll(".bot-msg")].pop().querySelector(".preg-ia");
+    return t && { txt: t.querySelector(".preg-txt").textContent, ops: [...t.querySelectorAll(".preg-op")].map((b) => b.textContent) };
+  });
+  igual(JSON.stringify(tarjeta), JSON.stringify({ txt: "❓ ¿En qué motor lo quieres?", ops: ["Unity", "Unreal", "Web"] }), "la tarjeta de la pregunta");
+  igual(await pagina.evaluate(() => textoConPreguntas(historial[historial.length - 1].content)), "Hago la base.\n\n❓ ¿En qué motor lo quieres? (Unity · Unreal · Web)", "al copiar o leer en voz alta");
+  // elegir una opción la manda como respuesta y apaga los botones
+  respuesta = "Perfecto, en Unreal.";
+  pagina._respuestas = await pagina.locator(".bot-msg").count();
+  await pagina.click(".preg-op:has-text('Unreal')");
+  await ultimaRespuesta(pagina);
+  igual(ultimoUsuario(), "Unreal", "la opción no se mandó como respuesta");
+  const botones = await pagina.evaluate(() => [...document.querySelectorAll(".preg-op")].map((b) => b.disabled + (b.classList.contains("elegida") ? "*" : "")));
+  igual(botones.join(), "true,true*,true", "los botones siguen activos o no se marca la elegida");
+  // mientras llega, una pregunta a medias no se ve
+  igual(
+    await pagina.evaluate(() => {
+      const b = new Burbuja();
+      ((b.texto = "Vale.\n<pregunta>¿A o B?<opcion>A</opc"), (b.vis = b.texto.length), b._pintarHtml(true));
+      const t = b.bubble.innerText.replace(/\s+/g, " ").trim() + "|" + !!b.bubble.querySelector(".preg-ia");
+      return (b.wrap.remove(), t);
+    }),
+    "Vale.|false",
+    "una pregunta a medias se ve mientras llega",
+  );
+  // /3d-game sin motor: pregunta Cece, sin llamar a la IA
+  const antes = pedidos.length;
+  await pagina.fill("#userInput", "/3d-game una carrera de naves");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForFunction(() => [...document.querySelectorAll(".bot-msg")].pop().querySelectorAll(".preg-op").length === 3);
+  igual(pedidos.length, antes, "/3d-game llamó a la IA antes de saber el motor");
+  const ops = await pagina.evaluate(() => [...[...document.querySelectorAll(".bot-msg")].pop().querySelectorAll(".preg-op")].map((b) => b.textContent));
+  igual(ops.join(" | "), "🎮 Unity (C#) | 🕹️ Unreal Engine (C++ y Blueprints) | 🌐 Web (HTML, JS y CSS)", "las opciones del motor");
+  respuesta = "Aquí tienes el juego en Unity.";
+  pagina._respuestas = await pagina.locator(".bot-msg").count();
+  await pagina.click(".bot-msg:last-of-type .preg-op:has-text('Unity')");
+  await ultimaRespuesta(pagina);
+  cierto(/Unity/.test(ultimoUsuario()) && /Assets\/Scripts/.test(ultimoUsuario()) && /una carrera de naves/.test(ultimoUsuario()), "no se pidió el juego en Unity con la idea: " + ultimoUsuario().slice(0, 200));
+  // diciendo el motor, va directo (Unreal) y la web sigue siendo la de siempre
+  await escribirYEnviar(pagina, "/3d-game unreal: un laberinto");
+  await ultimaRespuesta(pagina);
+  cierto(/Unreal Engine 5/.test(ultimoUsuario()) && /Source\//.test(ultimoUsuario()), "con «unreal» no va directo a Unreal");
+  await escribirYEnviar(pagina, "/3d-game web: un laberinto");
+  await ultimaRespuesta(pagina);
+  cierto(/Three\.js/.test(ultimoUsuario()), "con «web» no usa la plantilla de la web");
+  // al recargar, las preguntas contestadas siguen apagadas
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  igual(await pagina.evaluate(() => [...document.querySelectorAll(".preg-op")].filter((b) => !b.disabled).length), 0, "tras recargar, una pregunta contestada se puede volver a contestar");
+  // y apagado en Configuración, ya no se le pide preguntar
+  await pagina.evaluate(() => ((S.preguntar = false), guardarAjustes()));
+  await escribirYEnviar(pagina, "otra cosa");
+  await ultimaRespuesta(pagina);
+  cierto(!/<pregunta>/.test(sistema()), "con las preguntas apagadas se le sigue pidiendo preguntar");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
