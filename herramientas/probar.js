@@ -3671,6 +3671,103 @@ prueba("Cece pregunta sus dudas con botones; /3d-game pregunta Unity, Unreal o w
   await ctx.close();
 });
 
+prueba("Lab 3D: del modelo descrito a .obj y .mtl, con vista 3D y guardado en la carpeta", async (nav) => {
+  const modelo = {
+    nombre: "Coche rojo",
+    piezas: [
+      { tipo: "caja", nombre: "carrocería", tam: [4, 1, 2], pos: [0, 0.9, 0], color: "#d33" },
+      { tipo: "cilindro", nombre: "rueda", radio: 0.4, alto: 0.3, pos: [1.3, 0.4, 1], rot: [90, 0, 0], color: "#222222", segmentos: 16 },
+      { tipo: "esfera", radio: 0.3, pos: [0, 1.7, 0], color: "#88ccff", segmentos: 12 },
+      { tipo: "cono", radio: 0.3, alto: 0.6, pos: [-1.5, 1.7, 0], color: "#ffcc00", escala: [-1, 1, 1] },
+      { tipo: "toro", radio: 0.5, grosor: 0.1, pos: [0, 2.5, 0], color: "#00aa55" },
+      { tipo: "piramide", base: 0.8, alto: 0.8, pos: [1.5, 1.8, 0] },
+      { tipo: "plano", tam: [6, 4], pos: [0, 0, 0], color: "#555" },
+    ],
+  };
+  const pedidos = [];
+  let respuesta = "Un coche sencillo.\n\n```lab3d\n" + JSON.stringify(modelo, null, 1) + "\n```";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    init: INIT_CARPETA,
+    ia: { "api.deepseek.com": ({ cuerpo }) => (pedidos.push(cuerpo.messages[cuerpo.messages.length - 1].content), { cuerpo: respuestaOpenAI(respuesta) }) },
+  });
+  // con carpeta, el .obj y el .mtl se guardan solos
+  await pagina.click("#settingsBtn");
+  await verParte(pagina, "#elegirCarpeta");
+  await pagina.click("#elegirCarpeta");
+  await pagina.click("#closeSettings");
+  await escribirYEnviar(pagina, "/lab3d un coche rojo");
+  await ultimaRespuesta(pagina);
+  cierto(/```lab3d/.test(pedidos[0]) && /un coche rojo/.test(pedidos[0]), "no se mandaron las instrucciones del Lab 3D");
+  await pagina.waitForFunction(() => window.__carpeta.has("modelos-3d/coche-rojo.obj") && window.__carpeta.has("modelos-3d/coche-rojo.mtl"), null, { timeout: 5000 });
+  await pagina.waitForTimeout(300);
+  const r = await pagina.evaluate(() => {
+    const card = [...document.querySelectorAll(".bot-msg")].pop().querySelector(".lab3d");
+    const cv = card.querySelector("canvas"),
+      d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+    let pintados = 0;
+    for (let i = 3; i < d.length; i += 4) d[i] && pintados++;
+    return {
+      cab: card.querySelector(".lab3d-cab").textContent,
+      pintados,
+      plegado: !!card.nextElementSibling?.matches("details.lab3d-fuente") && !!card.nextElementSibling.querySelector('.code-wrap[data-lang="lab3d"]'),
+      archivos: Codigo.archivos.map((a) => a.ruta),
+      guardado: card.querySelector(".lab3d-ok").textContent,
+    };
+  });
+  cierto(/Coche rojo · 7 piezas · 534 caras/.test(r.cab), "la cabecera del modelo: " + r.cab);
+  cierto(r.pintados > 500, "la vista 3D no pinta nada: " + r.pintados);
+  cierto(r.plegado, "el JSON no queda plegado debajo");
+  igual(r.archivos.join(), "modelos-3d/coche-rojo.obj,modelos-3d/coche-rojo.mtl", "archivos de Cece (sin el JSON como código)");
+  cierto(/modelos-3d\/coche-rojo\.obj ✓/.test(r.guardado), "no dice que se guardó en la carpeta: " + r.guardado);
+  // el .obj y el .mtl por dentro
+  const { obj, mtl } = await pagina.evaluate(() => ({ obj: window.__carpeta.get("modelos-3d/coche-rojo.obj"), mtl: window.__carpeta.get("modelos-3d/coche-rojo.mtl") }));
+  const vs = obj.split("\n").filter((l) => l.startsWith("v ")),
+    fs_ = obj.split("\n").filter((l) => l.startsWith("f "));
+  igual(vs.length, 555, "vértices del .obj");
+  igual(fs_.length, 534, "caras del .obj");
+  cierto(fs_.every((l) => l.slice(2).split(" ").every((n) => +n >= 1 && +n <= vs.length)), "una cara apunta a un vértice que no existe");
+  cierto(/^mtllib coche-rojo\.mtl$/m.test(obj) && /^o carroceria$/m.test(obj) && /^usemtl color_dd3333$/m.test(obj), "cabeceras del .obj");
+  cierto(/^newmtl color_dd3333$/m.test(mtl) && /^Kd 0\.867 0\.200 0\.200$/m.test(mtl) && /^newmtl color_b8b8bf$/m.test(mtl), "el .mtl: " + mtl);
+  // las caras miran hacia fuera (si no, en Unity se ven por dentro); también con una escala negativa
+  const fuera = await pagina.evaluate((m) => {
+    const md = Lab3D.desdeJson(JSON.stringify(m)),
+      mal = [];
+    for (const k of [0, 1, 2, 3, 5, 6]) {
+      const o = md.objetos[k],
+        c = [0, 1, 2].map((i) => o.v.reduce((s, v) => s + v[i], 0) / o.v.length);
+      for (const f of o.f) {
+        const [a, b, e] = [o.v[f[0]], o.v[f[1]], o.v[f[2]]],
+          u = [0, 1, 2].map((i) => b[i] - a[i]),
+          w = [0, 1, 2].map((i) => e[i] - a[i]),
+          n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]],
+          cf = [0, 1, 2].map((i) => f.reduce((s, x) => s + o.v[x][i], 0) / f.length - c[i]);
+        n[0] * cf[0] + n[1] * cf[1] + n[2] * cf[2] < -1e-9 && mal.push(o.nombre);
+      }
+    }
+    return [...new Set(mal)];
+  }, modelo);
+  igual(fuera.join(), "", "caras al revés en");
+  // un .obj escrito tal cual también se enseña y va a «modelos-3d/», no a una carpeta «obj» como código
+  respuesta = "Aquí va:\n\n```obj\nv 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\nf 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n```";
+  await escribirYEnviar(pagina, "un tetraedro en obj");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForTimeout(200);
+  const t = await pagina.evaluate(() => ({ cab: [...document.querySelectorAll(".lab3d-cab")].pop().textContent, rutas: Codigo.archivos.map((a) => a.ruta) }));
+  cierto(/4 caras/.test(t.cab) && t.rutas.includes("modelos-3d/modelo.obj") && !t.rutas.some((x) => /^obj\//.test(x)), "el .obj escrito tal cual: " + JSON.stringify(t));
+  // una descripción rota avisa sin romper nada
+  respuesta = "```lab3d\n{ esto no es json\n```";
+  await escribirYEnviar(pagina, "/lab3d algo");
+  await ultimaRespuesta(pagina);
+  cierto(/no es un JSON válido/.test(await pagina.evaluate(() => [...document.querySelectorAll(".bot-msg")].pop().querySelector(".lab3d-error")?.textContent || "")), "no avisa de la descripción rota");
+  // al recargar, la vista 3D vuelve
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.waitForTimeout(300);
+  igual(await pagina.evaluate(() => document.querySelectorAll(".lab3d canvas").length), 2, "tras recargar no vuelven las vistas 3D");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 // ---------- ejecución ----------
 (async () => {
   const { chromium } = cargarPlaywright();
