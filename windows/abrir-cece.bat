@@ -6,6 +6,7 @@ setlocal
 set "HTML=%~dp0cece-ai.html"
 if not exist "%HTML%" (
   echo No encuentro cece-ai.html junto a este archivo.
+  echo Si lo has abierto desde dentro del .zip, extrae antes la carpeta: clic derecho en el .zip, "Extraer todo".
   pause
   exit /b 1
 )

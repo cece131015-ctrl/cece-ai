@@ -8,10 +8,13 @@ abre con doble clic en el navegador y tus conversaciones se guardan en ese mismo
 ## 1. Lo que necesitas
 
 - **Un navegador:** Chrome o Edge (recomendados), o Firefox o Safari. En el móvil también funciona.
-- **Al menos una clave de API** de alguno de los servicios de la tabla de abajo. Sin ninguna clave, Cece te avisa con
-  «Fallo de conexión (HTTP 401)».
+- **Al menos una clave de API** de alguno de los servicios de la tabla de abajo. Sin ninguna clave, Cece solo pone
+  «Error HTTP 401».
 
 ## 2. Primeros pasos
+
+Si te ha llegado `Cece-AI.zip`, **extráelo primero** (clic derecho → «Extraer todo»). Abierto desde dentro del zip,
+lo que cambies no se guarda y los `.bat` no encuentran el resto de archivos.
 
 ### Paso 1 — Pon tus claves
 
@@ -53,7 +56,8 @@ copia y **borra la que tiene las claves a la vista**. Al abrirla, Cece te pide l
 
 ### En Windows: abrirlo con Ctrl+Alt+C a pantalla completa
 
-1. Pon `cece-ai.html`, `abrir-cece.bat` y `crear-acceso-directo.bat` en la misma carpeta.
+1. Deja `cece-ai.html`, `abrir-cece.bat` y `crear-acceso-directo.bat` en la misma carpeta (la carpeta `Cece-AI` que
+   sale al extraer el zip ya los trae juntos).
 2. Haz doble clic en `crear-acceso-directo.bat` una vez: crea **«Cece AI»** en el escritorio.
 3. Desde entonces, **Ctrl+Alt+C** abre Cece AI a pantalla completa (sales con F11).
 
@@ -163,14 +167,14 @@ responde sin internet: Configuración → 📴 Sin conexión.
 
 | Lo que ves | Qué pasa y qué hacer |
 | --- | --- |
-| «Fallo de conexión (HTTP 401): no encuentro ninguna clave» | El bloque de configuración está vacío. Pon al menos una clave (Paso 1). |
+| «Error HTTP 401» | El bloque de configuración está vacío. Pon al menos una clave (Paso 1). |
 | «La clave de «turbo» (…) no es válida, caducó o no tiene permisos» | Esa clave está mal copiada, caducada o es de otro servicio. Revisa ese hueco y usa «Comprobar conexiones». |
 | «🔀 La clave que pusiste en «…» es de «…»» | Pusiste una clave en el hueco de otro servicio. Cece ya la usa bien, pero muévela al hueco que te dice. |
 | «sin saldo» | La clave vale, pero esa cuenta no tiene saldo: recárgala en la web del servicio. |
 | «límite de uso» | Has hecho muchas peticiones seguidas: espera un poco o usa otro modelo. |
 | «Sin conexión a internet» | Tu mensaje se envía solo cuando vuelve la red. |
 | No se oye o no te escucha en LIVE | Da permiso al micrófono en el candado de la barra de direcciones. |
-| Ctrl+Alt+C no hace nada | Otro programa usa ese atajo, o falta ejecutar `crear-acceso-directo.bat`. |
+| Ctrl+Alt+C no hace nada | Otro programa usa ese atajo, o falta ejecutar `crear-acceso-directo.bat` (desde la carpeta extraída, no desde dentro del zip). |
 | Las claves están «cifradas y bloqueadas» | Escribe tu contraseña al abrir (o en 🔐 Seguridad → Desbloquear). |
 
-La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.06»).
+La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.09»).

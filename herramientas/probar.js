@@ -152,13 +152,14 @@ prueba("abre sin errores y sin claves", async (nav) => {
   await ctx.close();
 });
 
-prueba("sin ninguna clave avisa «Fallo de conexión (HTTP 401)» (chat y Cece Live)", async (nav) => {
+prueba("sin ninguna clave solo pone «Error HTTP 401» (chat y Cece Live)", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
   await escribirYEnviar(pagina, "hola");
   const r = await ultimaRespuesta(pagina);
-  cierto(/Fallo de conexión \(HTTP 401\)/.test(r.texto) && !/Falta rellenar/.test(r.texto), "aviso del chat: " + r.texto);
+  igual(r.texto.replace(/^\W+/u, "").trim(), "Error HTTP 401", "aviso del chat");
   await pagina.click("#liveBtn");
   await pagina.waitForFunction(() => /HTTP 401/.test(document.getElementById("toast").textContent), null, { timeout: 5000 });
+  igual((await pagina.textContent("#toast")).replace(/^\W+/u, "").trim(), "Error HTTP 401", "aviso de Cece Live");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -1249,6 +1250,21 @@ const esperarGitHub = (pagina, re) =>
     re.source,
     { timeout: 10000 },
   );
+
+prueba("GitHub: el token pegado con caracteres invisibles, comillas o «Bearer» conecta igual", async (nav) => {
+  const g = githubSimulado();
+  let auth = "";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    ia: { "api.github.com": (x) => (/\/user$/.test(x.url) && (auth = x.req.headers()["authorization"] || ""), g.manejar(x)) },
+  });
+  await pagina.click("#cece-github-open");
+  await pagina.fill("#cece-gh-token", " “Bearer github_pat_prueba​” ");
+  await pagina.press("#cece-gh-token", "Enter");
+  await esperarGitHub(pagina, /Carpeta cargada/);
+  igual(auth, "Bearer github_pat_prueba", "la petición no llevó el token limpio");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
 
 prueba("GitHub: guardar avisa si el archivo ya existe y no pisa otro repositorio", async (nav) => {
   const g = githubSimulado();
@@ -2675,6 +2691,58 @@ prueba("idioma de la app: lo que el código cambia después se traduce y no vuel
   await ctx.close();
 });
 
+prueba("idioma de la app: también los títulos al pasar el ratón y las etiquetas (LIVE, 100 %, adjuntar, Cerrar…)", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
+  const leer = () =>
+    pagina.evaluate(() => {
+      const a = (sel, at) => document.querySelector(sel).getAttribute(at);
+      return {
+        live: a("#liveBtn", "title"),
+        maxi: a("#maxiBtn", "title"),
+        adjuntar: a("#adjBtn", "title"),
+        cerrar: a("#closeSettings", "aria-label"),
+        mensaje: a("#userInput", "aria-label"),
+        github: (document.getElementById("cece-github-open") || { title: "" }).title,
+        // ¿algún título o etiqueta con traducción que se haya quedado en español? (fuera de los mensajes)
+        sinTraducir: [...document.querySelectorAll("[title], [aria-label]")]
+          .filter((e) => !e.closest("#messages"))
+          .flatMap((e) => ["title", "aria-label"].map((at) => e.getAttribute(at)))
+          .filter((v) => v && S.appIdioma !== "es" && TEXTOS_APP[S.appIdioma][v]),
+      };
+    });
+  await pagina.evaluate(() => ((S.appIdioma = "en"), traducirApp()));
+  const en = await leer();
+  igual(en.live, "Cece Live: voice conversation", "título de LIVE");
+  igual(en.maxi, "All models at 100%", "título de 100 %");
+  cierto(/^Attach files: images/.test(en.adjuntar), "título de adjuntar: " + en.adjuntar);
+  igual(en.cerrar, "Close", "etiqueta de Cerrar");
+  igual(en.mensaje, "Message", "etiqueta del cuadro de texto");
+  igual(en.sinTraducir.length, 0, "títulos o etiquetas sin traducir: " + en.sinTraducir.join(" | "));
+  await pagina.evaluate(() => ((S.appIdioma = "de"), traducirApp()));
+  igual((await leer()).live, "Cece Live: Sprachgespräch", "título de LIVE en alemán");
+  // y vuelven al español
+  await pagina.evaluate(() => ((S.appIdioma = "es"), traducirApp()));
+  const es = await leer();
+  igual([es.live, es.maxi, es.cerrar].join(" | "), "Cece Live: conversación por voz | Todos los modelos al 100% | Cerrar", "no vuelve al español");
+  // la lista de conversaciones (vacía y con una) y la de la memoria también cambian al elegir el idioma
+  await pagina.click("#settingsBtn");
+  await pagina.selectOption("#appIdioma", "en");
+  await pagina.waitForTimeout(150);
+  igual(await pagina.evaluate(() => document.getElementById("convList").textContent.trim()), "No saved conversations yet.", "la lista de conversaciones vacía sigue en español");
+  await pagina.evaluate(() => {
+    convs.unshift({ id: "c1", titulo: "Tema", fecha: "2026-11-09T10:00:00Z", mensajes: [{ role: "user", content: "hola" }] });
+    pintarConvs();
+  });
+  const fila = await pagina.evaluate(() => ({ t: document.querySelector(".conv-load").textContent, del: document.querySelector(".conv-del").title }));
+  cierto(/^Tema · 09\/11\/2026/.test(fila.t) && fila.del === "Delete", "la fila de la conversación: " + JSON.stringify(fila));
+  await pagina.selectOption("#appIdioma", "fr");
+  await pagina.waitForTimeout(150);
+  igual(await pagina.evaluate(() => document.querySelector(".conv-load").title), "Tema", "el título de una conversación se tradujo como si fuera de la app");
+  igual(await pagina.evaluate(() => document.querySelector(".conv-del").title), "Supprimer", "la lista de conversaciones no cambia de idioma");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("perfiles: cada uno con sus conversaciones y ajustes; crear, cambiar, /perfil y borrar", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
     ia: { "api.deepseek.com": () => ({ cuerpo: respuestaOpenAI("Vale.") }) },
@@ -2958,6 +3026,23 @@ prueba("claves: una en el hueco de otro motor se usa donde toca; espacios, comil
   await ctx.close();
 });
 
+prueba("claves: copiadas con caracteres invisibles o guiones tipográficos se limpian (antes decía «Revisa tu conexión»)", async (nav) => {
+  const DS = "sk-1234567890abcdef";
+  let auth = "";
+  // espacio de ancho cero al final (WhatsApp, webs), guion que no corta (‑) y comillas tipográficas; «max» solo invisible
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "“sk\u2011" + DS.slice(3) + "\u200b”", max: "\u200b\u2060" }), {
+    ia: { "api.deepseek.com": ({ req }) => ((auth = req.headers()["authorization"] || ""), { cuerpo: respuestaOpenAI("Hola.") }) },
+  });
+  igual(await pagina.evaluate(() => Boveda.clave("deepseek")), DS, "la clave no se limpió");
+  igual(await pagina.evaluate(() => Boveda.clave("moonshot")), "", "un hueco con solo caracteres invisibles cuenta como clave");
+  await escribirYEnviar(pagina, "hola");
+  const r = await ultimaRespuesta(pagina);
+  igual(r.texto.trim(), "Hola.", "no respondió");
+  igual(auth, "Bearer " + DS, "la petición no llevó la clave limpia");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("memoria: conversaciones largas no olvidan el principio; «recuerda que…» y /recordar valen en todas las conversaciones y en Live", async (nav) => {
   let sistema = "", usuario = "";
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
@@ -3078,6 +3163,16 @@ prueba("memoria automática: Cece decide qué recordar u olvidar, las marcas no 
   await escribirYEnviar(pagina, "ya como carne; mi clave es sk-abc1234567890xyz");
   await ultimaRespuesta(pagina);
   igual(await pagina.evaluate(() => Memoria.lista().length), 0, "no olvidó lo que dejó de ser verdad, o guardó una clave");
+  // olvidar «Madrid» no se lleva todo lo que lo nombra; el dato entero, o una frase que lo contiene, sí
+  igual(
+    await pagina.evaluate(() => {
+      (Memoria.agregar("Vive en Madrid"), Memoria.agregar("Su hermana trabaja en Madrid"));
+      const r = [Memoria.olvidarTexto("Madrid").length, Memoria.olvidarTexto("Ya no vive en Madrid").map((e) => e.texto).join()];
+      return (r.push(Memoria.lista().map((e) => e.texto).join()), Memoria.borrar(), r.join("|"));
+    }),
+    "0|Vive en Madrid|Su hermana trabaja en Madrid",
+    "olvidar un trozo corto borra lo que no toca",
+  );
   // si la IA solo pone la marca, sin texto, la burbuja no se queda en «Pensando» ni se guarda un mensaje vacío
   respuesta = "<recordar>Se llama Ana</recordar>";
   await escribirYEnviar(pagina, "me llamo Ana");
@@ -3092,6 +3187,43 @@ prueba("memoria automática: Cece decide qué recordar u olvidar, las marcas no 
   const c = await ultimaRespuesta(pagina);
   cierto(!/<recordar>/.test(sistema) && !/Sevilla/.test(c.texto), "con la memoria automática apagada se sigue pidiendo o se ve la marca");
   igual(await pagina.evaluate(() => Memoria.lista().length), 0, "con la memoria automática apagada se guardó igual");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("«🧠 Anotando» solo mientras escribe la nota (aunque la ponga al principio) y «Pensando» en el idioma de la app", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }));
+  const r = await pagina.evaluate(() => {
+    const t = (b) => b.bubble.innerText.replace(/\s+/g, " ").trim();
+    // la nota al principio y después la respuesta: al cerrarse la nota vuelve el cursor y se quita «Anotando»
+    const a = new Burbuja();
+    ((a.texto = "<recordar>Es vegetariano</recordar>\nTe preparo unas lentejas"), (a.vis = a.texto.length), a._pintarHtml(true));
+    const abierta = (() => {
+      const c = new Burbuja();
+      ((c.texto = "Vale.\n<olvidar>Vive en Ma"), (c.vis = c.texto.length), c._pintarHtml(true));
+      const x = t(c);
+      return (c.wrap.remove(), x);
+    })();
+    const res = [t(a), !!a.bubble.querySelector(".cursor"), abierta];
+    // sin ver el texto según llega: «Anotando» mientras está la nota abierta y vuelve a «Pensando» al cerrarla
+    S.stream = false;
+    const d = new Burbuja();
+    d.meter("<recordar>Es veg");
+    res.push(t(d));
+    d.meter("etariano</recordar>\nVale");
+    res.push(t(d));
+    S.stream = true;
+    // en inglés
+    S.appIdioma = "en";
+    const e = new Burbuja();
+    res.push(t(e));
+    e.meterRazon("...");
+    res.push(t(e));
+    S.appIdioma = "es";
+    for (const b of [a, d, e]) b.wrap.remove();
+    return res.join("|");
+  });
+  igual(r, "Te preparo unas lentejas|true|Vale. 🧠 Anotando|🧠 Anotando|Pensando|Thinking|Reasoning", "«Anotando» o «Pensando» mal puestos");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -3117,6 +3249,25 @@ prueba("memoria automática en Cece Pro: lo que marca cualquier paso se guarda y
   cierto(!/recordar/.test(x.panel + r.texto), "la marca se ve en el panel de Cece Pro o en la respuesta");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
+});
+
+prueba("los .bat de Windows: saltos de Windows, sin tildes y avisan si se abren desde dentro del .zip", async () => {
+  const dir = path.join(path.dirname(RUTAS.html), "windows");
+  for (const f of ["abrir-cece.bat", "crear-acceso-directo.bat"]) {
+    const b = fs.readFileSync(path.join(dir, f));
+    // (el símbolo del sistema lee los .bat en la página de códigos de la consola: una tilde saldría rota)
+    cierto(![...b].some((c) => c > 127), f + " tiene caracteres que no son ASCII");
+    const t = b.toString("ascii");
+    cierto(!/[^\r]\n/.test(t) && t.endsWith("\r\n"), f + " no tiene saltos de línea de Windows (CRLF)");
+    cierto(/Extraer todo/.test(t), f + " no dice que hay que extraer el .zip");
+  }
+  const crear = fs.readFileSync(path.join(dir, "crear-acceso-directo.bat"), "ascii");
+  // abierto desde el .zip, Windows solo saca el .bat a una carpeta temporal: el acceso directo no llevaría a nada
+  cierto(/if not exist "%CECE_DIR%abrir-cece\.bat" goto faltan/.test(crear) && /if not exist "%CECE_DIR%cece-ai\.html" goto faltan/.test(crear), "no comprueba que esté junto a cece-ai.html y abrir-cece.bat");
+  cierto(crear.indexOf("goto faltan") < crear.indexOf("CreateShortcut"), "comprueba después de crear el acceso directo");
+  cierto(/Hotkey='CTRL\+ALT\+C'/.test(crear), "el acceso directo no lleva Ctrl+Alt+C");
+  const abrir = fs.readFileSync(path.join(dir, "abrir-cece.bat"), "ascii");
+  cierto(/--start-fullscreen/.test(abrir) && /--app=/.test(abrir) && /--user-data-dir=/.test(abrir), "abrir-cece.bat no abre a pantalla completa con su perfil");
 });
 
 // ---------- ejecución ----------

@@ -1,5 +1,30 @@
 # Informe de depuración
 
+## 9 de noviembre de 2026 — «Error HTTP 401» y repaso general
+
+- **Sin ninguna clave**, el chat y Cece Live solo dicen **«Error HTTP 401»**, sin más explicación. Lo que hay que hacer
+  sigue en la guía y en ⚙️ Configuración → 🔐 Seguridad → «Comprobar conexiones».
+- **Arreglos del repaso** (cada uno con su prueba, que fallaba antes):
+  - **Claves pegadas con caracteres invisibles.** Copiadas de WhatsApp, de una web o de un PDF se cuela a veces un
+    espacio de ancho cero, o el guion se vuelve tipográfico (‑ –). El navegador no podía enviar la clave y Cece decía
+    «Revisa tu conexión a internet», que no era el problema. Ahora se limpian solas. Un hueco con solo caracteres
+    invisibles cuenta como vacío.
+  - **Lo mismo con el token del panel 🐙 GitHub:** pegado con un invisible, comillas o «Bearer » fallaba con un error en
+    inglés. Ahora conecta.
+  - **«🧠 Anotando»** solo sale mientras Cece escribe la nota. Si la ponía al principio de la respuesta, el aviso se
+    quedaba durante toda la respuesta y no se veía el cursor.
+  - **Memoria:** olvidar un trozo corto (por ejemplo «Madrid») borraba todo lo que lo nombraba («Su hermana trabaja en
+    Madrid»). Ahora solo quita el dato que toca. Las instrucciones de la IA ya no dicen que todo lo recordado «te lo
+    pidió» el usuario, porque ahora también lo elige Cece.
+  - **Idioma de la app:** se quedaban en español «Pensando», «Razonando», «Dibujando», «N modelos trabajando», «X
+    falló, probando otro», los textos que salen al pasar el ratón (LIVE, 100 %, adjuntar, modo code, micrófono, GitHub),
+    las etiquetas «Cerrar» de las ventanas y la lista de conversaciones («Aún no hay conversaciones guardadas»,
+    «Borrar» y la fecha). El título de una conversación no se traduce aunque coincida con una palabra de la app.
+  - **Los `.bat` de Windows** avisan si se abren desde dentro del `.zip` sin extraerlo. Antes
+    `crear-acceso-directo.bat` hacía un acceso directo a una carpeta temporal que Windows borra, y Ctrl+Alt+C dejaba de
+    funcionar. La guía dice que hay que extraer el zip primero.
+- Versión 2026.11.09.
+
 ## 6 de noviembre de 2026 — «🧠 Anotando» mientras Cece guarda algo en la memoria
 
 - Mientras espera la respuesta sigue saliendo **«Pensando»**, como siempre. Cuando Cece se pone a escribir algo para
