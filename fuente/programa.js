@@ -3671,7 +3671,8 @@ async function enviarYa(e, t) {
   const o = $("userInput"),
     a = null == e,
     // (un mensaje que sale de la cola trae ya sus adjuntos y citas: no se cogen los que haya ahora en el cuadro)
-    { colaAdjuntos: ca, colaCitas: cc, ...resto } = t || {};
+    // («literal»: lo que se manda es la respuesta a una pregunta de Cece, tal cual: ni /comandos ni «recuerda que…»)
+    { colaAdjuntos: ca, colaCitas: cc, literal, ...resto } = t || {};
   t = resto;
   let n = String(e ?? o.value).trim();
   const r = (a && !t.voz && Adjuntos.lista.length > 0) || !!(ca && ca.length),
@@ -3680,7 +3681,7 @@ async function enviarYa(e, t) {
   if (!n && !r && !hayCitas) return null;
   let i = [],
     s = null;
-  if (!t.voz) {
+  if (!t.voz && !literal) {
     const e = leerComandos(n);
     if (e.cmds.length) {
       const r = aplicarComandos(e.cmds, e.resto);
@@ -3699,7 +3700,7 @@ async function enviarYa(e, t) {
     if (!e) return (a && ((o.value = ""), autoAlto()), preguntarMotor(s, n), null);
     plantilla = e.plantilla || s.plugin.plantilla;
   }
-  if (!t.voz && !i.length) {
+  if (!t.voz && !literal && !i.length) {
     const e = memoriaDeMensaje(n);
     "incognito" === e
       ? toast("🕶️ " + tr("En incógnito no se guarda nada en la memoria."), "", 5e3)
@@ -3953,7 +3954,7 @@ function montarBorradores(e, t, o, a) {
             rz = o.querySelector(".borrador-razon"),
             razon = ((e.razon || "") + (p.razon ? (e.razon ? "\n" : "") + p.razon : "")).trim();
           ((rz.hidden = !razon), rz.hidden || (rz.textContent = "💭 " + (razon.length > 2e3 ? "…" + razon.slice(-2e3) : razon)));
-          o.querySelector(".borrador-txt").innerHTML = md(sinMarcasMemoria(p.texto, !e.r));
+          o.querySelector(".borrador-txt").innerHTML = md(textoConPreguntas(sinMarcasMemoria(p.texto, !e.r)));
         }
         // La barrita dice qué está haciendo ahora (papel + estado); al terminar, vuelve al título con el total.
         const act = t.find((e) => e.turno);
@@ -5113,7 +5114,7 @@ function bienvenida() {
   ((e.meta.innerHTML = `<span>${horaCorta()}</span>`), aplicarEmojis(e.wrap));
 }
 function pintarHistorial() {
-  if (((mensajesEl().innerHTML = ""), !historial.length)) return bienvenida();
+  if ((Codigo.vaciar(), (mensajesEl().innerHTML = ""), !historial.length)) return bienvenida();
   for (const e of historial)
     if ("user" === e.role) pintarUsuario(e);
     else {
@@ -7947,7 +7948,8 @@ const Temporizadores = {
         },
         web: {
           nombre: "🌐 Web (HTML, JS y CSS)",
-          re: /\b(?:web|html|css|navegador|three(?:\.js)?|javascript|js)\b/i,
+          // («three» a secas no: «a three-headed dragon» se iba a web sin preguntar)
+          re: /\b(?:web|html|css|navegador|three\.?js|javascript|js)\b/i,
         },
       },
       plantilla:
@@ -9271,11 +9273,40 @@ const LENGUAJES = {
       .slice(0, 120) || "archivo.txt",
   RE_NOMBRE =
     /^\s*(?:\/\/|#|--|;|<!--|\/\*|rem\s|')\s*(?:archivo|fichero|file(?:name)?|nombre)?\s*:?\s*([\w.\-\/]+\.[a-z0-9]{1,8})\s*(?:-->|\*\/)?\s*$/i,
+  // Huella corta de un texto (para dar siempre el mismo nombre al mismo código sin nombre)
+  huellaTexto = (e) => {
+    let t = 3735928559,
+      o = 1103547991;
+    for (let a = 0; a < e.length; a++) {
+      const n = e.charCodeAt(a);
+      ((t = Math.imul(t ^ n, 2654435761)), (o = Math.imul(o ^ n, 1597334677)));
+    }
+    return (
+      (t = Math.imul(t ^ (t >>> 16), 2246822507) ^ Math.imul(o ^ (o >>> 13), 3266489909)),
+      (o = Math.imul(o ^ (o >>> 16), 2246822507) ^ Math.imul(t ^ (t >>> 13), 3266489909)),
+      (4294967296 * (2097151 & o) + (t >>> 0)).toString(36).padStart(8, "0").slice(0, 8)
+    );
+  },
   Codigo = {
     raiz: null,
+    // Los archivos de la conversación que se ve (lo que llevan «Descargar todo el código» y «Subir el código del chat»
+    // de GitHub). Se rehace al pintar la conversación: antes se iban sumando los de todas las que se abrían, repetidos.
     archivos: [],
-    cont: 0,
+    // Lo creado en esta sesión que todavía no está en la carpeta (ruta → contenido): se guarda al conectarla. Lo de
+    // conversaciones que solo se vuelven a abrir no entra aquí: ya se guardó cuando se creó, y volver a escribirlo
+    // pisaba lo que se hubiera editado a mano en la carpeta.
+    pendientes: new Map(),
     soporta: "function" == typeof window.showDirectoryPicker,
+    vaciar() {
+      ((this.archivos = []), $("zipBtn") && ($("zipBtn").style.display = "none"));
+    },
+    // Apunta un archivo de la conversación; «pendiente»: es nuevo y aún no está en la carpeta
+    apuntar(e, t, pendiente) {
+      const o = this.archivos.find((t) => t.ruta === e);
+      (o ? (o.contenido = t) : this.archivos.push({ ruta: e, contenido: t }),
+        pendiente && !incognito && this.pendientes.set(e, t),
+        $("zipBtn") && ($("zipBtn").style.display = ""));
+    },
     destino(e) {
       const t = String(e || "").toLowerCase(),
         [o, a] = Object.hasOwn(LENGUAJES, t)
@@ -9292,7 +9323,8 @@ const LENGUAJES = {
       const o = String(e.codigo).split("\n")[0].match(RE_NOMBRE);
       if (o) return limpiarNombre(o[1]);
       const { ext: a } = this.destino(e.lang);
-      return `cece_${sello()}_${++this.cont}.${a}`;
+      // (antes llevaba la hora y un contador: el mismo código tenía un nombre distinto cada vez que se volvía a pintar)
+      return `cece_${huellaTexto(String(e.codigo))}.${a}`;
     },
     async guardarEn(e, t, o) {
       let a = await this.raiz.getDirectoryHandle(e, { create: !0 });
@@ -9305,12 +9337,16 @@ const LENGUAJES = {
     },
     // (sin carpeta: una vez por sesión se dice cómo hacer que se guarde solo, sin descargar)
     consejo() {
+      const e = +almacen.get("cece_consejo_carpeta", 0) || 0;
       this.soporta &&
         !this.raiz &&
         !this._pendiente &&
         !this._aconsejado &&
         !incognito &&
+        // (una vez por sesión y tres en total: quien no quiere carpeta no lo ve cada vez que abre Cece)
+        e < 3 &&
         ((this._aconsejado = !0),
+        almacen.set("cece_consejo_carpeta", e + 1),
         toast("💡 " + tr("Para que lo que crea Cece se guarde solo, sin descargar: Configuración → 💬 Conversaciones → 📁 Elegir carpeta."), "", 8e3));
     },
     // Guarda un archivo cualquiera (una imagen, un modelo 3D, una conversación) en la carpeta, si hay una conectada y
@@ -9325,10 +9361,12 @@ const LENGUAJES = {
     },
     // Lo que Cece creó antes de tener la carpeta (o mientras estaba desconectada) se guarda en cuanto se conecta
     async guardarTodo() {
-      for (const e of this.archivos) {
-        if (e.incognito) continue;
-        const [t, ...o] = e.ruta.split("/");
-        await this.guardarEn(t, o.join("/"), e.contenido).catch(() => {});
+      for (const [e, t] of [...this.pendientes]) {
+        const [o, ...a] = e.split("/");
+        await this.guardarEn(o, a.join("/"), t).then(
+          () => this.pendientes.get(e) === t && this.pendientes.delete(e),
+          () => {},
+        );
       }
     },
     // La carpeta de la última vez, sin pulsar «Reconectar»: el navegador solo deja pedir el permiso después de un clic o
@@ -9336,12 +9374,30 @@ const LENGUAJES = {
     reconectarSolo() {
       if (!this._pendiente || this._esperando) return;
       this._esperando = !0;
-      const e = () => {
-        (document.removeEventListener("pointerdown", e, !0),
-          document.removeEventListener("keydown", e, !0),
-          this.raiz || this.reconectar());
-      };
-      (document.addEventListener("pointerdown", e, !0), document.addEventListener("keydown", e, !0));
+      let pidiendo = !1,
+        fallos = 0;
+      const quitar = () => {
+          (document.removeEventListener("pointerup", e, !0), document.removeEventListener("keydown", e, !0), (this._esperando = !1));
+        },
+        e = async (t) => {
+          const o = this._pendiente;
+          if (this.raiz || !o) return quitar();
+          // (Escape, Tab y las teclas de control solas no le valen al navegador como gesto)
+          if (pidiendo || ("keydown" === t.type && (t.ctrlKey || t.metaKey || t.altKey || /^(Escape|Tab|Shift|Control|Alt|Meta|CapsLock)$/.test(t.key))))
+            return;
+          pidiendo = !0;
+          try {
+            // (con permiso, se conecta; si dice que no o cierra la pregunta, no se insiste)
+            ("granted" === (await o.requestPermission({ mode: "readwrite" })) && this.conectada(o), quitar());
+          } catch (e) {
+            // Antes, si el navegador no daba por bueno ese gesto, salía su error en inglés y ya no se volvía a intentar.
+            // Ahora se prueba con el siguiente (unas pocas veces) y sin avisos: queda el botón «Reconectar».
+            ++fallos >= 4 && quitar();
+          } finally {
+            pidiendo = !1;
+          }
+        };
+      (document.addEventListener("pointerup", e, !0), document.addEventListener("keydown", e, !0));
     },
     conectada(e) {
       ((this.raiz = e),
@@ -9358,14 +9414,12 @@ const LENGUAJES = {
     async guardarBloque(e, t, o) {
       const a = this.ruta(e, t),
         [n, ...r] = a.split("/"),
-        i = r.join("/"),
-        s = this.archivos.findIndex((e) => e.ruta === a);
-      (s >= 0 ? (this.archivos[s].contenido = e.codigo) : this.archivos.push({ ruta: a, contenido: e.codigo }),
-        ($("zipBtn").style.display = ""));
+        i = r.join("/");
+      this.apuntar(a, e.codigo, !0);
       let c = !1;
       if (this.raiz)
         try {
-          (await this.guardarEn(n, i, e.codigo), (c = !0));
+          (await this.guardarEn(n, i, e.codigo), (c = !0), this.pendientes.get(a) === e.codigo && this.pendientes.delete(a));
         } catch (e) {
           toast("No se pudo guardar en la carpeta: " + e.message, "mal");
         }
@@ -9390,12 +9444,8 @@ const LENGUAJES = {
           else {
             const t = this.ruta(e, o);
             // (si la IA vuelve a mandar el mismo archivo, cuenta la última versión: el .zip llevaba la primera)
-            const a = this.archivos.find((e) => e.ruta === t);
             (soloApuntar || this.consejo(),
-              a
-              ? (a.contenido = e.codigo)
-              : this.archivos.push({ ruta: t, contenido: e.codigo, ...(incognito ? { incognito: !0 } : {}) }),
-              ($("zipBtn").style.display = ""),
+              this.apuntar(t, e.codigo, !soloApuntar),
               o && (o.querySelector(".carpeta").textContent = `📁 ${t}`));
           }
       }),
@@ -9835,18 +9885,16 @@ const Lab3D = (() => {
                 : copiar(obj, t));
         }));
       // a la lista de archivos de Cece (el .zip y GitHub los llevan) y, con carpeta, guardado solo
-      for (const [e, t] of [
+      const archivos = [
         [`modelos-3d/${n}.obj`, obj],
         ...(mtl ? [[`modelos-3d/${n}.mtl`, mtl]] : []),
-      ]) {
-        const o = Codigo.archivos.find((t) => t.ruta === e);
-        o ? (o.contenido = t) : Codigo.archivos.push({ ruta: e, contenido: t, ...(incognito ? { incognito: !0 } : {}) });
-      }
-      (($("zipBtn").style.display = ""),
-        soloApuntar ||
-          Promise.all([Codigo.guardarSolo("modelos-3d", n + ".obj", obj), mtl && Codigo.guardarSolo("modelos-3d", n + ".mtl", mtl)]).then(([e]) => {
-            e && (card.querySelector(".lab3d-ok").textContent = "📁 " + e + " ✓");
-          }));
+      ];
+      for (const [e, t] of archivos) Codigo.apuntar(e, t, !soloApuntar);
+      soloApuntar ||
+        Promise.all(archivos.map(([e, t]) => Codigo.guardarSolo("modelos-3d", e.slice(11), t))).then((e) => {
+          (e.forEach((e, t) => e && Codigo.pendientes.get(archivos[t][0]) === archivos[t][1] && Codigo.pendientes.delete(archivos[t][0])),
+            e[0] && (card.querySelector(".lab3d-ok").textContent = "📁 " + e[0] + " ✓"));
+        });
     }
   }
   return { montar, desdeJson, desdeObj, aObj, aMtl };
@@ -10025,27 +10073,31 @@ function guardarPendiente() {
 }
 // Empieza una conversación vacía (normal o de incógnito). La que había ya está guardada en la lista, salvo si era de
 // incógnito: esa se borra entera (también los archivos que creó Cece en ella).
+// Al entrar en incógnito, la conversación que estaba abierta no se toca: sigue siendo «la actual» en lo guardado (si se
+// recarga, se vuelve a ella) y, al salir del incógnito, se vuelve a ella. Antes se cambiaba por una vacía, y con el
+// guardado automático apagado se perdía.
+let _antesDeIncognito = null;
 function empezarNueva(inc = !1) {
-  (detener(),
-    Voz.detener(),
-    guardarPendiente(),
-    incognito && salirDeIncognito(),
-    (Voz.liveHist = []),
-    (historial = []),
-    (convId = uid()),
-    (Nube.firma = "[]"),
-    guardarActual(),
-    (incognito = !!inc),
-    pintarIncognito(),
-    pintarHistorial(),
-    Red.pintar(),
-    $("userInput").focus());
+  (detener(), Voz.detener(), guardarPendiente());
+  const volver = incognito ? _antesDeIncognito : null;
+  if ((incognito && salirDeIncognito(), (_antesDeIncognito = null), (Voz.liveHist = []), inc))
+    ((_antesDeIncognito = historial.some(tieneAlgo) ? { id: convId, historial, firma: Nube.firma } : null),
+      (historial = []),
+      (convId = uid()),
+      (Nube.firma = "[]"),
+      (incognito = !0));
+  else if (volver) {
+    // (la de la lista, por si la nube la actualizó mientras tanto)
+    const e = convs.find((e) => e.id === volver.id);
+    ((historial = e ? copiaMensajes(e.mensajes) : volver.historial),
+      (convId = volver.id),
+      (Nube.firma = e ? firmaConv(historial) : volver.firma),
+      guardarActual());
+  } else ((historial = []), (convId = uid()), (Nube.firma = "[]"), guardarActual());
+  (pintarIncognito(), pintarHistorial(), Red.pintar(), $("userInput").focus());
 }
 function salirDeIncognito() {
-  ((incognito = !1),
-    (Codigo.archivos = Codigo.archivos.filter((e) => !e.incognito)),
-    Codigo.archivos.length || ($("zipBtn").style.display = "none"),
-    Citas.lista.length && Citas.sacar());
+  ((incognito = !1), Codigo.vaciar(), Citas.lista.length && Citas.sacar());
 }
 function pintarIncognito() {
   (document.body.classList.toggle("incognito", incognito),
@@ -10129,6 +10181,7 @@ function cargarConversacion(e) {
     (detener(),
     guardarPendiente(),
     incognito && (salirDeIncognito(), pintarIncognito()),
+    (_antesDeIncognito = null),
     (Voz.liveHist = []),
     (historial = copiaMensajes(t.mensajes)),
     (convId = t.id),
@@ -10499,8 +10552,10 @@ function conectarAjustes() {
       const p = e.target.closest(".preg-op");
       if (p && !p.disabled) {
         if (generando) return void toast(tr("Espera a que Cece termine (o pulsa ⏹) y elige otra vez."));
-        const o = p.dataset.enviar || p.textContent;
-        return (cerrarPreguntas(p), void enviar(o));
+        // El texto de una opción lo escribe la IA: se manda como respuesta, nunca como comando. Antes, una opción
+        // «/olvidar todo» borraba la memoria al pulsarla, y una «recuerda que…» apuntaba en ella lo que dijera. Solo
+        // los botones que pone Cece (los del motor de /3d-game) mandan un comando.
+        return (cerrarPreguntas(p), void (p.dataset.enviar ? enviar(p.dataset.enviar) : enviar(p.textContent, { literal: !0 })));
       }
       const t = e.target.closest(".copy-btn[data-acc]");
       if (!t) return;
@@ -10666,41 +10721,85 @@ const INSTR_MEMORIA_AUTO =
   // ¿está escribiendo una marca ahora mismo? (abierta y sin cerrar al final de lo que ha llegado). Antes bastaba con
   // que hubiera una: si la IA la ponía al principio, «🧠 Anotando» se quedaba durante toda la respuesta.
   RE_ABRE_MEMORIA = /<(recordar|olvidar)>[^<\n]*(?:<\/?[a-z]*)?$/i,
-  RE_MARCA_MEMORIA = /<(recordar|olvidar)>[ \t]*([^<\n]*?)[ \t]*(?:<\/\1>|(?=\n|$))/gi;
+  // (sin «[ \t]*» alrededor del dato: con una línea llena de espacios aquello probaba combinaciones sin fin. Los
+  // espacios de los extremos se quitan al leer el dato)
+  RE_MARCA_MEMORIA = /<(recordar|olvidar)>([^<\n]*)(?:<\/\1>|(?=\n|$))/gi;
 // ❓ Preguntas de la IA: si mientras programa le surge una duda importante, termina con
 // <pregunta>¿…?<opcion>A</opcion><opcion>B</opcion></pregunta>. Cece la enseña como una tarjeta con botones; lo que
 // eliges (o escribes) le llega como respuesta y sigue con el trabajo. La marca se queda en la conversación (así la IA
 // sabe qué preguntó), pero nunca se enseña tal cual: ni en el chat, ni al copiar, exportar o leer en voz alta.
 const INSTR_PREGUNTAS =
   "Dudas: si estás programando o creando algo (una app, un juego, un modelo 3D, código…) y te surge una duda importante que cambia mucho el resultado y que no puedes decidir con sentido común, pregunta en vez de suponer: haz lo que puedas sin esa respuesta (o nada, si todo depende de ella) y termina tu respuesta con <pregunta>la pregunta, corta<opcion>una respuesta posible</opcion><opcion>otra</opcion></pregunta> (de 2 a 5 opciones breves). Como mucho una pregunta por respuesta y solo si de verdad hace falta: lo demás, decídelo tú y di qué has supuesto. El usuario ve la pregunta con botones: no expliques la marca.";
-function unaPregunta(e) {
-  const t = [...String(e).matchAll(/<opcion>([\s\S]*?)(?:<\/opcion>|$)/gi)]
-      .map((e) => e[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 120))
+// Las marcas de Cece (<pregunta>, <recordar>, <olvidar>) solo cuentan fuera del código: dentro de un bloque ```…``` o
+// entre `…` son parte de lo que la IA ha escrito (por ejemplo, el XML de un test con etiquetas <pregunta>). Antes se
+// las comía del código, hacía tarjetas de pregunta con ellas y hasta guardaba en la memoria lo que llevaran dentro.
+// Devuelve el texto con el código cambiado por marcadores y «destapar», que lo devuelve a su sitio. Los bloques se
+// reconocen igual que al pintar el Markdown (vallas e `inline`).
+function taparCodigo(e) {
+  const t = [],
+    k = Math.random().toString(36).slice(2, 8),
+    marca = (e) => `\uE000${k}:${t.push(e) - 1}\uE001`,
+    o = normalizarTexto(e).split("\n"),
+    a = [];
+  for (let e = 0; e < o.length; e++) {
+    const n = /^[ \t]*(`{3,}|~{3,})[ \t]*[^`\n]*$/.exec(o[e]);
+    if (!n) {
+      a.push(o[e]);
+      continue;
+    }
+    const r = new RegExp("^[ \\t]*" + n[1][0] + "{" + n[1].length + ",}[ \\t]*$");
+    let i = e + 1;
+    for (; i < o.length && !r.test(o[i]); ) i++;
+    (a.push(marca(o.slice(e, i + 1).join("\n"))), (e = i));
+  }
+  const n = new RegExp(`\uE000${k}:(\\d+)\uE001`, "g");
+  return {
+    texto: a.join("\n").replace(/(`+)(?!`)([^\n]*?[^`\n])\1(?!`)/g, marca),
+    destapar: (e) => String(e).replace(n, (e, o) => t[+o] ?? e),
+  };
+}
+function unaPregunta(e, destapar = (e) => e) {
+  const limpio = (e, t) => destapar(e.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()).slice(0, t),
+    t = [...String(e).matchAll(/<opcion>([\s\S]*?)(?:<\/opcion>|$)/gi)]
+      .map((e) => limpio(e[1], 120))
       .filter(Boolean)
       .slice(0, 6),
-    o = String(e)
-      .replace(/<opcion>[\s\S]*?(?:<\/opcion>|$)/gi, "")
-      .replace(/<[^>]*>/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 500);
+    o = limpio(String(e).replace(/<opcion>[\s\S]*?(?:<\/opcion>|$)/gi, ""), 500);
   return o || t.length ? { texto: o || "¿Cuál prefieres?", opciones: t } : null;
 }
-// Separa las preguntas del texto. Mientras llega la respuesta («enCurso»), una a medias no se enseña todavía.
+// Separa las preguntas del texto. Mientras llega la respuesta («enCurso»), una a medias no se enseña todavía. Se busca
+// marca a marca (y no con una sola expresión con «.*?»): con muchas marcas sin cerrar, aquello tardaba el cuadrado.
 function sacarPreguntas(e, enCurso) {
-  const t = [];
-  let o = String(e || "").replace(/<pregunta>([\s\S]*?)<\/pregunta>/gi, (e, o) => {
-    const a = unaPregunta(o);
-    return (a && t.push(a), "");
-  });
+  const { texto: t, destapar: o } = taparCodigo(e),
+    a = [],
+    n = [],
+    abre = /<pregunta>/gi,
+    cierra = /<\/pregunta>/gi,
+    una = (e) => {
+      // (una pregunta no pasa de unas líneas: lo que sobre no se mira)
+      const t = unaPregunta(e.slice(0, 4e3), o);
+      t && a.push(t);
+    };
+  for (let e = 0; ; ) {
+    abre.lastIndex = e;
+    const r = abre.exec(t);
+    if (!r) {
+      n.push(t.slice(e));
+      break;
+    }
+    (n.push(t.slice(e, r.index)), (cierra.lastIndex = abre.lastIndex));
+    const i = cierra.exec(t);
+    if (!i) {
+      // sin cerrar: mientras llega no se enseña; al terminar vale como pregunta
+      enCurso || una(t.slice(abre.lastIndex));
+      break;
+    }
+    (una(t.slice(abre.lastIndex, i.index)), (e = cierra.lastIndex));
+  }
+  let r = n.join("").replace(/\n{3,}/g, "\n\n");
   return (
-    enCurso
-      ? (o = o.replace(/<pregunta>[\s\S]*$/i, "").replace(/<\/?(?:p(?:r(?:e(?:g(?:u(?:n(?:t(?:a)?)?)?)?)?)?)?)?$/i, ""))
-      : (o = o.replace(/<pregunta>([\s\S]*)$/i, (e, o) => {
-          const a = unaPregunta(o);
-          return (a && t.push(a), "");
-        })),
-    { texto: o.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, ""), preguntas: t }
+    enCurso && (r = r.replace(/<\/?(?:p(?:r(?:e(?:g(?:u(?:n(?:t(?:a)?)?)?)?)?)?)?)?$/i, "")),
+    { texto: o(r).replace(/\s+$/, ""), preguntas: a }
   );
 }
 // Para copiar, exportar o leer en voz alta: la pregunta como texto normal
@@ -10728,14 +10827,17 @@ function cerrarPreguntas(e) {
   }
 }
 // Quita las marcas. Mientras llega la respuesta («enCurso») también lo que va detrás de una marca a medias.
+// (las líneas en blanco de más se quitan solo fuera del código: antes también dentro, y un archivo de Python perdía las
+// dos líneas en blanco entre funciones)
 function sinMarcasMemoria(e, enCurso) {
-  let t = String(e || "").replace(RE_MARCA_MEMORIA, "");
+  const { texto: o, destapar: a } = taparCodigo(e);
+  let t = o.replace(RE_MARCA_MEMORIA, "");
   return (
     enCurso &&
       (t = t
         .replace(/<(recordar|olvidar)>[\s\S]*$/i, "")
         .replace(/<\/?(?:r(?:e(?:c(?:o(?:r(?:d(?:a(?:r)?)?)?)?)?)?)?|o(?:l(?:v(?:i(?:d(?:a(?:r)?)?)?)?)?)?)?$/i, "")),
-    t.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "")
+    a(t.replace(/\n{3,}/g, "\n\n")).replace(/\s+$/, "")
   );
 }
 // Aplica lo que la IA ha decidido recordar u olvidar (de la respuesta final y, en Cece Pro, de cada paso) y devuelve
@@ -10744,12 +10846,15 @@ function memoriaDeRespuesta(e) {
   const t = { texto: sinMarcasMemoria(e[0]), guardados: [], olvidados: [] };
   if (!S.memoria || !S.memoriaAuto || incognito) return t;
   const o = { recordar: [], olvidar: [] };
-  for (const t of e)
-    for (const e of String(t || "").matchAll(RE_MARCA_MEMORIA)) {
-      const t = e[2].trim().slice(0, 200),
+  for (const t of e) {
+    // (lo que va dentro de un bloque de código no es una marca)
+    const { texto: n, destapar: r } = taparCodigo(t);
+    for (const e of n.matchAll(RE_MARCA_MEMORIA)) {
+      const t = r(e[2]).trim().slice(0, 200),
         a = o[e[1].toLowerCase()];
       t && !a.some((e) => norm(e) === norm(t)) && a.length < 3 && a.push(t);
     }
+  }
   for (const e of o.olvidar) t.olvidados.push(...Memoria.olvidarTexto(e));
   for (const e of o.recordar) {
     const o = Memoria.agregarItem(e);
@@ -14424,6 +14529,11 @@ function iniciarCece() {
         (convId = "string" == typeof e.id ? e.id : uid()));
       const t = convs.find((e) => e.id === convId);
       Nube.firma = t ? firmaConv(t.mensajes) : convsBorradas()[convId] ? firmaConv(historial) : "[]";
+      // La conversación abierta entra en la lista si aún no estaba (se cerró la pestaña antes de que se guardara, o
+      // viene de una versión anterior). Y lo que quede por guardar se guarda en cuanto la pestaña se oculta o se cierra.
+      autoGuardarConv();
+      const o = () => "hidden" === document.visibilityState && guardarPendiente();
+      (document.addEventListener("visibilitychange", o), window.addEventListener("pagehide", () => guardarPendiente()));
     }),
     paso(pintarHistorial),
     paso(() => Codigo.cargar()),

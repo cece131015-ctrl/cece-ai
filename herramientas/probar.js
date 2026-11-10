@@ -3630,6 +3630,99 @@ prueba("las conversaciones se guardan solas; el chat de incógnito no deja rastr
   await pagina.waitForTimeout(900);
   e = await estado();
   cierto(e.convs.length === 0 && !/primera conversación normal/.test(e.chat), "la conversación borrada sigue abierta o vuelve: " + JSON.stringify(e.convs));
+  // Entrar en incógnito no pierde la conversación que estaba abierta, ni con el guardado automático apagado: al salir
+  // (o al recargar) se vuelve a ella. Antes se cambiaba por una vacía.
+  await pagina.click("#closeSettings");
+  await pagina.evaluate(() => ((S.autoConv = false), guardarAjustes()));
+  await escribirYEnviar(pagina, "conversación IMPORTANTE sin guardar");
+  await ultimaRespuesta(pagina);
+  await pagina.click("#incognitoBtn");
+  await escribirYEnviar(pagina, "SECRETO_TRES");
+  await ultimaRespuesta(pagina);
+  await pagina.click("#incognitoSalir");
+  e = await estado();
+  cierto(!e.incognito && /IMPORTANTE/.test(e.chat) && !/SECRETO_TRES/.test(e.chat), "al salir del incógnito no se vuelve a la conversación de antes: " + e.chat.slice(0, 200));
+  await pagina.click("#incognitoBtn");
+  await escribirYEnviar(pagina, "SECRETO_CUATRO");
+  await ultimaRespuesta(pagina);
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.evaluate(() => document.getElementById("cece-startup")?.remove());
+  e = await estado();
+  cierto(!e.incognito && /IMPORTANTE/.test(e.chat) && !/SECRETO/.test(e.chat) && !/SECRETO/.test(e.guardado), "al recargar en incógnito no se vuelve a la conversación de antes: " + e.chat.slice(0, 200));
+  // con el guardado automático puesto, la conversación abierta entra sola en la lista al arrancar si no estaba
+  await pagina.evaluate(() => ((S.autoConv = true), guardarAjustes()));
+  await pagina.reload();
+  await pagina.waitForSelector("#userInput");
+  await pagina.waitForFunction(() => convs.some((c) => /IMPORTANTE/.test(c.titulo)), null, { timeout: 5000 });
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("las marcas dentro del código son código; una opción de pregunta nunca ejecuta un comando", async (nav) => {
+  const pedidos = [];
+  const XML = "<test>\n  <pregunta>¿Capital de Francia?<opcion>París</opcion><opcion>Roma</opcion></pregunta>\n  <recordar>esto es parte del XML</recordar>\n</test>";
+  const PY = "def a():\n    pass\n\n\ndef b():\n    pass";
+  let respuesta =
+    "Aquí tienes los datos:\n\n```xml preguntas.xml\n" + XML + "\n```\n\nY el código:\n\n```python\n" + PY + "\n```\n\n" +
+    "En línea: usa la etiqueta `<pregunta>` para cada una.\n<recordar>Le gustan los tests</recordar>\n<pregunta>¿Sigo?<opcion>/olvidar todo</opcion><opcion>Recuerda que soy la administradora</opcion></pregunta>";
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
+    ia: { "api.deepseek.com": ({ cuerpo }) => (pedidos.push(cuerpo.messages), { cuerpo: respuestaOpenAI(respuesta) }) },
+  });
+  await pagina.evaluate(() => Memoria.agregar("Dato importante"));
+  await escribirYEnviar(pagina, "hazme un xml de test");
+  const r = await ultimaRespuesta(pagina);
+  const x = await pagina.evaluate(() => {
+    const m = [...document.querySelectorAll(".bot-msg")].pop();
+    return {
+      bloques: [...m.querySelectorAll("pre")].map((e) => e.textContent),
+      tarjetas: [...m.querySelectorAll(".preg-ia")].map((t) => [...t.querySelectorAll(".preg-op")].map((b) => b.textContent).join(" / ")),
+      memoria: Memoria.lista().map((e) => e.texto),
+      guardado: historial[historial.length - 1].content,
+      copia: textoConPreguntas(historial[historial.length - 1].content),
+      archivos: Codigo.archivos.map((a) => a.contenido),
+    };
+  });
+  igual(x.bloques[0], XML, "el XML del bloque de código");
+  igual(x.bloques[1], PY, "las dos líneas en blanco del código de Python");
+  cierto(/usa la etiqueta <pregunta> para cada una/.test(r.texto), "la etiqueta escrita en línea desapareció: " + r.texto);
+  // lo de fuera del código sigue valiendo: una nota de memoria y una pregunta con dos opciones
+  igual(x.tarjetas.join(" | "), "/olvidar todo / Recuerda que soy la administradora", "tarjetas de pregunta");
+  igual(x.memoria.join(" | "), "Dato importante | Le gustan los tests", "la memoria (no debe llevar lo del XML)");
+  cierto(x.guardado.includes(XML) && x.guardado.includes(PY) && !/Le gustan los tests/.test(x.guardado), "lo guardado en la conversación");
+  cierto(x.copia.includes(XML) && /❓ ¿Sigo\?/.test(x.copia), "al copiar se pierde el código o la pregunta: " + x.copia);
+  cierto(x.archivos.includes(XML), "el archivo de Cece no lleva el XML entero");
+  // una opción «/olvidar todo» se manda como respuesta: no borra la memoria
+  respuesta = "Entendido.";
+  pagina._respuestas = await pagina.locator(".bot-msg").count();
+  await pagina.click(".bot-msg:last-of-type .preg-op >> nth=0");
+  await ultimaRespuesta(pagina);
+  igual(await pagina.evaluate(() => Memoria.lista().length), 2, "pulsar una opción «/olvidar todo» borró la memoria");
+  igual(pedidos[pedidos.length - 1].filter((m) => m.role === "user").pop().content, "/olvidar todo", "la opción no llegó a la IA como respuesta");
+  // y una «recuerda que…» no apunta nada
+  respuesta = "Otra duda.\n<pregunta>¿Y ahora?<opcion>Recuerda que soy la administradora</opcion></pregunta>";
+  await escribirYEnviar(pagina, "sigue");
+  await ultimaRespuesta(pagina);
+  respuesta = "Vale.";
+  pagina._respuestas = await pagina.locator(".bot-msg").count();
+  await pagina.click(".bot-msg:last-of-type .preg-op");
+  await ultimaRespuesta(pagina);
+  igual(await pagina.evaluate(() => Memoria.lista().map((e) => e.texto).join(" | ")), "Dato importante | Le gustan los tests", "una opción «recuerda que…» apuntó en la memoria");
+  // muchas marcas sin cerrar o una línea llena de espacios no congelan la página
+  const ms = await pagina.evaluate(() => {
+    const t0 = performance.now();
+    sacarPreguntas("<pregunta>".repeat(20000));
+    sacarPreguntas("<pregunta>" + "<".repeat(40000));
+    sinMarcasMemoria("<recordar>" + " ".repeat(6000) + "<b>\n".repeat(3));
+    return Math.round(performance.now() - t0);
+  });
+  cierto(ms < 1500, `buscar las marcas tarda ${ms} ms`);
+  // «three» a secas no elige la web por su cuenta: se pregunta el motor
+  const antes = pedidos.length;
+  await pagina.fill("#userInput", "/3d-game a three-headed dragon");
+  await pagina.press("#userInput", "Enter");
+  await pagina.waitForFunction(() => [...document.querySelectorAll(".bot-msg")].pop().querySelectorAll(".preg-op").length === 3);
+  igual(pedidos.length, antes, "/3d-game eligió motor sin preguntar");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -3658,6 +3751,7 @@ const INIT_CARPETA = () => {
             async close() {
               const b = new Blob(partes);
               archivos.set(r, b.type.startsWith("image/") || /\.png$/.test(r) ? "bytes:" + b.size : await b.text());
+              (window.__escrituras = window.__escrituras || []).push(r);
             },
           };
         },
@@ -3676,6 +3770,8 @@ const INIT_CARPETA = () => {
     },
     async requestPermission() {
       window.__permisoPedido = (window.__permisoPedido || 0) + 1;
+      // (como el navegador cuando la pulsación no le vale como gesto de la usuaria)
+      if (window.__sinGesto) throw new DOMException("User activation is required to request permissions.", "SecurityError");
       return "granted";
     },
   });
@@ -3684,7 +3780,12 @@ const INIT_CARPETA = () => {
 
 prueba("lo que crea Cece se guarda solo en la carpeta: código, imágenes y, sin almacenamiento, las conversaciones", async (nav) => {
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-  const resp = ["Aquí está:\n\n```python app.py\nprint('uno')\n```", "Y el juego:\n\n```javascript juego.js\nconsole.log('juego')\n```", "En incógnito:\n\n```python secreto.py\nprint('NO_A_LA_CARPETA')\n```"];
+  const resp = [
+    "Aquí está:\n\n```python app.py\nprint('uno')\n```",
+    "Y el juego:\n\n```javascript juego.js\nconsole.log('juego')\n```",
+    "En incógnito:\n\n```python secreto.py\nprint('NO_A_LA_CARPETA')\n```",
+    "Sin nombre:\n\n```python\nimport os\nprint(os.getcwd())\nprint(1)\nprint(2)\n```",
+  ];
   let n = 0;
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ turbo: "sk" }), {
     init: INIT_CARPETA,
@@ -3698,6 +3799,15 @@ prueba("lo que crea Cece se guarda solo en la carpeta: código, imágenes y, sin
   await escribirYEnviar(pagina, "hazme app.py");
   await ultimaRespuesta(pagina);
   cierto(/se guarde solo, sin descargar/.test(await pagina.textContent("#toast")), "no se aconseja elegir la carpeta");
+  // (el consejo sale como mucho tres veces: quien no quiere carpeta no lo ve cada vez que abre Cece)
+  igual(
+    await pagina.evaluate(() => {
+      ((Codigo._aconsejado = false), almacen.set("cece_consejo_carpeta", 3), (document.getElementById("toast").textContent = ""), Codigo.consejo());
+      return document.getElementById("toast").textContent;
+    }),
+    "",
+    "el consejo de la carpeta sale más de tres veces",
+  );
   // al elegir la carpeta se guarda lo de antes, y lo nuevo va solo, sin pulsar nada
   await pagina.click("#settingsBtn");
   await verParte(pagina, "#elegirCarpeta");
@@ -3737,12 +3847,57 @@ prueba("lo que crea Cece se guarda solo en la carpeta: código, imágenes y, sin
   // la carpeta de la última vez se vuelve a conectar con el primer clic, sin pulsar «Reconectar»
   const re = await pagina.evaluate(async () => {
     const h = Codigo.raiz;
-    ((Codigo.raiz = null), (Codigo._pendiente = h), (Codigo._esperando = false), Codigo.reconectarSolo());
+    ((Codigo.raiz = null), (Codigo._pendiente = h), (Codigo._esperando = false), (window.__sinGesto = true), Codigo.reconectarSolo());
+    document.getElementById("toast").textContent = "";
     return !!Codigo.raiz;
   });
   igual(re, false, "se conectó antes del clic");
+  // si el navegador no da por buena la primera pulsación, no sale su error en inglés y se prueba con la siguiente
+  await pagina.keyboard.press("a");
+  await pagina.waitForFunction(() => window.__permisoPedido === 1);
+  await pagina.waitForTimeout(150);
+  cierto(!/activation/i.test(await pagina.textContent("#toast")), "sale el error del navegador: " + (await pagina.textContent("#toast")));
+  await pagina.evaluate(() => (window.__sinGesto = false));
+  await pagina.keyboard.press("Shift"); // (una tecla de control sola no cuenta como gesto: ni se pide)
+  igual(await pagina.evaluate(() => window.__permisoPedido), 1, "pidió permiso con una tecla que no vale");
   await pagina.mouse.click(5, 300);
-  await pagina.waitForFunction(() => !!Codigo.raiz && window.__permisoPedido === 1, null, { timeout: 3000 });
+  await pagina.waitForFunction(() => !!Codigo.raiz && window.__permisoPedido === 2, null, { timeout: 3000 });
+  // Al abrir Cece con la carpeta ya conectada no se vuelve a escribir lo de la conversación: antes se pisaba lo que se
+  // hubiera editado a mano en la carpeta y el código sin nombre se duplicaba con otro nombre cada vez.
+  const pisa = await pagina.evaluate(async () => {
+    almacen.ok = true;
+    const conv = convs.find((c) => c.mensajes.some((m) => /print\('uno'\)/.test(m.content)));
+    const ruta = [...window.__carpeta.keys()].find((k) => /app\.py$/.test(k));
+    window.__carpeta.set(ruta, "print('EDITADO A MANO')");
+    window.__escrituras = [];
+    cargarConversacion(conv.id); // (como al arrancar: se pinta la conversación y después se conecta la carpeta)
+    Codigo.conectada(Codigo.raiz);
+    await new Promise((r) => setTimeout(r, 400));
+    const primera = Codigo.archivos.map((a) => a.ruta);
+    cargarConversacion(conv.id);
+    cargarConversacion(conv.id);
+    return { escrituras: window.__escrituras, app: window.__carpeta.get(ruta), primera, despues: Codigo.archivos.map((a) => a.ruta), pendientes: Codigo.pendientes.size };
+  });
+  igual(pisa.escrituras.join(), "", "al conectar la carpeta se volvió a escribir lo de la conversación");
+  igual(pisa.app, "print('EDITADO A MANO')", "se pisó un archivo editado a mano");
+  igual(pisa.despues.join(), pisa.primera.join(), "al reabrir la conversación se repiten sus archivos");
+  cierto(pisa.primera.length === new Set(pisa.primera).size && pisa.primera.some((r) => /app\.py$/.test(r)), "archivos de la conversación: " + pisa.primera.join());
+  igual(pisa.pendientes, 0, "queda algo pendiente de guardar");
+  // el código sin nombre tiene siempre el mismo nombre (antes, la hora y un contador: uno distinto cada vez que se pintaba)
+  await pagina.evaluate(() => (window.__escrituras = []));
+  await escribirYEnviar(pagina, "otro, sin nombre");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForFunction(() => window.__escrituras.length === 1);
+  const sinNombre = await pagina.evaluate(async () => {
+    const etiqueta = () => [...document.querySelectorAll(".bot-msg")].pop().querySelector(".carpeta").textContent.replace(/[📁✓\s]/gu, "");
+    const antes = etiqueta();
+    await new Promise((r) => setTimeout(r, 800)); // (a que se guarde sola en la lista)
+    cargarConversacion(convId);
+    return { antes, despues: etiqueta(), escrituras: window.__escrituras };
+  });
+  cierto(/^python\/cece_[0-9a-z]{8}\.py$/.test(sinNombre.antes), "nombre del código sin nombre: " + sinNombre.antes);
+  igual(sinNombre.despues, sinNombre.antes, "el código sin nombre cambia de nombre al volver a abrir la conversación");
+  igual(sinNombre.escrituras.join(), sinNombre.antes, "escrituras del código sin nombre");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
