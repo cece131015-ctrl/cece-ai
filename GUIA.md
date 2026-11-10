@@ -87,7 +87,8 @@ abriendo el archivo normal. Para pasarlas de un sitio a otro: Configuración →
 
 Pulsa **🕶️** arriba (o escribe `/incognito`). Ese chat **no se guarda** en ningún sitio (ni en la lista, ni en la nube,
 ni en la carpeta) y Cece no usa ni apunta nada en su memoria. **Al salir se borra**: con «Salir», con «Limpiar», al abrir
-otra conversación, al cambiar de perfil o al cerrar o recargar la página.
+otra conversación, al cambiar de perfil o al cerrar o recargar la página. Al salir vuelves a la conversación que tenías
+abierta antes de entrar.
 
 ### Elegir el modelo
 
@@ -192,4 +193,4 @@ responde sin internet: Configuración → 📴 Sin conexión.
 | Ctrl+Alt+C no hace nada | Otro programa usa ese atajo, o falta ejecutar `crear-acceso-directo.bat` (desde la carpeta extraída, no desde dentro del zip). |
 | Las claves están «cifradas y bloqueadas» | Escribe tu contraseña al abrir (o en 🔐 Seguridad → Desbloquear). |
 
-La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.09»).
+La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.10»).

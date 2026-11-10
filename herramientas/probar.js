@@ -1836,6 +1836,21 @@ prueba("adjuntar cualquier archivo: .zip, .tar, .tar.gz, .gz, .iso, programas, .
   // un .zip dañado no rompe nada: va como binario diciendo por qué
   r = await leer("roto.zip", Buffer.from("PK\x03\x04 no hay más", "latin1"));
   cierto(r.origen === "bin" && /no es un ZIP válido/.test(r.texto), "el .zip roto: " + r.texto);
+  // nombres con tilde escritos como los hace Windows (CP850, sin la marca de UTF-8): antes salía «canci�n.txt»
+  const cp = zipDe({ "canci@n.txt": "la letra", "A#os/ni#o.md": "# hola" });
+  for (const [de, a] of [["canci@n", 0xa2], ["A#os", 0xa4], ["ni#o", 0xa4]])
+    for (let i = cp.indexOf(de); i >= 0; i = cp.indexOf(de, i + 1)) cp[i + de.search(/[@#]/)] = a;
+  r = await leer("letras.zip", cp, "application/zip");
+  cierto(/^canción\.txt · /m.test(r.texto) && /^Años\/niño\.md · /m.test(r.texto) && /=== canción\.txt ===\nla letra/.test(r.texto), "nombres con tilde del .zip: " + r.texto.slice(0, 400));
+  // un Word con macros se lee como documento, no como un .zip con el XML en crudo
+  r = await leer("informe.docm", docx(parrafo(run("Texto del informe"))));
+  igual(r.texto, "Texto del informe", "el .docm");
+  // una imagen que el navegador no sabe abrir (TIFF) se adjunta diciendo qué es, en vez de rechazarse
+  r = await leer("escaneo.tif", Buffer.concat([Buffer.from([0x49, 0x49, 0x2a, 0, 8, 0, 0, 0]), Buffer.alloc(100)]), "image/tiff");
+  cierto(r && r.origen === "bin" && /imagen TIFF/.test(r.texto) && /JPG o PNG/.test(r.texto), "el .tif: " + JSON.stringify(r));
+  // algo que se llama .tar y no lo es: no salen nombres basura
+  r = await leer("falso.tar", Buffer.alloc(2048, 65));
+  cierto(r.origen === "bin" && /no es un TAR válido/.test(r.texto), "el .tar falso: " + r.texto.slice(0, 200));
   igual(await pagina.evaluate(() => document.getElementById("adjInput").getAttribute("accept")), null, "el selector de archivos sigue limitando los tipos");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
@@ -4055,6 +4070,36 @@ prueba("Lab 3D: del modelo descrito a .obj y .mtl, con vista 3D y guardado en la
   await pagina.waitForTimeout(200);
   const t = await pagina.evaluate(() => ({ cab: [...document.querySelectorAll(".lab3d-cab")].pop().textContent, rutas: Codigo.archivos.map((a) => a.ruta) }));
   cierto(/4 caras/.test(t.cab) && t.rutas.includes("modelos-3d/modelo.obj") && !t.rutas.some((x) => /^obj\//.test(x)), "el .obj escrito tal cual: " + JSON.stringify(t));
+  // La rueda del ratón sobre el modelo no se queda con el desplazamiento del chat hasta que se toca el modelo
+  const rueda = await pagina.evaluate(() => {
+    const cv = [...document.querySelectorAll(".lab3d canvas")].pop();
+    const girar = () => {
+      const e = new WheelEvent("wheel", { deltaY: -100, cancelable: true, bubbles: true });
+      cv.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    const antes = girar();
+    cv.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, clientX: 10, clientY: 10, bubbles: true }));
+    cv.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, bubbles: true }));
+    const tocado = girar();
+    cv.dispatchEvent(new PointerEvent("pointerleave", { pointerId: 1 }));
+    return [antes, tocado, girar(), getComputedStyle(cv).touchAction, !!cv.closest(".lab3d").querySelector('[data-l="mas"]')].join();
+  });
+  igual(rueda, "false,true,false,pan-y,true", "la rueda, el deslizamiento en el móvil o los botones de acercar");
+  // lo que algunos modelos escriben distinto también vale: bloque json, comentarios, comas de más, posición como objeto
+  respuesta = 'Otro:\n\n```json\n{\n  // una mesa\n  "nombre": "Mesa",\n  "piezas": [\n    { "tipo": "caja", "nombre": "pata", "tam": [0.1, 1, 0.1], "pos": { "x": 1, "y": 0.5, "z": 1 }, "radioArriba": null },\n    { "tipo": "caja", "nombre": "pata", "tam": [0.1, 1, 0.1], "pos": [-1, 0.5, 1], },\n    { "tam": [2.4, 0.1, 2.4], "pos": [0, 1.05, 0] },\n  ],\n}\n```';
+  await escribirYEnviar(pagina, "/lab3d una mesa");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForFunction(() => window.__carpeta.has("modelos-3d/mesa.obj"), null, { timeout: 5000 });
+  const mesa = await pagina.evaluate(() => window.__carpeta.get("modelos-3d/mesa.obj"));
+  igual((mesa.match(/^o .*$/gm) || []).join(), "o pata,o pata-2,o pieza", "nombres de las piezas");
+  cierto(/^v 1\.05 1 1\.05$/m.test(mesa), "la posición escrita como {x, y, z} no se usó");
+  cierto(!(await pagina.evaluate(() => Codigo.archivos.some((a) => /^json\//.test(a.ruta)))), "la descripción en json se apuntó como archivo de código");
+  // un .obj con nombre de archivo se guarda con su nombre (antes todos eran «modelo» y se pisaban)
+  respuesta = "Y esta:\n\n```obj silla.obj\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n```";
+  await escribirYEnviar(pagina, "una silla en obj");
+  await ultimaRespuesta(pagina);
+  await pagina.waitForFunction(() => window.__carpeta.has("modelos-3d/silla.obj"), null, { timeout: 5000 });
   // una descripción rota avisa sin romper nada
   respuesta = "```lab3d\n{ esto no es json\n```";
   await escribirYEnviar(pagina, "/lab3d algo");
@@ -4064,7 +4109,7 @@ prueba("Lab 3D: del modelo descrito a .obj y .mtl, con vista 3D y guardado en la
   await pagina.reload();
   await pagina.waitForSelector("#userInput");
   await pagina.waitForTimeout(300);
-  igual(await pagina.evaluate(() => document.querySelectorAll(".lab3d canvas").length), 2, "tras recargar no vuelven las vistas 3D");
+  igual(await pagina.evaluate(() => document.querySelectorAll(".lab3d canvas").length), 4, "tras recargar no vuelven las vistas 3D");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });

@@ -1,5 +1,41 @@
 # Informe de depuración
 
+## 10 de noviembre de 2026 — depuración de lo nuevo
+
+Cada arreglo tiene su prueba, que falla con la versión anterior (95 pruebas en total).
+
+- **Las marcas de Cece dentro del código.** Si la IA escribía código con etiquetas `<pregunta>`, `<opcion>` o
+  `<recordar>` (por ejemplo, el XML de un test), Cece se las quitaba al código, hacía tarjetas de pregunta con ellas y
+  guardaba en la memoria lo que llevaran. Ahora las marcas solo cuentan fuera de los bloques de código. De paso, el
+  código ya no pierde las líneas en blanco dobles (las de Python entre funciones).
+- **Un botón de respuesta ya no ejecuta comandos.** El texto de las opciones de una pregunta lo escribe la IA. Una
+  opción «/olvidar todo» borraba la memoria al pulsarla, y una «recuerda que…» apuntaba en ella. Ahora se manda como
+  respuesta, tal cual.
+- **Texto retorcido que congelaba la página.** Una nota de memoria seguida de miles de espacios dejaba la página
+  parada 12 segundos. Ahora no tarda nada.
+- **La carpeta no pisa lo que edites.** Al abrir Cece con la carpeta conectada se volvían a escribir los archivos de la
+  conversación abierta: se perdía lo editado a mano y el código sin nombre se duplicaba cada vez. Ahora solo se guarda lo
+  que se crea en la sesión. El código sin nombre tiene siempre el mismo nombre, y reabrir una conversación no repite sus
+  archivos en «Descargar todo el código».
+- **Reconexión de la carpeta.** Si la primera pulsación no le valía al navegador, salía su error en inglés y ya no se
+  reconectaba. Ahora espera a la siguiente, sin avisos. El consejo de elegir carpeta sale tres veces como mucho.
+- **Incógnito.** Entrar en incógnito cambiaba la conversación abierta por una vacía; con el guardado automático
+  apagado, se perdía. Ahora no se toca: al salir (o al recargar) vuelves a ella.
+- **Lista de conversaciones.** Si cerrabas la pestaña justo después de un mensaje, la lista se quedaba sin lo último.
+  Ahora se guarda al ocultar o cerrar la pestaña, y al arrancar.
+- **Adjuntos.** Los nombres con tilde dentro de un `.zip` hecho en Windows salían rotos («canci�n.txt»). Los Word,
+  Excel y PowerPoint con macros o plantillas (`.docm`, `.xlsm`, `.pptm`…) iban como un zip con el XML en crudo y ahora se
+  leen como documentos. Un TIFF o una foto RAW se rechazaban y ahora se adjuntan diciendo qué son. Un `.tar` falso ya
+  no enseña nombres basura, y un zip que miente sobre sus tamaños no se lee.
+- **Lab 3D.** La rueda del ratón sobre el modelo se quedaba con el desplazamiento del chat: ahora solo acerca después
+  de tocar el modelo, y hay botones ＋ y －. En el móvil se puede deslizar el chat por encima. El modelo da una vuelta
+  y para (antes giraba sin fin, gastando batería) y se repinta al cambiar de tamaño. Se aceptan descripciones en bloque
+  `json`, con comentarios, comas de más o posiciones como `{x, y, z}`; las piezas repetidas tienen nombres distintos y
+  un `.obj` con nombre de archivo se guarda con ese nombre.
+- **`/3d-game`:** la palabra «three» a secas ya no elige la web sin preguntar. En el panel de Cece Pro ya no se ve la
+  marca de las preguntas.
+- Versión 2026.11.10.
+
 ## 9 de noviembre de 2026 — Motor Enterprise: modelo nuevo
 
 - El **Motor Enterprise** (el de Cece Enterprise Plus y una de las partes de Cece Pro) usa el modelo más nuevo de su
