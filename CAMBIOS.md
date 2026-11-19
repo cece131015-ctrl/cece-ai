@@ -1,5 +1,21 @@
 # Informe de depuración
 
+## 19 de noviembre de 2026 — Gemini 4 Neon en Cece Pro
+
+- **Nueva parte de Cece Pro: Cece Neón** (Gemini 4 Neon, `gemini-4-neon`). Usa la misma clave de Gemini que Argon,
+  no aparece en el menú y no tiene respaldo: si falta su clave o la cuenta no tiene el modelo, no participa y Pro sigue
+  igual. Argon se queda.
+- **Nuevo paso en el relevo: «Segunda opinión»**, entre «Revisar» y «Buscar errores». Solo entra con 7 partes; con 6 o
+  menos el relevo es el de siempre.
+- **Reparto:** Neón tiene su deslizador (14 %) y los demás pesos por defecto cambian para sumar 100.
+- **Avisos:** el número de modelos del aviso de Pro cuenta solo las partes que de verdad trabajan. El texto de las
+  llamadas por mensaje pasa de 6 a 12 a 7 a 13 cuando hay siete. Las frases tienen traducción para 2 a 7 modelos.
+- **Precio:** Gemini 4 Neon no tiene precio en la tabla de Cece, así que su coste no se suma al estimado (lo dice el
+  aviso de coste). Avísame del precio si quieres que se sume.
+- **Aviso:** el ID `gemini-4-neon` es una suposición (sigue el mismo nombre que Argon): no encontré un modelo
+  «Gemini 4 Neon» en la documentación pública. Si tu cuenta lo tiene con otro nombre, dime cuál y lo cambio.
+- Versión 2026.11.19. Prueba nueva del relevo con siete partes; la batería completa pasa (96).
+
 ## 10 de noviembre de 2026 — depuración de lo nuevo
 
 Cada arreglo tiene su prueba, que falla con la versión anterior (95 pruebas en total).

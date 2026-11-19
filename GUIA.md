@@ -34,7 +34,7 @@ dudas Cece la usa donde toca y te avisa.
 | `max` | Cece Max y Ultra Code | Moonshot (Kimi) | `sk-` | platform.moonshot.ai |
 | `astra` | Cece Astra y Cece Sol | OpenAI | `sk-proj-` o `sk-` | platform.openai.com |
 | `enterprise` | Cece Enterprise Plus | Anthropic | `sk-ant-` | console.anthropic.com |
-| `argon` | Cece Argon | Google Gemini | `AIza` | aistudio.google.com |
+| `argon` | Cece Argon, y Cece Neón dentro de Cece Pro | Google Gemini | `AIza` | aistudio.google.com |
 | `reserva` | Reserva y oído rápido de Live | Groq | `gsk_` | console.groq.com |
 | `muse` | Muse Wonder (solo en Cece Pro) | Meta | — | la que te dé Meta |
 | `voz` | Voz Cece Natural (opcional) | ElevenLabs | — | elevenlabs.io |
@@ -102,7 +102,7 @@ Pulsa el nombre del modelo de arriba (por ejemplo **⚡ CECE TURBO**) y elige:
 | Cece Argon | Ve imágenes y PDF y ejecuta código |
 | Cece Enterprise Plus | El más cuidadoso para textos y razonamientos largos |
 | Cece Ultra Code | Programar |
-| **Cece Pro** | Un equipo de varios modelos: hacen la base, la completan, la revisan, buscan errores, los corrigen y la pulen. Es el más potente y el más caro. |
+| **Cece Pro** | Un equipo de varios modelos: hacen la base, la completan, la revisan, una segunda opinión (Cece Neón, si tienes su clave), buscan errores, los corrigen y la pulen. Es el más potente y el más caro. |
 | Cece Local | Una IA de tu ordenador, sin internet (ver «Sin conexión») |
 
 Si un modelo falla, Cece prueba solo con otro y te lo dice debajo de la respuesta.
@@ -193,4 +193,4 @@ responde sin internet: Configuración → 📴 Sin conexión.
 | Ctrl+Alt+C no hace nada | Otro programa usa ese atajo, o falta ejecutar `crear-acceso-directo.bat` (desde la carpeta extraída, no desde dentro del zip). |
 | Las claves están «cifradas y bloqueadas» | Escribe tu contraseña al abrir (o en 🔐 Seguridad → Desbloquear). |
 
-La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.10»).
+La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.19»).

@@ -1050,7 +1050,7 @@ prueba("Cece Sol es una parte de Cece Pro (reparto de 5 y motor propio)", async 
     repE: !!document.getElementById("repE"),
     sol: /Sol/.test(document.getElementById("repartoManual").textContent),
   }));
-  igual(rep.filas, 6, "el reparto de Cece Pro no tiene 6 partes");
+  igual(rep.filas, 7, "el reparto de Cece Pro no tiene 7 partes");
   cierto(rep.repE && rep.sol, "falta la fila de reparto de Sol");
   await escribirYEnviar(pagina, "hola equipo");
   const r = await ultimaRespuesta(pagina, 30000);
@@ -1113,11 +1113,60 @@ prueba("reparto de Cece Pro: un reparto por defecto antiguo migra parejo (nadie 
     almacen: { cece_ajustes: { modelo: "cece-pro", repA: 25, repB: 25, repC: 25, repD: 25 } },
   });
   const rep = await pagina.evaluate(() =>
-    ["repA", "repB", "repC", "repD", "repE", "repF"].map((e) => (document.getElementById(e) ? +document.getElementById(e).value : null)).filter((v) => v !== null),
+    ["repA", "repB", "repC", "repD", "repE", "repF", "repG"].map((e) => (document.getElementById(e) ? +document.getElementById(e).value : null)).filter((v) => v !== null),
   );
   const suma = rep.reduce((a, b) => a + b, 0);
   igual(suma, 100, "el reparto no suma 100: " + rep.join(","));
   cierto(Math.max(...rep) - Math.min(...rep) <= 1, "el reparto no quedó parejo: " + rep.join(","));
+  await ctx.close();
+});
+
+prueba("Cece Pro: Gemini 4 Neon es una séptima parte con su paso «Segunda opinión» en el relevo (y con 6 partes, nada cambia)", async (nav) => {
+  const llamados = [];
+  let guion = "";
+  const lista = ["gemini-4-argon", "gemini-4-neon"];
+  const { pagina, errores, ctx } = await nuevaPagina(
+    nav,
+    conClaves({ enterprise: "sk-ant-prueba", argon: "AIzaSyPRUEBA0123456789012345678901234", astra: "sk-astra", max: "sk-max", muse: "sk-muse" }),
+    {
+      almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+      ia: {
+        "generativelanguage.googleapis.com": ({ url, cuerpo }) => {
+          if (/\/models\?pageSize/.test(url))
+            return { tipo: "application/json", cuerpo: JSON.stringify({ models: lista.map((n) => ({ name: "models/" + n })) }) };
+          const modelo = url.match(/models\/([^:]+):/)[1];
+          llamados.push(modelo);
+          const papel = /Eres la segunda opinión/.test(JSON.stringify(cuerpo)) ? "segunda" : "otro";
+          return { cuerpo: sse([{ candidates: [{ content: { parts: [{ text: "Hecho " + modelo + " " + papel }] }, finishReason: "STOP" }] }]) };
+        },
+        "api.anthropic.com": () => ({ cuerpo: respuestaClaude("Hecho.") }),
+        "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => ({
+          cuerpo: respuestaOpenAI(/Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "SIN ERRORES" : "Hecho."),
+        }),
+        "api.openai.com/v1/responses": () => ({
+          cuerpo: sse([{ type: "response.output_text.delta", delta: "Hecho." }, { type: "response.completed", response: { output: [] } }]),
+        }),
+        "api.meta.ai": () => ({ cuerpo: respuestaOpenAI("Hecho.") }),
+      },
+    },
+  );
+  await escribirYEnviar(pagina, "hola");
+  await ultimaRespuesta(pagina, 90000);
+  const papeles = await pagina.evaluate(() =>
+    [...document.querySelectorAll(".bot-msg:last-of-type .borrador-cab")]
+      .slice(0, 7)
+      .map((e) => (e.textContent.split("·")[0] || "").replace(/[^\p{L} ]/gu, "").trim()),
+  );
+  igual(
+    papeles.join(" | "),
+    "Base | Completar | Revisar | Segunda opinión | Buscar errores | Corregir | Calidad máxima",
+    "los papeles con Gemini 4 Neon no están en orden: " + papeles.join(" / "),
+  );
+  cierto(llamados.includes("gemini-4-neon"), "no llamó a Gemini 4 Neon: " + llamados.join(","));
+  cierto(llamados.includes("gemini-4-argon"), "dejó de llamar a Gemini 4 Argon: " + llamados.join(","));
+  igual(await pagina.evaluate(() => PRO_PARTES.length), 7, "partes de Cece Pro");
+  igual(await pagina.evaluate(() => motoresDe("cece-neon").map((m) => m.prov + "|" + m.modelo).join()), "gemini|gemini-4-neon", "motor de Gemini 4 Neon");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
 
@@ -2969,7 +3018,7 @@ prueba("idioma de la app: lo que el código cambia después se traduce y no vuel
   await pagina.evaluate(() => ((S.maxi = true), pintarPro(), elegirNivel("cece-pro")));
   await pagina.waitForTimeout(150);
   const en = await pagina.evaluate(() => ({ aviso: avisoMaxi.textContent, titulo: tituloPro.textContent }));
-  cierto(/^All 6 models work/.test(en.aviso), "el aviso de MaxFull sale en español con la app en inglés: " + en.aviso);
+  cierto(/^All \d models work/.test(en.aviso), "el aviso de MaxFull sale en español con la app en inglés: " + en.aviso);
   await pagina.evaluate(() => ((S.appIdioma = "fr"), traducirApp()));
   const fr = await pagina.evaluate(() => ({
     titulo: tituloPro.textContent,
