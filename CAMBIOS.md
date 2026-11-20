@@ -1,5 +1,15 @@
 # Informe de depuración
 
+## 21 de noviembre de 2026 — Gemini 4 Carbon en lugar de Gemini 4 Argon
+
+- El motor de Google Gemini pasa de `gemini-4-argon` a `gemini-4-carbon`. Su nombre en la app pasa de «Motor Argon» a
+  «Motor Carbon». Lo que usaba ese motor (Cece Argon, Argon dentro de Cece Pro, la clave `argon` del bloque de
+  configuración) sigue igual: solo cambia el modelo que llama.
+- Gemini 4 Neon no cambia.
+- Precio sin cambios (2 $/10 $) porque no tengo el de Carbon. Si el ID no existe en tu cuenta, Argon y Carbon dejan de
+  responder y Pro sigue con los demás motores.
+- Versión 2026.11.21.
+
 ## 20 de noviembre de 2026 — OpenAI: gpt-6.2 para Sol y gpt-6.2-astra para Astra
 
 - **Cece Sol** pasa de `gpt-6.1` a `gpt-6.2`.

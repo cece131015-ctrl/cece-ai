@@ -193,4 +193,4 @@ responde sin internet: Configuración → 📴 Sin conexión.
 | Ctrl+Alt+C no hace nada | Otro programa usa ese atajo, o falta ejecutar `crear-acceso-directo.bat` (desde la carpeta extraída, no desde dentro del zip). |
 | Las claves están «cifradas y bloqueadas» | Escribe tu contraseña al abrir (o en 🔐 Seguridad → Desbloquear). |
 
-La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.20»).
+La versión de tu copia sale al final de Configuración → 🌍 General (por ejemplo, «Cece AI · 2026.11.21»).

@@ -732,11 +732,11 @@ prueba("Motor Astra (API Responses): texto, fuentes y tokens", async (nav) => {
   await ctx.close();
 });
 
-prueba("Motor Argon (Gemini): texto, razonamiento y código ejecutado", async (nav) => {
+prueba("Motor Carbon (Gemini): texto, razonamiento y código ejecutado", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ argon: "AIza-prueba" }), {
     almacen: { cece_ajustes: { modelo: "cece-argon" } },
     ia: {
-      "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-argon" }] }) }),
+      "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-carbon" }] }) }),
       ":streamGenerateContent": () => ({
         cuerpo: sse([
           { candidates: [{ content: { parts: [{ text: "Pienso…", thought: true }] } }] },
@@ -754,7 +754,7 @@ prueba("Motor Argon (Gemini): texto, razonamiento y código ejecutado", async (n
   const r = await ultimaRespuesta(pagina);
   cierto(r.html.includes("<strong>42</strong>"), r.texto);
   cierto(/Código ejecutado/.test(r.texto) && r.html.includes("print(6*7)"), "sin bloque de código ejecutado");
-  cierto(/Motor Argon/.test(r.pie), r.pie);
+  cierto(/Motor Carbon/.test(r.pie), r.pie);
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
 });
@@ -1124,7 +1124,7 @@ prueba("reparto de Cece Pro: un reparto por defecto antiguo migra parejo (nadie 
 prueba("Cece Pro: Gemini 4 Neon es una séptima parte con su paso «Segunda opinión» en el relevo (y con 6 partes, nada cambia)", async (nav) => {
   const llamados = [];
   let guion = "";
-  const lista = ["gemini-4-argon", "gemini-4-neon"];
+  const lista = ["gemini-4-carbon", "gemini-4-neon"];
   const { pagina, errores, ctx } = await nuevaPagina(
     nav,
     conClaves({ enterprise: "sk-ant-prueba", argon: "AIzaSyPRUEBA0123456789012345678901234", astra: "sk-astra", max: "sk-max", muse: "sk-muse" }),
@@ -1163,7 +1163,7 @@ prueba("Cece Pro: Gemini 4 Neon es una séptima parte con su paso «Segunda opin
     "los papeles con Gemini 4 Neon no están en orden: " + papeles.join(" / "),
   );
   cierto(llamados.includes("gemini-4-neon"), "no llamó a Gemini 4 Neon: " + llamados.join(","));
-  cierto(llamados.includes("gemini-4-argon"), "dejó de llamar a Gemini 4 Argon: " + llamados.join(","));
+  cierto(llamados.includes("gemini-4-carbon"), "dejó de llamar a Gemini 4 Carbon: " + llamados.join(","));
   igual(await pagina.evaluate(() => PRO_PARTES.length), 7, "partes de Cece Pro");
   igual(await pagina.evaluate(() => motoresDe("cece-neon").map((m) => m.prov + "|" + m.modelo).join()), "gemini|gemini-4-neon", "motor de Gemini 4 Neon");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
@@ -1601,9 +1601,9 @@ prueba("copia protegida: ninguna clave comentada o fuera de sitio queda a la vis
   await ctx.close();
 });
 
-prueba("Motor Argon solo usa versiones de su modelo (no las de voz, lite o imagen)", async (nav) => {
+prueba("Motor Carbon solo usa versiones de su modelo (no las de voz, lite o imagen)", async (nav) => {
   const pedidos = [];
-  const lista = ["gemini-4-argon-preview-tts", "gemini-4-argon-lite", "gemini-4-argon-image-preview", "gemini-4-argon-preview-09-2026"];
+  const lista = ["gemini-4-carbon-preview-tts", "gemini-4-carbon-lite", "gemini-4-carbon-image-preview", "gemini-4-carbon-preview-09-2026"];
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ argon: "AIza" }), {
     almacen: { cece_ajustes: { modelo: "cece-argon" } },
     ia: {
@@ -1619,7 +1619,7 @@ prueba("Motor Argon solo usa versiones de su modelo (no las de voz, lite o image
   });
   await escribirYEnviar(pagina, "hola");
   await ultimaRespuesta(pagina);
-  igual(pedidos.join(","), "gemini-4-argon-preview-09-2026");
+  igual(pedidos.join(","), "gemini-4-carbon-preview-09-2026");
   await ctx.close();
 });
 
@@ -1639,7 +1639,7 @@ prueba("Astra y Argon: el texto de después de ejecutar código va en otro párr
           { type: "response.completed", response: { output: [] } },
         ]),
       }),
-      "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-argon" }] }) }),
+      "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-carbon" }] }) }),
       ":streamGenerateContent": () => ({
         cuerpo: sse([
           { candidates: [{ content: { parts: [{ text: "```python\nprint(6*7)\n```" }] } }] },

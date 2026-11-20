@@ -1,7 +1,7 @@
 "use strict";
 const CECEHUB_PY = "@@CECEHUB_PY@@";
 // Versión de Cece AI (año.mes.día de la entrega): sale en Configuración → General para saber qué copia tienes
-const VERSION_CECE = "2026.11.20";
+const VERSION_CECE = "2026.11.21";
 const CECEHUB_VERSION = "2.1.2";
 const HTML_INICIAL = (() => {
     try {
@@ -291,12 +291,12 @@ const PROVEEDORES = {
     razonPrevia: !0,
   },
   gemini: {
-    nombre: "Motor Argon",
+    nombre: "Motor Carbon",
     tipo: "chat",
     fmt: "gemini",
     base: "https://generativelanguage.googleapis.com/v1beta",
-    modelos: ["gemini-4-argon", "gemini-4-neon"],
-    porAbrir: ["gemini-4-argon", "gemini-4-neon"],
+    modelos: ["gemini-4-carbon", "gemini-4-neon"],
+    porAbrir: ["gemini-4-carbon", "gemini-4-neon"],
     h: ["buscar", "leer", "codigo"],
     vista: !0,
     pdf: !0,
@@ -352,7 +352,7 @@ const capacidad = (e, t) => {
     "kimi-k2.7-code": "Motor Ultra Code",
     "deepseek-flash": "Motor Turbo",
     "kimi-k2.7-code-highspeed": "Motor Ultra Code Rápido",
-    "gemini-4-argon": "Motor Argon",
+    "gemini-4-carbon": "Motor Carbon",
     "gemini-4-neon": "Motor Neón",
     "openai/gpt-oss-120b": "Motor Reserva",
     "muse-wonder-1.0": "Motor Muse Wonder",
@@ -370,7 +370,7 @@ const capacidad = (e, t) => {
     "kimi-k2.7-code": [0.95, 4],
     "kimi-k2.7-code-highspeed": [1.9, 8],
     "deepseek-flash": (e) => (esHoraPuntaTurbo(e) ? [0.3, 1.2] : [0.15, 0.6]),
-    "gemini-4-argon": [2, 10],
+    "gemini-4-carbon": [2, 10],
     "openai/gpt-oss-120b": [0.15, 0.6],
     "muse-wonder-1.0": [0, 0],
   },
@@ -385,7 +385,7 @@ const capacidad = (e, t) => {
       pro: !0,
       motores: [
         "anthropic:claude-fable-5-2",
-        "gemini:gemini-4-argon",
+        "gemini:gemini-4-carbon",
         "openai:gpt-6.2-astra",
         "moonshot:kimi-k3.1-pro",
         "openai:gpt-6.2",
@@ -414,7 +414,7 @@ const capacidad = (e, t) => {
       code: !0,
       insignia: ["badge-argon", "⚛️ Argon"],
       motores: [
-        "gemini:gemini-4-argon",
+        "gemini:gemini-4-carbon",
         "anthropic:claude-fable-5-2",
         "openai:gpt-6.2-astra",
         "moonshot:kimi-k3.1-pro",
@@ -11985,7 +11985,7 @@ const PRUEBA_CONEXION = (() => {
     openai: "Motor Astra",
     moonshot: "Motor Max y Ultra Code",
     deepseek: "Motor Turbo",
-    gemini: "Motor Argon",
+    gemini: "Motor Carbon",
     groq: "Motor Reserva",
     musewonder: "Motor Muse Wonder (Cece Pro)",
     elevenlabs: "Voz Cece Natural",
