@@ -188,6 +188,7 @@ responde sin internet: Configuración → 📴 Sin conexión.
 | «🔀 La clave que pusiste en «…» es de «…»» | Pusiste una clave en el hueco de otro servicio. Cece ya la usa bien, pero muévela al hueco que te dice. |
 | «sin saldo» | La clave vale, pero esa cuenta no tiene saldo: recárgala en la web del servicio. |
 | «límite de uso» | Has hecho muchas peticiones seguidas: espera un poco o usa otro modelo. |
+| «Tu cuenta tiene estos modelos de …» | Ese modelo ya no existe con ese nombre. Cece busca su versión nueva; si no la hay, te enseña los modelos que sí tiene tu cuenta para que cambies el motor. |
 | «Sin conexión a internet» | Tu mensaje se envía solo cuando vuelve la red. |
 | No se oye o no te escucha en LIVE | Da permiso al micrófono en el candado de la barra de direcciones. |
 | Ctrl+Alt+C no hace nada | Otro programa usa ese atajo, o falta ejecutar `crear-acceso-directo.bat` (desde la carpeta extraída, no desde dentro del zip). |

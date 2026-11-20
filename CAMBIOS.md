@@ -1,5 +1,18 @@
 # Informe de depuración
 
+## 21 de noviembre de 2026 — Cece Pro sin claves, claves rechazadas e IDs de modelo
+
+- **Sin ninguna clave, Cece Pro para al empezar.** Antes lanzaba los 13 pasos del relevo y todos decían «HTTP 401»
+  sin salir ni una petición. Ahora responde una sola vez «Error HTTP 401» (con la copia de Cece Pro que se reparte, sin
+  claves, es lo que pasa siempre).
+- **Un proveedor con la clave rechazada deja de recibir pasos.** Si un motor responde «clave no válida», su paso lo hace
+  otro modelo que sí funcione (se anota en el paso: «↪ lo hace …»), y durante esa página no se le vuelve a llamar.
+- **Modelo que «no existe» (404): Cece busca su ID.** Pide a ese proveedor la lista de modelos de la cuenta, usa el ID que
+  empieza igual (por ejemplo `gpt-6.2-astra` → `gpt-6.2-astra-2026-11-01`) y lo recuerda para la página. Si no hay
+  ninguno parecido, el aviso dice qué modelos sí tiene la cuenta de ese proveedor.
+- Pruebas nuevas: sin claves, clave rechazada y búsqueda de ID (con coincidencia y sin ella). Las tres fallaban con la
+  versión anterior. Batería completa: 101 de 101.
+
 ## 21 de noviembre de 2026 — Gemini 4 Carbon en lugar de Gemini 4 Argon
 
 - El motor de Google Gemini pasa de `gemini-4-argon` a `gemini-4-carbon`. Su nombre en la app pasa de «Motor Argon» a

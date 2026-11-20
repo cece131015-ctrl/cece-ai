@@ -2746,6 +2746,30 @@ function separarThink(e) {
     razon: t.trim(),
   };
 }
+// Cuando un modelo da «no existe» (404), Cece pide a su proveedor la lista de modelos de la cuenta y usa el ID que
+// empieza igual (p. ej. «gpt-6.2-astra» → «gpt-6.2-astra-2026-11-01»). Si no hay ninguno parecido, enseña los que sí tiene.
+const IDS_DE_CUENTA = new Map();
+// Proveedores cuya clave ha dado «no válida» en esta página: no se les vuelve a llamar (hasta recargar).
+const PROVEEDORES_CLAVE_MALA = new Set();
+async function modeloDeCuenta(motor) {
+  const clave = motor.prov + "|" + motor.modelo;
+  if (IDS_DE_CUENTA.has(clave)) return IDS_DE_CUENTA.get(clave);
+  const pedir = PRUEBA_CONEXION[motor.prov];
+  if (!pedir) return null;
+  IDS_DE_CUENTA.set(clave, null);
+  const { url: u, headers: h } = pedir(),
+    r = await fetchConTiempo(motor.prov, u, { method: "GET", headers: h }, null, 6e3);
+  if (!r.ok) return null;
+  const ids = [...idsDeModelos(await r.json())].sort((a, b) => a.localeCompare(b, "en", { numeric: !0 })),
+    fam = motor.modelo,
+    // mismo modelo: el ID tal cual o una versión suya («-2026-11-01», «-latest», «-001»…), nunca un hermano («-mini»)
+    cand = ids.filter((id) => id === fam || (id.startsWith(fam + "-") && /^-(\d|latest|preview|exp|\d{4})/.test(id.slice(fam.length)))),
+    res = cand.length
+      ? { id: cand.sort((a, b) => /preview|exp/i.test(a) - /preview|exp/i.test(b) || b.localeCompare(a, "en", { numeric: !0 }))[0] }
+      : { tiene: ids.slice(0, 12) };
+  IDS_DE_CUENTA.set(clave, res);
+  return res;
+}
 async function llamarCece(e, t) {
   t.motores || (await Familias.prepararPara([e]));
   let o = t.motores || motoresDe(e);
@@ -2791,7 +2815,13 @@ async function llamarCece(e, t) {
   const r = [],
     i = new Set();
   let s = null;
-  for (const e of o) {
+  // (si todos los motores tienen la clave mala, se prueban igualmente para que el error sea el de siempre)
+  const sanos = o.filter((e) => !PROVEEDORES_CLAVE_MALA.has(e.prov));
+  sanos.length && (o = sanos);
+  for (const e0 of o) {
+    let e = e0;
+    const hallado = IDS_DE_CUENTA.get(e0.prov + "|" + e0.modelo);
+    hallado && hallado.id && (e = { ...e0, modelo: hallado.id });
     if (i.has(e.prov)) continue;
     let o = !1;
     t.onMotor && t.onMotor(e);
@@ -2839,8 +2869,17 @@ async function llamarCece(e, t) {
           continue;
         }
         if (((a.motor = e), o)) throw ((a.parcial = !0), (a.saltos = r), a);
+        // «no existe» (404): antes de pasar al siguiente motor, se busca el ID que sí tiene la cuenta
+        if ("modelo no disponible" === a.corto && 0 === c) {
+          const b = await modeloDeCuenta(e).catch(() => null);
+          if (b && b.id) {
+            e = { ...e, modelo: b.id };
+            continue;
+          }
+          b && b.tiene && (a.message += `\nTu cuenta tiene estos modelos de ${nombreProv(e.prov)}: ${b.tiene.join(", ")}.`);
+        }
         a.usage && (cobrarIntento(e, a.usage), (a.usage = null));
-        (r.push({ motor: e, error: a }), errorDeCuenta(a) && i.add(e.prov), (s = a), t.onSalto && t.onSalto(e, a));
+        (r.push({ motor: e, error: a }), errorDeCuenta(a) && i.add(e.prov), "clave no válida" === a.corto && PROVEEDORES_CLAVE_MALA.add(e.prov), (s = a), t.onSalto && t.onSalto(e, a));
       }
       break;
     }
@@ -4256,6 +4295,11 @@ async function ejecutarRelevo(e, t = {}) {
   const r = historialApi(),
     i = performance.now();
   if (!partes.length) return finalizarConError(n, new Error("Ningún modelo respondió."), [], { conv: t.conv });
+  // Sin ninguna clave, ningún paso puede responder: antes se lanzaban los 13 pasos y todos decían «HTTP 401».
+  if (!partes.some((p) => motoresDe(p.id).length))
+    return finalizarConError(n, new ErrorApi(MSG_SIN_CLAVES, { sinClave: !0, corto: "HTTP 401", status: 401 }), [], {
+      conv: t.conv,
+    });
   const plan = planPro(ordenarRelevo(partes, r)),
     pasos = plan.map((p, i) => ({
       k: "p" + i,
@@ -4275,6 +4319,8 @@ async function ejecutarRelevo(e, t = {}) {
   let m = null,
     entrega = null,
     limpio = !1;
+  // Modelos cuya clave ya ha dado error de cuenta (clave no válida, sin saldo o sin clave): no vuelven a recibir pasos.
+  const muertas = new Set();
   // El bucle de revisión (buscar→corregir) empieza tras los papeles de la pasada normal (6, o 7 con «Segunda opinión»)
   const inicioBucle = pasos.length - 2 * MAX_REV_PRO;
   for (let idx = 0; idx < pasos.length && !e.aborted; idx++) {
@@ -4284,6 +4330,12 @@ async function ejecutarRelevo(e, t = {}) {
     if (idx >= inicioBucle && limpio) {
       ((s.estado = "✓ sin errores: no hizo falta"), c());
       continue;
+    }
+    if (muertas.has(s.id)) {
+      const vivas = partes.filter((p) => !muertas.has(p.id) && motoresDe(p.id).length);
+      if (!vivas.length) break;
+      const p = vivas[idx % vivas.length];
+      ((s.id = p.id), (s.estado = `↪ lo hace ${p.nom}: el suyo no tiene clave válida`), c());
     }
     ((s.turno = !0),
       (s.estado = `✍️ ${s.rol.nom}…`),
@@ -4331,6 +4383,7 @@ async function ejecutarRelevo(e, t = {}) {
         ((s.estado = "⏹ detenido"), (s.turno = !1));
         break;
       }
+      (errorDeCuenta(e) || e.sinClave) && muertas.add(s.id);
       ((s.error = e), (s.estado = `❌ ${e.corto || "error"}`), u.push(`${s.rol.nom}: ${e.corto || "error"}`));
     }
     ((s.turno = !1), c());

@@ -2424,6 +2424,87 @@ prueba("con el teclado: visor de imágenes, editor de plugins y «reducir movimi
   await ctx.close();
 });
 
+prueba("Cece Pro sin ninguna clave: se para con un solo aviso (no lanza los 13 pasos con «HTTP 401»)", async (nav) => {
+  let peticiones = 0;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: { "api.openai.com": () => (peticiones++, null), "api.anthropic.com": () => (peticiones++, null) },
+  });
+  await escribirYEnviar(pagina, "hazme una calculadora");
+  const r = await ultimaRespuesta(pagina);
+  cierto(/^\W*Error HTTP 401\s*$/.test(r.texto.trim()), "aviso sin claves: " + r.texto);
+  igual(await pagina.evaluate(() => document.querySelectorAll(".bot-msg:last-of-type .borrador-cab").length), 0, "pasos sin claves");
+  igual(peticiones, 0, "se intentó llamar sin claves");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Pro: un proveedor que rechaza su clave (401) deja de recibir pasos y otro hace su turno", async (nav) => {
+  let anthropic = 0;
+  const llamadas = [];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-ant-mala", astra: "sk-astra" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.anthropic.com": () => (anthropic++, { status: 401, tipo: "application/json", cuerpo: '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}' }),
+      "api.openai.com/v1/responses": ({ cuerpo }) => {
+        llamadas.push(cuerpo.model);
+        const texto = /Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "SIN ERRORES" : "Hecho por OpenAI.";
+        return { cuerpo: sse([{ type: "response.output_text.delta", delta: texto }, { type: "response.completed", response: { output: [] } }]) };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "hazme una utilidad");
+  const r = await ultimaRespuesta(pagina, 60000);
+  igual(anthropic, 1, "el proveedor con la clave mala recibió más pasos: " + anthropic);
+  cierto(/Hecho por OpenAI/.test(r.texto), "la respuesta no la dio el otro proveedor: " + r.texto);
+  cierto(llamadas.length >= 2, "pocas llamadas a OpenAI: " + llamadas.length);
+  cierto(await pagina.evaluate(() => [...document.querySelectorAll(".bot-msg:last-of-type .borrador-cab")].some((e) => /Buscar errores|Corregir/.test(e.textContent))), "no hay pasos de revisión");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("modelo que no existe (404): Cece busca el ID que sí tiene la cuenta y reintenta con él", async (nav) => {
+  const intentos = [];
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk-astra" }), {
+    ia: {
+      "api.openai.com/v1/models": () => ({
+        tipo: "application/json",
+        cuerpo: JSON.stringify({ data: [{ id: "gpt-6.2" }, { id: "gpt-6.2-astra-2026-11-01" }, { id: "gpt-6.2-astra-mini" }] }),
+      }),
+      "api.openai.com/v1/responses": ({ cuerpo }) => {
+        intentos.push(cuerpo.model);
+        if (cuerpo.model === "gpt-6.2-astra")
+          return { status: 404, tipo: "application/json", cuerpo: '{"error":{"message":"The model `gpt-6.2-astra` does not exist"}}' };
+        return { cuerpo: sse([{ type: "response.output_text.delta", delta: "Hola de Astra con su ID." }, { type: "response.completed", response: { output: [] } }]) };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "/astra hola");
+  const r = await ultimaRespuesta(pagina, 20000);
+  igual(intentos.join(" > "), "gpt-6.2-astra > gpt-6.2-astra-2026-11-01", "intentos: " + intentos.join(" > "));
+  cierto(/Hola de Astra con su ID/.test(r.texto), "no respondió con el ID encontrado: " + r.texto);
+  // la siguiente vez ya va directo al ID bueno
+  await escribirYEnviar(pagina, "otra vez");
+  await ultimaRespuesta(pagina, 20000);
+  igual(intentos[intentos.length - 1], "gpt-6.2-astra-2026-11-01", "no recordó el ID encontrado");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("modelo que no existe y la cuenta no tiene ninguno parecido: el aviso dice qué modelos sí tiene", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk-astra" }), {
+    ia: {
+      "api.openai.com/v1/models": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ data: [{ id: "gpt-6.2" }, { id: "gpt-6.2-mini" }] }) }),
+      "api.openai.com/v1/responses": () => ({ status: 404, tipo: "application/json", cuerpo: '{"error":{"message":"The model does not exist"}}' }),
+    },
+  });
+  await escribirYEnviar(pagina, "/astra hola");
+  const r = await ultimaRespuesta(pagina, 20000);
+  cierto(/Tu cuenta tiene estos modelos de Motor Astra: gpt-6\.2, gpt-6\.2-mini/.test(r.texto), "no enseña los modelos de la cuenta: " + r.texto);
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("Motor Astra usa gpt-6.2-astra (el modelo viejo ya no está en la lista)", async (nav) => {
   let cuerpo = null;
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
