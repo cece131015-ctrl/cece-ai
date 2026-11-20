@@ -1,5 +1,16 @@
 # Informe de depuración
 
+## 20 de noviembre de 2026 — OpenAI: gpt-6.2 para Sol y gpt-6.2-astra para Astra
+
+- **Cece Sol** pasa de `gpt-6.1` a `gpt-6.2`.
+- **Motor Astra** pasa de `gpt-6-astra` a `gpt-6.2-astra`, y el ID viejo se quita de la lista de modelos del proveedor.
+- Los precios de la tabla no cambian: siguen los mismos valores (10 $/50 $) porque no tengo los precios de los modelos
+  nuevos. Si el ID de Astra no existe en tu cuenta, Astra fallará y el relevo pasará al siguiente motor; avísame del ID
+  exacto si da error.
+- Pruebas: la de Sol comprueba `gpt-6.2`, y hay una nueva para Astra. La prueba del relevo de Cece Pro detectaba a Sol por
+  el ID viejo; ahora detecta el ID exacto.
+- Versión 2026.11.20.
+
 ## 19 de noviembre de 2026 — Gemini 4 Neon en Cece Pro
 
 - **Nueva parte de Cece Pro: Cece Neón** (Gemini 4 Neon, `gemini-4-neon`). Usa la misma clave de Gemini que Argon,

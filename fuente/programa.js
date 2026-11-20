@@ -1,7 +1,7 @@
 "use strict";
 const CECEHUB_PY = "@@CECEHUB_PY@@";
 // Versión de Cece AI (año.mes.día de la entrega): sale en Configuración → General para saber qué copia tienes
-const VERSION_CECE = "2026.11.19";
+const VERSION_CECE = "2026.11.20";
 const CECEHUB_VERSION = "2.1.2";
 const HTML_INICIAL = (() => {
     try {
@@ -253,7 +253,7 @@ const PROVEEDORES = {
     tipo: "chat",
     fmt: "responses",
     base: "https://api.openai.com/v1",
-    modelos: ["gpt-6-astra", "gpt-6.1"],
+    modelos: ["gpt-6.2-astra", "gpt-6.2"],
     h: ["buscar", "leer", "codigo"],
     vista: !0,
     pdf: !0,
@@ -346,8 +346,8 @@ const capacidad = (e, t) => {
   nombreProv = (e) => (PROVEEDORES[e] && PROVEEDORES[e].nombre) || e,
   NOMBRE_MODELO = {
     "claude-fable-5-2": "Motor Enterprise",
-    "gpt-6-astra": "Motor Astra",
-    "gpt-6.1": "Motor Sol",
+    "gpt-6.2-astra": "Motor Astra",
+    "gpt-6.2": "Motor Sol",
     "kimi-k3.1-pro": "Motor Max",
     "kimi-k2.7-code": "Motor Ultra Code",
     "deepseek-flash": "Motor Turbo",
@@ -364,8 +364,8 @@ const capacidad = (e, t) => {
   },
   PRECIOS_MODELO = {
     "claude-fable-5-2": [8, 40],
-    "gpt-6-astra": [10, 50],
-    "gpt-6.1": [10, 50],
+    "gpt-6.2-astra": [10, 50],
+    "gpt-6.2": [10, 50],
     "kimi-k3.1-pro": [3, 15],
     "kimi-k2.7-code": [0.95, 4],
     "kimi-k2.7-code-highspeed": [1.9, 8],
@@ -386,9 +386,9 @@ const capacidad = (e, t) => {
       motores: [
         "anthropic:claude-fable-5-2",
         "gemini:gemini-4-argon",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "moonshot:kimi-k3.1-pro",
-        "openai:gpt-6.1",
+        "openai:gpt-6.2",
       ],
     },
     {
@@ -400,7 +400,7 @@ const capacidad = (e, t) => {
       motores: [
         "anthropic:claude-fable-5-2",
         "moonshot:kimi-k3.1-pro",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
       ],
@@ -416,7 +416,7 @@ const capacidad = (e, t) => {
       motores: [
         "gemini:gemini-4-argon",
         "anthropic:claude-fable-5-2",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
@@ -429,7 +429,7 @@ const capacidad = (e, t) => {
       color: "#a8c4ff",
       neon: "#3d8bff",
       motores: [
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "anthropic:claude-fable-5-2",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
@@ -444,9 +444,9 @@ const capacidad = (e, t) => {
       neon: "#ffbf00",
       insignia: ["badge-new", "☀️ Sol"],
       motores: [
-        "openai:gpt-6.1",
+        "openai:gpt-6.2",
         "anthropic:claude-fable-5-2",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
@@ -486,7 +486,7 @@ const capacidad = (e, t) => {
       motores: [
         "moonshot:kimi-k3.1-pro",
         "anthropic:claude-fable-5-2",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
       ],
@@ -502,7 +502,7 @@ const capacidad = (e, t) => {
       motores: [
         "moonshot:kimi-k2.7-code",
         "anthropic:claude-fable-5-2",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "moonshot:kimi-k3.1-pro",
         "deepseek:deepseek-flash",
         "groq:openai/gpt-oss-120b",
@@ -517,7 +517,7 @@ const capacidad = (e, t) => {
       motores: [
         "deepseek:deepseek-flash",
         "moonshot:kimi-k3.1-pro",
-        "openai:gpt-6-astra",
+        "openai:gpt-6.2-astra",
         "anthropic:claude-fable-5-2",
         "groq:openai/gpt-oss-120b",
       ],

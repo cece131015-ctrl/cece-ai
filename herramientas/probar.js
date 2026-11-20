@@ -1032,14 +1032,14 @@ prueba("Cece Pro (pipeline): los archivos del equipo pasan entre pasos y llegan 
 });
 
 prueba("Cece Sol es una parte de Cece Pro (reparto de 5 y motor propio)", async (nav) => {
-  // Con solo la clave de OpenAI, las partes de Cece Pro se quedan en dos motores distintos: Astra (gpt-6-astra) y el
-  // nuevo Sol (gpt-6.1). Si Sol no estuviera dentro de Cece Pro, el relevo tendría un solo motor.
+  // Con solo la clave de OpenAI, las partes de Cece Pro se quedan en dos motores distintos: Astra (gpt-6.2-astra) y el
+  // nuevo Sol (gpt-6.2). Si Sol no estuviera dentro de Cece Pro, el relevo tendría un solo motor.
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk-sol" }), {
     almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
     ia: {
       "api.openai.com/v1/responses": ({ cuerpo }) => ({
         cuerpo: sse([
-          { type: "response.output_text.delta", delta: /gpt-6\.1/.test(JSON.stringify(cuerpo)) ? "Soy Sol." : "Soy Astra." },
+          { type: "response.output_text.delta", delta: /"gpt-6\.2"/.test(JSON.stringify(cuerpo)) ? "Soy Sol." : "Soy Astra." },
           { type: "response.completed", response: { output: [] } },
         ]),
       }),
@@ -2424,7 +2424,25 @@ prueba("con el teclado: visor de imágenes, editor de plugins y «reducir movimi
   await ctx.close();
 });
 
-prueba("Cece Sol (modelo nuevo): /sol usa gpt-6.1 por la API Responses y responde", async (nav) => {
+prueba("Motor Astra usa gpt-6.2-astra (el modelo viejo ya no está en la lista)", async (nav) => {
+  let cuerpo = null;
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
+    ia: {
+      "api.openai.com/v1/responses": (r) => {
+        cuerpo = r.cuerpo;
+        return { cuerpo: sse([{ type: "response.output_text.delta", delta: "Hola de Astra." }, { type: "response.completed", response: { output: [] } }]) };
+      },
+    },
+  });
+  await escribirYEnviar(pagina, "/astra hola");
+  await ultimaRespuesta(pagina);
+  igual(cuerpo && cuerpo.model, "gpt-6.2-astra", "Astra no usó gpt-6.2-astra: " + JSON.stringify(cuerpo && cuerpo.model));
+  igual(await pagina.evaluate(() => PROVEEDORES.openai.modelos.join()), "gpt-6.2-astra,gpt-6.2", "modelos de OpenAI en la tabla");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
+prueba("Cece Sol (modelo nuevo): /sol usa gpt-6.2 por la API Responses y responde", async (nav) => {
   let cuerpo = null;
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk" }), {
     ia: {
@@ -2444,7 +2462,7 @@ prueba("Cece Sol (modelo nuevo): /sol usa gpt-6.1 por la API Responses y respond
   const r = await ultimaRespuesta(pagina);
   cierto(/Hola, soy Cece Sol\./.test(r.texto), r.texto);
   cierto(/Motor Sol/.test(r.pie), r.pie);
-  igual(cuerpo && cuerpo.model, "gpt-6.1", "no usó gpt-6.1: " + JSON.stringify(cuerpo && cuerpo.model));
+  igual(cuerpo && cuerpo.model, "gpt-6.2", "no usó gpt-6.2: " + JSON.stringify(cuerpo && cuerpo.model));
   igual(await pagina.evaluate(() => S.modelo), "cece-sol");
   igual(errores.length, 0, "errores: " + errores.join(" | "));
   await ctx.close();
