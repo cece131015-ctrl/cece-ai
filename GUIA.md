@@ -34,7 +34,7 @@ dudas Cece la usa donde toca y te avisa.
 | `max` | Cece Max y Ultra Code | Moonshot (Kimi) | `sk-` | platform.moonshot.ai |
 | `astra` | Cece Astra y Cece Sol | OpenAI | `sk-proj-` o `sk-` | platform.openai.com |
 | `enterprise` | Cece Enterprise Plus | Anthropic | `sk-ant-` | console.anthropic.com |
-| `argon` | Cece Argon, y Cece Neón dentro de Cece Pro | Google Gemini | `AIza` | aistudio.google.com |
+| `argon` | Cece Carbon (hueco `argon`, sin cambios), y Cece Neón dentro de Cece Pro | Google Gemini | `AIza` | aistudio.google.com |
 | `reserva` | Reserva y oído rápido de Live | Groq | `gsk_` | console.groq.com |
 | `muse` | Muse Wonder (solo en Cece Pro) | Meta | — | la que te dé Meta |
 | `voz` | Voz Cece Natural (opcional) | ElevenLabs | — | elevenlabs.io |
@@ -99,7 +99,7 @@ Pulsa el nombre del modelo de arriba (por ejemplo **⚡ CECE TURBO**) y elige:
 | Cece Turbo | Rápido y barato: lo del día a día |
 | Cece Max | Muy capaz, también busca en internet |
 | Cece Astra y Cece Sol | Muy capaces, ven imágenes y PDF |
-| Cece Argon | Ve imágenes y PDF y ejecuta código |
+| Cece Carbon | Ve imágenes y PDF y ejecuta código |
 | Cece Enterprise Plus | El más cuidadoso para textos y razonamientos largos |
 | Cece Ultra Code | Programar |
 | **Cece Pro** | Un equipo de varios modelos: hacen la base, la completan, la revisan, una segunda opinión (Cece Neón, si tienes su clave), buscan errores, los corrigen y la pulen. Es el más potente y el más caro. |

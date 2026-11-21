@@ -1,5 +1,15 @@
 # Informe de depuración
 
+## 21 de noviembre de 2026 — Cece Argon pasa a ser Cece Carbon
+
+- El modelo **Cece Argon** se llama **Cece Carbon** (`cece-carbon`): en el menú, en la barrita de estado, en su
+  insignia, en el reparto de Cece Pro y en el aviso de coste. El motor es `gemini-4-carbon` (ver el cambio anterior).
+- El comando es `/carbon`; `/argon` sigue funcionando como alias.
+- Lo guardado con el modelo viejo (`cece-argon`) se abre como Carbon.
+- La clave sigue en el hueco `argon` del bloque de configuración: quien ya la tenía no tiene que moverla. Si quieres que
+  el hueco también se llame `carbon`, dímelo y lo cambio con un alias para el nombre viejo.
+- Prueba nueva (falla con la versión anterior). Batería completa: 104 de 104.
+
 ## 21 de noviembre de 2026 — Cece Pro: orden de buscar y corregir entre todos los modelos
 
 - Buscar errores y corregir recorren todos los modelos del equipo en círculo, sin repetir uno seguido. El orden de los

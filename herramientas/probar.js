@@ -732,9 +732,20 @@ prueba("Motor Astra (API Responses): texto, fuentes y tokens", async (nav) => {
   await ctx.close();
 });
 
+prueba("Cece Carbon (antes Cece Argon): los ajustes guardados se cargan como Carbon y /argon sigue funcionando", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}), {
+    almacen: { cece_ajustes: { modelo: "cece-argon" } },
+  });
+  igual(await pagina.evaluate(() => S.modelo), "cece-carbon", "el modelo guardado como cece-argon no se cargó como Carbon");
+  cierto(await pagina.evaluate(() => !!COMANDO.argon && COMANDO.argon.id === "carbon"), "el alias /argon no apunta a Carbon");
+  igual(await pagina.evaluate(() => COMANDO.carbon && COMANDO.carbon.id), "carbon", "el comando /carbon no existe");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("Motor Carbon (Gemini): texto, razonamiento y código ejecutado", async (nav) => {
   const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ argon: "AIza-prueba" }), {
-    almacen: { cece_ajustes: { modelo: "cece-argon" } },
+    almacen: { cece_ajustes: { modelo: "cece-carbon" } },
     ia: {
       "/models?pageSize": () => ({ tipo: "application/json", cuerpo: JSON.stringify({ models: [{ name: "models/gemini-4-carbon" }] }) }),
       ":streamGenerateContent": () => ({
@@ -1671,7 +1682,7 @@ prueba("Motor Carbon solo usa versiones de su modelo (no las de voz, lite o imag
   const pedidos = [];
   const lista = ["gemini-4-carbon-preview-tts", "gemini-4-carbon-lite", "gemini-4-carbon-image-preview", "gemini-4-carbon-preview-09-2026"];
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ argon: "AIza" }), {
-    almacen: { cece_ajustes: { modelo: "cece-argon" } },
+    almacen: { cece_ajustes: { modelo: "cece-carbon" } },
     ia: {
       "/models?pageSize": () => ({
         tipo: "application/json",
@@ -1689,7 +1700,7 @@ prueba("Motor Carbon solo usa versiones de su modelo (no las de voz, lite o imag
   await ctx.close();
 });
 
-prueba("Astra y Argon: el texto de después de ejecutar código va en otro párrafo", async (nav) => {
+prueba("Astra y Carbon: el texto de después de ejecutar código va en otro párrafo", async (nav) => {
   const { pagina, ctx } = await nuevaPagina(nav, conClaves({ astra: "sk", argon: "AIza" }), {
     almacen: { cece_ajustes: { modelo: "cece-astra" } },
     ia: {
@@ -1719,7 +1730,7 @@ prueba("Astra y Argon: el texto de después de ejecutar código va en otro párr
   await escribirYEnviar(pagina, "/codigo 6*7");
   let r = await ultimaRespuesta(pagina);
   cierto(/Python\.\s*\n\s*El resultado/.test(r.texto), JSON.stringify(r.texto));
-  await escribirYEnviar(pagina, "/argon");
+  await escribirYEnviar(pagina, "/carbon");
   await escribirYEnviar(pagina, "/codigo otra vez");
   r = await ultimaRespuesta(pagina);
   cierto(r.html.includes("<strong>42</strong>"), "el texto quedó dentro del bloque de código: " + r.texto);
