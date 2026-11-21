@@ -1170,6 +1170,41 @@ prueba("Cece Pro: Gemini 4 Neon es una séptima parte con su paso «Segunda opin
   await ctx.close();
 });
 
+prueba("Cece Pro: buscar y corregir se alternan entre modelos en cada vuelta (no siempre el mismo)", async (nav) => {
+  // Con errores en todas las vueltas, el bucle da 4 pasadas de buscar→corregir: cada buscar tiene que ir a otro modelo
+  // que el anterior, y deben intervenir varios modelos.
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({ enterprise: "sk-ant-x", astra: "sk-astra", max: "sk-max" }), {
+    almacen: { cece_ajustes: { modelo: "cece-pro", relevo: true } },
+    ia: {
+      "api.anthropic.com": ({ cuerpo }) => ({ cuerpo: respuestaClaude(/Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "Hay un error en la línea 3." : "Hecho.") }),
+      "api.moonshot.ai/v1/chat/completions": ({ cuerpo }) => ({ cuerpo: respuestaOpenAI(/Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "Hay un error en la línea 3." : "Hecho.") }),
+      "api.openai.com/v1/responses": ({ cuerpo }) => ({
+        cuerpo: sse([{ type: "response.output_text.delta", delta: /Si no encuentras NING/i.test(JSON.stringify(cuerpo)) ? "Hay un error en la línea 3." : "Hecho." }, { type: "response.completed", response: { output: [] } }]),
+      }),
+    },
+  });
+  await escribirYEnviar(pagina, "hazme una utilidad");
+  await ultimaRespuesta(pagina, 90000);
+  const buscar = await pagina.evaluate(() =>
+    [...document.querySelectorAll(".bot-msg:last-of-type .borrador-cab")]
+      .map((e) => e.textContent.replace(/\s+/g, " ").trim())
+      .filter((t) => /Buscar errores/.test(t))
+      .map((t) => t.split("·")[1].replace(/[^\p{L} ]/gu, "").trim()),
+  );
+  const corregir = await pagina.evaluate(() =>
+    [...document.querySelectorAll(".bot-msg:last-of-type .borrador-cab")]
+      .map((e) => e.textContent.replace(/\s+/g, " ").trim())
+      .filter((t) => /Corregir/.test(t))
+      .map((t) => t.split("·")[1].replace(/[^\p{L} ]/gu, "").trim()),
+  );
+  cierto(buscar.length === 4, "pasadas de buscar: " + buscar.length + " (" + buscar.join(" / ") + ")");
+  cierto(buscar.every((n, i) => i === 0 || n !== buscar[i - 1]), "dos buscar seguidos con el mismo modelo: " + buscar.join(" / "));
+  cierto(new Set(buscar).size >= 2, "solo busca un modelo: " + buscar.join(" / "));
+  cierto(new Set([...buscar, ...corregir]).size >= 3, "intervienen pocos modelos: " + [...buscar, ...corregir].join(" / "));
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("Cece Pro (pipeline): hace los seis papeles en orden", async (nav) => {
   // El panel «cómo lo va haciendo» muestra un paso por papel: base, completar, revisar, buscar errores, corregir y
   // calidad máxima, en ese orden.

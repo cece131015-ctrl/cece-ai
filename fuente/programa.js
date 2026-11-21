@@ -4139,8 +4139,13 @@ function planPro(partes) {
     // Los papeles se cuentan desde el final: «Calidad máxima» (el último) va siempre a la parte más adecuada (la última
     // tras ordenarRelevo). Antes era idx % n y, con 4 o 5 modelos, el final caía en el menos adecuado (5 % 5 = 0).
     paso = (c) => ({ rol: ROLES_PRO.find((r) => r.clave === c), parte: partes[(((pos(c) - papeles.length) % n) + n) % n] });
-  const plan = papeles.map(paso);
-  for (let v = 0; v < MAX_REV_PRO; v++) plan.push(paso("buscar"), paso("corregir"));
+  // Buscar y corregir se alternan entre los modelos: cada vuelta usa otra pareja. Los revisores van por idoneidad para
+  // la tarea (la más adecuada primero, como ya calcula ordenarRelevo con imágenes, PDF o código). Antes, en cada vuelta
+  // buscaba y corregía siempre el mismo modelo.
+  const rev = [...partes].sort((x, y) => (y.idoneidad || 0) - (x.idoneidad || 0)),
+    revision = (c, k) => ({ rol: ROLES_PRO.find((r) => r.clave === c), parte: rev[(c === "buscar" ? 2 * k : 2 * k + 1) % n] }),
+    plan = papeles.map((c) => (c === "buscar" || c === "corregir" ? revision(c, 0) : paso(c)));
+  for (let v = 1; v <= MAX_REV_PRO; v++) plan.push(revision("buscar", v), revision("corregir", v));
   return plan;
 }
 function mesaArchivos(o) {

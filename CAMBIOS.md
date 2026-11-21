@@ -1,5 +1,12 @@
 # Informe de depuración
 
+## 21 de noviembre de 2026 — Cece Pro: buscar y corregir se alternan
+
+- En el relevo de Cece Pro, «Buscar errores» y «Corregir» ya no van siempre al mismo modelo. Cada vuelta usa otra pareja,
+  y los revisores se ordenan según la tarea (los que mejor encajan con imágenes, PDF o código van primero).
+- Prueba nueva: con errores en todas las vueltas, cada buscar va a un modelo distinto del anterior. Con la versión
+  anterior, buscaba siempre el mismo. Batería completa: 102 de 102.
+
 ## 21 de noviembre de 2026 — Cece Pro sin claves, claves rechazadas e IDs de modelo
 
 - **Sin ninguna clave, Cece Pro para al empezar.** Antes lanzaba los 13 pasos del relevo y todos decían «HTTP 401»
