@@ -1170,6 +1170,37 @@ prueba("Cece Pro: Gemini 4 Neon es una séptima parte con su paso «Segunda opin
   await ctx.close();
 });
 
+prueba("Cece Pro: buscar y corregir recorren todos los modelos en orden (ninguno repetido seguido)", async (nav) => {
+  const { pagina, errores, ctx } = await nuevaPagina(nav, conClaves({}));
+  const orden = await pagina.evaluate(() => {
+    const salida = {};
+    for (const n of [4, 5, 6, 7]) {
+      const partes = Array.from({ length: n }, (_, i) => ({ id: "p" + i, nom: "M" + i, idoneidad: 0, peso: 10 + i }));
+      const plan = planPro(partes);
+      // solo buscar y corregir, en el orden en que se ejecutan
+      salida[n] = plan.filter((p) => /^(buscar|corregir)$/.test(p.rol.clave)).map((p) => p.parte.id);
+    }
+    return salida;
+  });
+  for (const n of [4, 5, 6, 7]) {
+    const seq = orden[n];
+    // la vuelta de revisión recorre los n modelos en círculo: p0 p1 … p(n-1) p0 …
+    igual(seq.join(","), seq.map((_, i) => "p" + (i % n)).join(","), `orden con ${n} partes: ${seq.join(" ")}`);
+    cierto(seq.every((x, i) => i === 0 || x !== seq[i - 1]), `un modelo repetido seguido con ${n} partes`);
+  }
+  // y lo que más pesa: la tarea manda el orden (los más adecuados van primero), sin cambiar el reparto de las demás partes
+  const porTarea = await pagina.evaluate(() => {
+    const partes = [
+      { id: "a", nom: "A", idoneidad: 0, peso: 10 },
+      { id: "b", nom: "B", idoneidad: 3, peso: 10 },
+    ];
+    return planPro(partes).filter((p) => /^(buscar|corregir)$/.test(p.rol.clave)).map((p) => p.parte.id).slice(0, 2).join(",");
+  });
+  igual(porTarea, "b,a", "la idoneidad para la tarea no manda el orden de revisión");
+  igual(errores.length, 0, "errores: " + errores.join(" | "));
+  await ctx.close();
+});
+
 prueba("Cece Pro: buscar y corregir se alternan entre modelos en cada vuelta (no siempre el mismo)", async (nav) => {
   // Con errores en todas las vueltas, el bucle da 4 pasadas de buscar→corregir: cada buscar tiene que ir a otro modelo
   // que el anterior, y deben intervenir varios modelos.

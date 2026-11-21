@@ -1,5 +1,11 @@
 # Informe de depuración
 
+## 21 de noviembre de 2026 — Cece Pro: orden de buscar y corregir entre todos los modelos
+
+- Buscar errores y corregir recorren todos los modelos del equipo en círculo, sin repetir uno seguido. El orden de los
+  revisores depende de la tarea (los más adecuados primero). Se fija con una prueba para 4, 5, 6 y 7 partes.
+- Límite conocido: si el primer «Buscar errores» dice que no hay errores, no hay más vueltas y solo revisan dos modelos.
+
 ## 21 de noviembre de 2026 — Cece Pro: buscar y corregir se alternan
 
 - En el relevo de Cece Pro, «Buscar errores» y «Corregir» ya no van siempre al mismo modelo. Cada vuelta usa otra pareja,
